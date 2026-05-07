@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+html, body {
+  height: 100%;
+}
+
+html {
+  font-size: 17px;
+}
+
+body {
+  @apply bg-gray-100 text-gray-900;
+}
+
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modal-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-modal-enter {
+  animation: modal-enter 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}

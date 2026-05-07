@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  db:
+    image: docker.io/library/mariadb:11
+    container_name: mariadb-dev
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: user
+
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db:/var/lib/mysql:Z
+
+  adminer:
+    image: docker.io/library/adminer:latest
+    container_name: adminer-dev
+    restart: unless-stopped
+
+    ports:
+      - "9000:8080"
+
+    depends_on:
+      - db

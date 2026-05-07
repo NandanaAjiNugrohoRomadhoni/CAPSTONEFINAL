@@ -1,0 +1,900 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Capstone Menu Management API",
+    "version": "1.0.0",
+    "description": "OpenAPI import file for Requestly focused on auth, menu makanan, paket menu, and kalender menu endpoints used by the frontend."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8081/api/v1",
+      "description": "Local development API"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Dishes"
+    },
+    {
+      "name": "Dish Compositions"
+    },
+    {
+      "name": "Menus"
+    },
+    {
+      "name": "Menu Dishes"
+    },
+    {
+      "name": "Menu Schedules"
+    },
+    {
+      "name": "Menu Calendar"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "admin"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expires_in": {
+            "type": "integer"
+          }
+        }
+      },
+      "Dish": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "name": {
+            "type": "string",
+            "example": "Bubur Ayam"
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "updated_at": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DishRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Chicken Katsu Test"
+          }
+        }
+      },
+      "ItemSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Beras"
+          },
+          "unit_base": {
+            "type": "string",
+            "example": "gram"
+          },
+          "is_active": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "DishComposition": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "dish_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "item_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "qty_per_patient": {
+            "type": "string",
+            "example": "100.00"
+          },
+          "dish": {
+            "$ref": "#/components/schemas/Dish"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ItemSummary"
+          }
+        }
+      },
+      "DishCompositionRequest": {
+        "type": "object",
+        "required": [
+          "dish_id",
+          "item_id",
+          "qty_per_patient"
+        ],
+        "properties": {
+          "dish_id": {
+            "type": "integer",
+            "example": 34
+          },
+          "item_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "qty_per_patient": {
+            "type": "string",
+            "example": "30"
+          }
+        }
+      },
+      "PaginatedMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "perPage": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          },
+          "paginated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PaginationLinks": {
+        "type": "object",
+        "properties": {
+          "self": {
+            "type": "string"
+          },
+          "first": {
+            "type": "string"
+          },
+          "last": {
+            "type": "string"
+          },
+          "next": {
+            "type": "string",
+            "nullable": true
+          },
+          "previous": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PaginatedDishResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dish"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginatedMeta"
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          }
+        }
+      },
+      "PaginatedDishCompositionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DishComposition"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginatedMeta"
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          }
+        }
+      },
+      "MenuPackage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Paket 1"
+          }
+        }
+      },
+      "MealTimeSlot": {
+        "type": "object",
+        "properties": {
+          "meal_time_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "meal_time_name": {
+            "type": "string",
+            "example": "Pagi"
+          },
+          "menu_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "dish_id": {
+            "type": "integer",
+            "nullable": true,
+            "example": 34
+          },
+          "dish_name": {
+            "type": "string",
+            "nullable": true,
+            "example": "Chicken Katsu Test Updated"
+          }
+        }
+      },
+      "MenuSlotAssignRequest": {
+        "type": "object",
+        "required": [
+          "menu_id",
+          "meal_time_id",
+          "dish_id"
+        ],
+        "properties": {
+          "menu_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "meal_time_id": {
+            "type": "integer",
+            "example": 1,
+            "description": "Use the existing meal-time id for Pagi/Siang/Sore."
+          },
+          "dish_id": {
+            "type": "integer",
+            "example": 34
+          }
+        }
+      },
+      "MenuScheduleRequest": {
+        "type": "object",
+        "required": [
+          "menu_id",
+          "date"
+        ],
+        "properties": {
+          "menu_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-04-19"
+          }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Validation failed."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login and get access token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dishes": {
+      "get": {
+        "tags": [
+          "Dishes"
+        ],
+        "summary": "List menu makanan",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dish list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedDishResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Dishes"
+        ],
+        "summary": "Create menu makanan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dish created"
+          },
+          "201": {
+            "description": "Dish created"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dishes/{id}": {
+      "put": {
+        "tags": [
+          "Dishes"
+        ],
+        "summary": "Update menu makanan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dish updated"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Dishes"
+        ],
+        "summary": "Delete menu makanan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dish deleted"
+          }
+        }
+      }
+    },
+    "/dish-compositions": {
+      "get": {
+        "tags": [
+          "Dish Compositions"
+        ],
+        "summary": "List dish compositions",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "dish_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dish composition list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedDishCompositionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Dish Compositions"
+        ],
+        "summary": "Create dish composition",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DishCompositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dish composition created"
+          },
+          "201": {
+            "description": "Dish composition created"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dish-compositions/{id}": {
+      "put": {
+        "tags": [
+          "Dish Compositions"
+        ],
+        "summary": "Update dish composition",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DishCompositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dish composition updated"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Dish Compositions"
+        ],
+        "summary": "Delete dish composition",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dish composition deleted"
+          }
+        }
+      }
+    },
+    "/menus": {
+      "get": {
+        "tags": [
+          "Menus"
+        ],
+        "summary": "List paket menu",
+        "responses": {
+          "200": {
+            "description": "Menu package list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MenuPackage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/menu-dishes": {
+      "get": {
+        "tags": [
+          "Menu Dishes"
+        ],
+        "summary": "List paket menu slot assignments",
+        "responses": {
+          "200": {
+            "description": "Menu slot assignments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MealTimeSlot"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Menu Dishes"
+        ],
+        "summary": "Assign a dish to an existing paket menu slot",
+        "description": "This only works when the (menu_id, meal_time_id) combination is still empty. Backend currently rejects duplicates.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenuSlotAssignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slot assigned"
+          },
+          "201": {
+            "description": "Slot assigned"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/menu-schedules": {
+      "get": {
+        "tags": [
+          "Menu Schedules"
+        ],
+        "summary": "List menu schedules",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "2026-04"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule list"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Menu Schedules"
+        ],
+        "summary": "Create menu schedule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenuScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Schedule created"
+          },
+          "201": {
+            "description": "Schedule created"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/menu-schedules/{id}": {
+      "put": {
+        "tags": [
+          "Menu Schedules"
+        ],
+        "summary": "Update menu schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenuScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Schedule updated"
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/menu-calendar": {
+      "get": {
+        "tags": [
+          "Menu Calendar"
+        ],
+        "summary": "Get menu calendar projection",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "2026-04"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calendar projection"
+          }
+        }
+      }
+    }
+  }
+}
