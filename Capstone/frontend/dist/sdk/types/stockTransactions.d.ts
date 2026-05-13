@@ -61,6 +61,7 @@ export interface ListStockTransactionsQuery {
     sortDir?: "ASC" | "DESC";
     type_id?: number;
     status_id?: number;
+    is_revision?: boolean;
     transaction_date_from?: string;
     transaction_date_to?: string;
     created_at_from?: string;
