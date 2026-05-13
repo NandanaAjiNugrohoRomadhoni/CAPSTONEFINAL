@@ -10,6 +10,7 @@ type SearchableItemSelectProps = {
   onChange: (itemId: number | null, unit?: string) => void;
   className?: string;
   displayValue?: string;
+  disabled?: boolean;
 };
 
 export default function SearchableItemSelect({
@@ -19,6 +20,7 @@ export default function SearchableItemSelect({
   onChange,
   className = "",
   displayValue = "",
+  disabled = false,
 }: Readonly<SearchableItemSelectProps>) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = useMemo(() => options.find((option) => option.id === value) ?? null, [options, value]);
@@ -53,6 +55,7 @@ export default function SearchableItemSelect({
         <input
           value={open ? query : (selectedOption?.label ?? displayValue ?? query)}
           onChange={(event) => {
+            if (disabled) return;
             const nextValue = event.target.value;
             setQuery(nextValue);
             setOpen(true);
@@ -61,24 +64,28 @@ export default function SearchableItemSelect({
             }
           }}
           onFocus={() => {
+            if (disabled) return;
             setQuery(selectedOption?.label ?? displayValue ?? "");
             setOpen(true);
           }}
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
+          disabled={disabled}
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 text-sm text-slate-700 outline-none transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
           placeholder={placeholder}
         />
         <button
-          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100"
-          onClick={() =>
+          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          onClick={() => {
+            if (disabled) return;
             setOpen((current) => {
               const next = !current;
               if (next) {
                 setQuery(selectedOption?.label ?? displayValue ?? "");
               }
               return next;
-            })
-          }
+            });
+          }}
           type="button"
+          disabled={disabled}
         >
           <ChevronDown size={16} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
         </button>

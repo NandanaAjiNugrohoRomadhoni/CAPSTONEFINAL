@@ -338,17 +338,14 @@ export default function PackagesManagerPage() {
   async function loadPackages() {
     setLoading(true);
     try {
-      const menusResponse = await sdk.menus.list();
-      const initialPackages = (menusResponse.data ?? [])
-        .sort((left, right) => left.id - right.id)
-        .map((menu) => ({
-          id: menu.id,
-          title: menu.name,
-          active: menu.id === 2,
-          meals: { siang: null, sore: null, pagi: null },
-        }));
-
-      setPackages(initialPackages);
+      const [menusResponse, slotsResponse] = await Promise.all([
+        sdk.menus.list(),
+        sdk.menus.slots(),
+      ]);
+      const menusData = menusResponse.data ?? [];
+      const slotsData = slotsResponse.data ?? [];
+      setMenuSlots(slotsData);
+      setPackages(buildPackageCards(menusData, slotsData));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat data paket menu."));
     } finally {
@@ -570,7 +567,7 @@ export default function PackagesManagerPage() {
 
       await Promise.all(requests);
 
-      await loadPackages();
+      await Promise.all([loadPackages(), loadSlots()]);
       router.refresh();
 
       setSuccessState({

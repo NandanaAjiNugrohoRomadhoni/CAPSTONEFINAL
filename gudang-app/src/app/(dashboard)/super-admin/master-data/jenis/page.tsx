@@ -184,7 +184,7 @@ export default function JenisBahanPage() {
       const deletedName = selectedItem.name;
       const itemsResponse = await sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC" });
       const usedByItems = (itemsResponse.data ?? []).some(
-        (item) => Number(item.category_id) === Number(selectedItem.id),
+        (item) => Number(item.item_category_id ?? item.category?.id) === Number(selectedItem.id),
       );
 
       if (usedByItems) {

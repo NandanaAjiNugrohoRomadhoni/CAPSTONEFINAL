@@ -55,7 +55,9 @@ export default function Page() {
     setGenerating(true);
     setError(null);
     try {
-      const generated = await sdk.spk.generateBasah({ service_date: serviceDate });
+      const generated = await sdk.spk.generateBasah({
+        service_date: serviceDate,
+      } as Parameters<typeof sdk.spk.generateBasah>[0]);
       const detail = await sdk.spk.getBasah(generated.data.id);
       setRows(detail.data.items ?? []);
       setSpkMeta({

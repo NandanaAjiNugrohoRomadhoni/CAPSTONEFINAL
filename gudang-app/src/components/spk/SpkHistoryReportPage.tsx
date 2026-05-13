@@ -184,8 +184,8 @@ function SpkDetailModal({
   const typeLabel = detailState.type === "BASAH" ? "BASAH" : "KERING & PENGEMAS";
   const targetLabel =
     detailState.type === "BASAH"
-      ? detail.print_ready.target_dates.map((date) => formatDate(date)).join(" / ")
-      : detail.print_ready.target_month ?? "-";
+      ? detailState.detail.print_ready.target_dates.map((date) => formatDate(date)).join(" / ")
+      : detailState.detail.print_ready.target_month ?? "-";
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-6">

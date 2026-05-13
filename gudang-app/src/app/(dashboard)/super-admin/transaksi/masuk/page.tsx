@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import { PrimaryAction } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
@@ -205,9 +206,9 @@ export default function BarangMasukPage() {
     } catch (prefillError) {
       openAlert(
         setAlertState,
-        "Prefill Gagal",
+        "Isi Otomatis Gagal",
         "Data SPK belum bisa dimasukkan ke tabel",
-        getErrorMessage(prefillError, "Gagal mengambil data prefill dari SPK."),
+        getErrorMessage(prefillError, "Gagal mengambil data Isi Otomatis dari SPK."),
       );
     } finally {
       setLoadingPrefill(false);
@@ -262,6 +263,7 @@ export default function BarangMasukPage() {
         spk_id: selectedSpkId,
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);
       setSuccessOpen(true);
@@ -287,7 +289,7 @@ export default function BarangMasukPage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Barang Masuk</h1>
           <p className="text-sm text-gray-400">
-            Barang masuk dibagi per kategori bahan. Prefill rekomendasi SPK tersedia langsung dari form aktif.
+            Barang masuk dibagi per kategori bahan. Isi Otomatis rekomendasi SPK tersedia langsung dari form aktif.
           </p>
         </div>
 
@@ -340,7 +342,7 @@ export default function BarangMasukPage() {
                 onClick={openPrefillModal}
                 type="button"
               >
-                Prefill via SPK
+                Isi Otomatis via SPK
               </button>
             </div>
           </div>
@@ -658,7 +660,7 @@ function SelectSpkModal({
       <div className="relative w-full max-w-[420px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 className="text-[22px] font-semibold leading-none text-slate-900">Prefill via SPK</h2>
+            <h2 className="text-[22px] font-semibold leading-none text-slate-900">Isi Otomatis via SPK</h2>
             <p className="mt-2 text-sm text-slate-400">
               Pilih ID SPK {activeTab === "basah" ? "basah" : "kering & pengemas"} yang sudah di-generate.
             </p>

@@ -82,6 +82,29 @@ export function normaliseMealLabel(value?: string | null) {
 
 export function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === "object") {
+    const maybeBody = "body" in error ? error.body : undefined;
+
+    if (maybeBody && typeof maybeBody === "object") {
+      const bodyErrors = "errors" in maybeBody ? maybeBody.errors : undefined;
+      if (bodyErrors && typeof bodyErrors === "object") {
+        const messages = Object.values(bodyErrors)
+          .flatMap((value) => {
+            if (Array.isArray(value)) return value;
+            return [value];
+          })
+          .filter((value): value is string => typeof value === "string" && value.trim() !== "");
+
+        if (messages.length > 0) {
+          return messages.join(" ");
+        }
+      }
+
+      const bodyMessage = "message" in maybeBody ? maybeBody.message : undefined;
+      if (typeof bodyMessage === "string" && bodyMessage.trim() !== "") {
+        return bodyMessage;
+      }
+    }
+
     const maybeErrors = "errors" in error ? error.errors : undefined;
     if (maybeErrors && typeof maybeErrors === "object") {
       const messages = Object.values(maybeErrors)

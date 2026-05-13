@@ -33,6 +33,7 @@ type FoodMenu = {
 type ModalMode = "create" | "detail" | "edit" | "delete" | null;
 
 type SuccessState = {
+  title?: string;
   headline: string;
   message: string;
 } | null;
@@ -572,6 +573,27 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     const previousMenus = menus;
     setMenus((current) => current.filter((menu) => menu.id !== selectedMenu.id));
     try {
+      const slotsResponse = await sdk.menus.slots();
+      const linkedPackages = Array.from(
+        new Set(
+          (slotsResponse.data ?? [])
+            .filter((slot) => Number(slot.dish_id) === Number(selectedMenu.id))
+            .map((slot) => slot.menu?.name)
+            .filter((name): name is string => Boolean(name)),
+        ),
+      );
+
+      if (linkedPackages.length > 0) {
+        setMenus(previousMenus);
+        setSuccessState({
+          title: "Informasi",
+          headline: "Menu Tidak Bisa Dihapus",
+          message: `Menu tidak bisa dihapus karena masih bagian dari paket menu ${linkedPackages.join(", ")}.`,
+        });
+        closeModal();
+        return;
+      }
+
       for (const ingredient of selectedMenu.ingredients) {
         if (ingredient.compositionId) {
           await sdk.dishCompositions.delete(ingredient.compositionId);
@@ -949,7 +971,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
       <SuccessModal
         open={successState !== null}
-        title="Berhasil"
+        title={successState?.title ?? "Berhasil"}
         headline={successState?.headline ?? ""}
         message={successState?.message ?? ""}
         onClose={() => setSuccessState(null)}

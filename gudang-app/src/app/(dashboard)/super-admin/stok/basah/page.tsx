@@ -93,7 +93,7 @@ export default function Page() {
 
     const itemResponse = await sdk.items.list(params);
     setItems(itemResponse.data ?? []);
-    setTotalRecords(itemResponse.summary?.total_rows ?? itemResponse.data?.length ?? 0);
+    setTotalRecords(itemResponse.meta?.total ?? itemResponse.data?.length ?? 0);
   }, [currentPage, searchTerm, categoryFilter, statusFilter, categories]);
 
   async function ensureAuxiliaryData() {

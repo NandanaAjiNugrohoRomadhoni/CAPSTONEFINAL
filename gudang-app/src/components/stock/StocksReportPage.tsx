@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
-import { formatNumber, formatQuantity, getCurrentMonthPeriod, getErrorMessage, getStockTone } from "@/lib/admin-utils";
+import {
+  formatNumber,
+  formatQuantity,
+  getCurrentMonthPeriod,
+  getErrorMessage,
+  getStockTone,
+} from "@/lib/admin-utils";
 import {
   AdminPageHeading,
   ExportButton,
@@ -13,25 +19,8 @@ import {
   SurfaceCard,
 } from "@/components/admin/ui";
 
-type StockReportRow = {
-  item_id: number;
-  item_name: string;
-  category_name: string;
-  qty: number;
-  qty_current?: number;
-  unit_base: string;
-  minimum_stock?: number | string | null;
-  conversion_base?: number | string | null;
-  category?: string | null;
-  item?: {
-    id?: number;
-    name?: string;
-    unit_base?: string;
-    category?: {
-      name?: string | null;
-    };
-  } | null;
-};
+type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
+type StockReportRow = Awaited<ReturnType<typeof sdk.reports.getStocks>>["data"]["rows"][number];
 
 type StockTableRow = {
   idLabel: string;
@@ -76,8 +65,47 @@ const statCards = [
   },
 ] as const;
 
+async function loadAllStockItems() {
+  const allItems: ItemRecord[] = [];
+  let page = 1;
+
+  while (page <= 20) {
+    const response = await sdk.items.list({
+      page,
+      perPage: 100,
+      sortBy: "id",
+      sortDir: "ASC",
+    });
+    const chunk = response.data ?? [];
+    allItems.push(...chunk);
+
+    if (chunk.length < 100) break;
+    page += 1;
+  }
+
+  return allItems;
+}
+
+function firstString(row: StockReportRow, keys: string[], fallback = "-") {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return fallback;
+}
+
+function firstNumber(row: StockReportRow, keys: string[], fallback = 0) {
+  for (const key of keys) {
+    const value = Number(row[key] ?? NaN);
+    if (Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
 export default function StocksReportPage() {
-  const [rows, setRows] = useState<StockReportRow[]>([]);
+  const [items, setItems] = useState<ItemRecord[]>([]);
+  const [reportRows, setReportRows] = useState<StockReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,12 +121,20 @@ export default function StocksReportPage() {
       setError(null);
 
       try {
-        const response = await sdk.reports.getStocks(getCurrentMonthPeriod());
+        const response = await loadAllStockItems();
         if (cancelled) return;
-        setRows((response.data.rows as StockReportRow[]) ?? []);
+        setItems(response);
+        setReportRows([]);
       } catch (loadError) {
-        if (!cancelled) {
-          setError(getErrorMessage(loadError, "Gagal memuat laporan stok."));
+        try {
+          const reportResponse = await sdk.reports.getStocks(getCurrentMonthPeriod());
+          if (cancelled) return;
+          setItems([]);
+          setReportRows(reportResponse.data.rows ?? []);
+        } catch (reportError) {
+          if (!cancelled) {
+            setError(getErrorMessage(reportError, getErrorMessage(loadError, "Gagal memuat stok bahan.")));
+          }
         }
       } finally {
         if (!cancelled) {
@@ -115,32 +151,51 @@ export default function StocksReportPage() {
   }, []);
 
   const tableRows = useMemo<StockTableRow[]>(() => {
-    return rows.map((row) => {
-      const qty = Number(row.qty_current ?? row.qty ?? 0);
-      const minimumQty = Number(row.minimum_stock ?? row.conversion_base ?? 1) || 1;
+    if (items.length > 0) {
+      return items.map((item) => {
+        const qty = Number(item.qty ?? 0);
+        const minimumQty = Number(item.conversion_base ?? 0) || 1;
+        const stock = getStockTone(qty, minimumQty);
+        const categoryName = item.category?.name ?? "-";
+        const itemName = item.name ?? `Item ${item.id}`;
+        const unitBase = item.unit_base ?? "";
+
+        return {
+          idLabel: `BR-${String(item.id).padStart(4, "0")}`,
+          itemId: item.id,
+          itemName,
+          categoryName,
+          qty,
+          qtyLabel: formatQuantity(qty, unitBase),
+          minimumQty,
+          minimumLabel: formatQuantity(minimumQty, unitBase),
+          tone: stock.tone,
+          label: stock.label,
+        };
+      });
+    }
+
+    return reportRows.map((row, index) => {
+      const itemId = firstNumber(row, ["item_id", "id"], index + 1);
+      const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
+      const minimumQty = firstNumber(row, ["minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1) || 1;
+      const unit = firstString(row, ["unit", "satuan", "unit_base"], "");
       const stock = getStockTone(qty, minimumQty);
-      const categoryName =
-        row.category_name ??
-        row.category ??
-        row.item?.category?.name ??
-        "-";
-      const itemName = row.item_name ?? row.item?.name ?? `Item ${row.item_id}`;
-      const unitBase = row.unit_base ?? row.item?.unit_base ?? "";
 
       return {
-        idLabel: `BR-${String(row.item_id).padStart(4, "0")}`,
-        itemId: row.item_id,
-        itemName,
-        categoryName,
+        idLabel: `BR-${String(itemId).padStart(4, "0")}`,
+        itemId,
+        itemName: firstString(row, ["item_name", "name", "nama_bahan"], `Item ${itemId}`),
+        categoryName: firstString(row, ["category_name", "jenis_bahan", "kategori_bahan"]),
         qty,
-        qtyLabel: formatQuantity(qty, unitBase),
+        qtyLabel: formatQuantity(qty, unit),
         minimumQty,
-        minimumLabel: formatQuantity(minimumQty, unitBase),
+        minimumLabel: formatQuantity(minimumQty, unit),
         tone: stock.tone,
         label: stock.label,
       };
     });
-  }, [rows]);
+  }, [items, reportRows]);
 
   const categoryOptions = useMemo(
     () =>
@@ -222,7 +277,7 @@ export default function StocksReportPage() {
     const url = window.URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = `stok-bahan-gizi-${getCurrentMonthPeriod().period_end}.csv`;
+    link.download = "stok-bahan.csv";
     link.click();
     window.URL.revokeObjectURL(url);
   }

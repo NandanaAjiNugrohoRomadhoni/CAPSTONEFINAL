@@ -23,6 +23,7 @@ import {
   clearStockAdjustmentNotifications,
   listStockAdjustmentNotifications,
   markAllStockAdjustmentNotificationsRead,
+  markStockAdjustmentNotificationRead,
   subscribeStockAdjustmentNotifications,
   resolveNotificationRole,
   type StockAdjustmentNotification,
@@ -222,10 +223,13 @@ export default function Navbar({
   function getNotificationAccent(kind: string) {
     switch (kind) {
       case "stock-adjustment-approved":
+      case "stock-revision-approved":
         return "bg-[#22C55E]";
       case "stock-adjustment-rejected":
+      case "stock-revision-rejected":
         return "bg-[#EF4444]";
       case "stock-adjustment-submitted":
+      case "stock-revision-submitted":
         return "bg-[#2563EB]";
       case "minimum-stock":
         return "bg-[#F59E0B]";
@@ -237,18 +241,21 @@ export default function Navbar({
   function getNotificationVisual(kind: string) {
     switch (kind) {
       case "stock-adjustment-approved":
+      case "stock-revision-approved":
         return {
           Icon: CheckCircle2,
           avatarClass: "bg-[#ECFDF3] text-[#16A34A]",
           dotClass: "bg-[#22C55E]",
         };
       case "stock-adjustment-rejected":
+      case "stock-revision-rejected":
         return {
           Icon: XCircle,
           avatarClass: "bg-[#FEF2F2] text-[#DC2626]",
           dotClass: "bg-[#EF4444]",
         };
       case "stock-adjustment-submitted":
+      case "stock-revision-submitted":
         return {
           Icon: Clock3,
           avatarClass: "bg-[#EEF4FF] text-[#2155CD]",
@@ -350,9 +357,14 @@ export default function Navbar({
                         className="flex w-full items-start gap-3 border-b border-[#E2E8F0] px-5 py-4 text-left transition hover:bg-[#F8FAFC]"
                         onClick={() => {
                           setOpenNotif(false);
-                          if (notification.route) {
-                            router.push(notification.route);
-                          }
+                          void markStockAdjustmentNotificationRead(notification.id)
+                            .catch(() => undefined)
+                            .finally(() => {
+                              void loadNotifications();
+                              if (notification.route) {
+                                router.push(notification.route);
+                              }
+                            });
                         }}
                         type="button"
                       >

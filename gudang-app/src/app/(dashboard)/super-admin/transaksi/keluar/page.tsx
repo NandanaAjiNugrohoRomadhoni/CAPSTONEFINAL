@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
 type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
@@ -287,6 +288,7 @@ export default function BarangKeluarPage() {
         transaction_date: serviceDate,
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);
       const nextSavedRecommendation = savedRecommendation
@@ -341,6 +343,7 @@ export default function BarangKeluarPage() {
         transaction_date: new Date().toISOString().slice(0, 10),
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setSuccessState({
         headline: "Barang keluar berhasil disimpan",

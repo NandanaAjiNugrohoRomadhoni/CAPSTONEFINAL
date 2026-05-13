@@ -219,9 +219,9 @@ export default function GudangDashboardPage() {
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="text-sm text-gray-700">
-                {todayOutRows.map((row) => (
-                  <tr key={row.id} className="border-t border-gray-200">
+                <tbody className="text-sm text-gray-700">
+                  {todayOutRows.map((row, index) => (
+                    <tr key={`${row.id}-${index}`} className="border-t border-gray-200">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{row.itemName}</p>
                       <p className="text-xs text-[#94A3B8]">{row.category}</p>

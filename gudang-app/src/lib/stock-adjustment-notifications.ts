@@ -12,6 +12,7 @@ export type NotificationKind =
   | "stock-revision-submitted"
   | "stock-revision-approved"
   | "stock-revision-rejected"
+  | "stock-transaction-created"
   | "generic";
 
 export type StockAdjustmentNotification = {
@@ -55,20 +56,36 @@ function inferNotificationKind(notification: BackendNotification): NotificationK
   }
 
   if (notification.type === "STOCK_OPNAME") {
-    if (haystack.includes("disetujui")) return "stock-adjustment-approved";
-    if (haystack.includes("ditolak")) return "stock-adjustment-rejected";
-    if (haystack.includes("diajukan") || haystack.includes("verifikasi")) {
+    if (haystack.includes("disetujui") || haystack.includes("approved")) return "stock-adjustment-approved";
+    if (haystack.includes("ditolak") || haystack.includes("rejected")) return "stock-adjustment-rejected";
+    if (
+      haystack.includes("diajukan") ||
+      haystack.includes("verifikasi") ||
+      haystack.includes("menunggu") ||
+      haystack.includes("pending") ||
+      haystack.includes("submitted")
+    ) {
       return "stock-adjustment-submitted";
     }
     return "stock-adjustment-created";
   }
 
   if (notification.type === "STOCK_REVISION") {
-    if (haystack.includes("disetujui")) return "stock-revision-approved";
-    if (haystack.includes("ditolak")) return "stock-revision-rejected";
-    if (haystack.includes("diajukan") || haystack.includes("verifikasi")) {
+    if (haystack.includes("disetujui") || haystack.includes("approved")) return "stock-revision-approved";
+    if (haystack.includes("ditolak") || haystack.includes("rejected")) return "stock-revision-rejected";
+    if (
+      haystack.includes("diajukan") ||
+      haystack.includes("verifikasi") ||
+      haystack.includes("menunggu") ||
+      haystack.includes("pending") ||
+      haystack.includes("submitted")
+    ) {
       return "stock-revision-submitted";
     }
+  }
+
+  if (notification.type === "STOCK_TRANSACTION") {
+    return "stock-transaction-created";
   }
 
   return "generic";
@@ -104,12 +121,19 @@ function inferNotificationRoute(
 
   if (notification.type === "STOCK_REVISION") {
     if (currentRole === "admin") {
-      return "/super-admin/transaksi/riwayat";
+      return inferNotificationKind(notification) === "stock-revision-submitted"
+        ? "/super-admin/transaksi/pengajuan-revisi"
+        : "/super-admin/transaksi/riwayat";
     }
 
     if (currentRole === "gudang") {
       return "/gudang/transaksi/riwayat";
     }
+  }
+
+  if (notification.type === "STOCK_TRANSACTION") {
+    if (currentRole === "admin") return "/super-admin/transaksi/riwayat";
+    if (currentRole === "gudang") return "/gudang/transaksi/riwayat";
   }
 
   return undefined;
@@ -148,6 +172,10 @@ export async function listStockAdjustmentNotifications(
 
 export async function markAllStockAdjustmentNotificationsRead() {
   await sdk.notifications.markAllAsRead();
+}
+
+export async function markStockAdjustmentNotificationRead(id: string | number) {
+  await sdk.notifications.markAsRead(Number(id));
 }
 
 export async function clearStockAdjustmentNotifications() {

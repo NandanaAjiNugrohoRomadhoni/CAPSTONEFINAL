@@ -44,6 +44,7 @@ type RevisionRow = {
   input_unit: "base" | "convert";
   item_name: string;
   category_name: string;
+  isPersisted: boolean;
 };
 type DerivedRow = {
   transaction: TransactionRow;
@@ -58,9 +59,15 @@ function normalizeTransactionId(value: unknown): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function pickLatestTransactionByParent(rows: TransactionRow[]): TransactionRow[] {
+function isApprovedRevision(row: TransactionRow, statusMap: Map<number, string>) {
+  if (!row.is_revision) return true;
+  const statusName = (statusMap.get(row.approval_status_id) ?? "").toLowerCase();
+  return row.approval_status_id === 1 || statusName.includes("approved") || statusName.includes("disetujui");
+}
+
+function pickLatestTransactionByParent(rows: TransactionRow[], statusMap: Map<number, string>): TransactionRow[] {
   const byParent = new Map<number, TransactionRow>();
-  for (const row of rows) {
+  for (const row of rows.filter((transaction) => isApprovedRevision(transaction, statusMap))) {
     const parentId =
       normalizeTransactionId(row.parent_transaction_id) || normalizeTransactionId(row.id);
     const existing = byParent.get(parentId);
@@ -78,6 +85,19 @@ function pickLatestTransactionByParent(rows: TransactionRow[]): TransactionRow[]
 }
 
 const PAGE_SIZE = 8;
+
+async function loadAllItemsSortedByName(): Promise<ItemRow[]> {
+  const allItems: ItemRow[] = [];
+  let page = 1;
+  while (page <= 20) {
+    const response = await sdk.items.list({ page, perPage: 100, sortBy: "name", sortDir: "ASC" });
+    const chunk = response.data ?? [];
+    allItems.push(...chunk);
+    if (chunk.length < 100) break;
+    page += 1;
+  }
+  return allItems;
+}
 
 export default function Page() {
   const router = useRouter();
@@ -129,11 +149,11 @@ export default function Page() {
     async function loadMetadata() {
       try {
         const [itemResponse, usersResponse] = await Promise.all([
-          sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC" }),
+          loadAllItemsSortedByName(),
           sdk.users.list({ perPage: 100, sortBy: "created_at", sortDir: "DESC" }),
         ]);
         if (cancelled) return;
-        setItems(itemResponse.data ?? []);
+        setItems(itemResponse ?? []);
         setUsers(usersResponse.data ?? []);
       } catch (err) {
         console.error("Failed to load transaction metadata:", err);
@@ -156,7 +176,6 @@ export default function Page() {
           perPage: PAGE_SIZE,
           sortBy: "transaction_date",
           sortDir: "DESC",
-          is_revision: false,
         };
 
         if (search.trim()) params.search = search.trim();
@@ -171,7 +190,10 @@ export default function Page() {
 
         if (cancelled) return;
 
-        const normalizedRows = pickLatestTransactionByParent(response.data ?? []);
+        const normalizedRows = pickLatestTransactionByParent(
+          response.data ?? [],
+          new Map(statuses.map((status) => [status.id, status.name])),
+        );
         setTransactions(normalizedRows);
         setTotalRecords(normalizedRows.length);
       } catch (loadError) {
@@ -187,7 +209,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, search, selectedDate, selectedType, selectedStatus]);
+  }, [currentPage, search, selectedDate, selectedType, selectedStatus, statuses]);
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
@@ -309,6 +331,7 @@ export default function Page() {
           input_unit: detail.input_unit === "convert" ? "convert" : "base",
           item_name: resolveDetailItemName(detail, resolvedItemMap.get(detail.item_id)),
           category_name: resolveDetailItemCategory(detail, resolvedItemMap.get(detail.item_id)),
+          isPersisted: true,
         })),
       );
       setRevisionState({ transaction, details, resolvedItemMap });
@@ -328,6 +351,7 @@ export default function Page() {
         input_unit: "base",
         item_name: "",
         category_name: "",
+        isPersisted: false,
       },
     ]);
   }
@@ -374,6 +398,10 @@ export default function Page() {
       const targetTransactionId =
         normalizeTransactionId(revisionState.transaction.parent_transaction_id) ||
         normalizeTransactionId(revisionState.transaction.id);
+      console.info("[revision.submit.admin] request", {
+        targetTransactionId,
+        payload,
+      });
       const revisionResult = await sdk.stockTransactions.submitRevision(targetTransactionId, payload);
       const revisionId = revisionResult.data?.id;
       if (typeof revisionId !== "number") {
@@ -390,6 +418,7 @@ export default function Page() {
         router.push("/super-admin/transaksi/pengajuan-revisi");
       }, 1500);
     } catch (saveError) {
+      console.error("[revision.submit.admin] failed", saveError);
       setError(getErrorMessage(saveError, "Gagal mengajukan revisi transaksi."));
     } finally {
       setSavingRevision(false);
@@ -714,7 +743,11 @@ function TransactionRevisionModal({
                 {rows.map((row) => (
                   <div
                     key={row.id}
-                    className="grid grid-cols-12 items-center gap-4 rounded-2xl border border-[#E2E8F0] bg-[#FCFDFE] p-3"
+                    className={`grid grid-cols-12 items-center gap-4 rounded-2xl border p-3 ${
+                      row.isPersisted
+                        ? "border-[#BFDBFE] bg-[#EFF6FF]"
+                        : "border-[#E2E8F0] bg-[#FCFDFE]"
+                    }`}
                   >
                     <div className="col-span-5">
                       <SearchableItemSelect
@@ -729,7 +762,15 @@ function TransactionRevisionModal({
                         value={row.item_id || null}
                         displayValue={row.item_name}
                         placeholder="Cari bahan..."
+                        disabled={row.isPersisted}
+                        className={row.isPersisted ? "pointer-events-none opacity-80" : ""}
                         onChange={(itemId) => {
+                          if (row.isPersisted) return;
+                          if (!itemId) return;
+                          const duplicateExists = rows.some(
+                            (existingRow) => existingRow.id !== row.id && existingRow.item_id === itemId,
+                          );
+                          if (duplicateExists) return;
                           const item = items.find((it) => it.id === itemId);
                           updateRevisionRow(row.id, {
                             item_id: itemId || 0,
@@ -745,7 +786,7 @@ function TransactionRevisionModal({
                         }}
                       />
                       <div className="px-2 pt-2 text-[10px] uppercase tracking-wide text-slate-400">
-                        {row.category_name || "Kategori belum dipilih"}
+                        {row.category_name || "Kategori belum dipilih"} {row.isPersisted ? "• data tersimpan" : ""}
                       </div>
                     </div>
                     <div className="col-span-4">
@@ -764,9 +805,14 @@ function TransactionRevisionModal({
                     <div className="col-span-1 flex justify-end">
                       <button
                         onClick={() => removeRevisionRow(row.id)}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-400 transition hover:bg-red-100 hover:text-red-500"
+                        className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                          row.isPersisted
+                            ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300"
+                            : "border-red-100 bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500"
+                        }`}
                         title="Hapus baris"
                         type="button"
+                        disabled={row.isPersisted}
                       >
                         <Trash2 size={16} />
                       </button>

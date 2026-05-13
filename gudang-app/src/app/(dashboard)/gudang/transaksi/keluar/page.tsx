@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
 type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
@@ -223,11 +224,14 @@ export default function BarangKeluarPage() {
       setRecommendationMeta(nextMeta);
       setRecommendationPreviewOpen(true);
     } catch (validationError) {
+      const message = getErrorMessage(validationError, "Gagal menyiapkan data pengeluaran bahan basah.");
       openAlert(
         setAlertState,
         "Rekomendasi Gagal",
         "Data rekomendasi belum bisa dibuat",
-        getErrorMessage(validationError, "Gagal menyiapkan data pengeluaran bahan basah."),
+        message.toLowerCase().includes("insufficient permissions")
+          ? "Role gudang belum diberi akses backend untuk endpoint rekomendasi bahan basah. Backend perlu mengizinkan gudang pada POST /api/v1/spk/basah/operational-stock-preview agar rekomendasi bisa dihitung."
+          : message,
       );
     } finally {
       setValidating(false);
@@ -287,6 +291,7 @@ export default function BarangKeluarPage() {
         transaction_date: serviceDate,
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);
       const nextSavedRecommendation = savedRecommendation
@@ -341,6 +346,7 @@ export default function BarangKeluarPage() {
         transaction_date: new Date().toISOString().slice(0, 10),
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setSuccessState({
         headline: "Barang keluar berhasil disimpan",

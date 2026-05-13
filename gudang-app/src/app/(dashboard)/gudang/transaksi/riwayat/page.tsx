@@ -62,10 +62,15 @@ function normalizeTransactionId(value: unknown): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function pickLatestTransactionByParent(rows: TransactionRow[]): TransactionRow[] {
-  const baseRows = rows.filter((row) => row.parent_transaction_id == null);
+function isApprovedRevision(row: TransactionRow, statusMap: Map<number, string>) {
+  if (!row.is_revision) return true;
+  const statusName = (statusMap.get(row.approval_status_id) ?? "").toLowerCase();
+  return row.approval_status_id === 1 || statusName.includes("approved") || statusName.includes("disetujui");
+}
+
+function pickLatestTransactionByParent(rows: TransactionRow[], statusMap: Map<number, string>): TransactionRow[] {
   const byParent = new Map<number, TransactionRow>();
-  for (const row of baseRows) {
+  for (const row of rows.filter((transaction) => isApprovedRevision(transaction, statusMap))) {
     const parentId =
       normalizeTransactionId(row.parent_transaction_id) || normalizeTransactionId(row.id);
     const existing = byParent.get(parentId);
@@ -84,6 +89,19 @@ function pickLatestTransactionByParent(rows: TransactionRow[]): TransactionRow[]
 
 
 const PAGE_SIZE = 8;
+
+async function loadAllItemsSortedByName(): Promise<ItemRow[]> {
+  const allItems: ItemRow[] = [];
+  let page = 1;
+  while (page <= 20) {
+    const response = await sdk.items.list({ page, perPage: 100, sortBy: "name", sortDir: "ASC" });
+    const chunk = response.data ?? [];
+    allItems.push(...chunk);
+    if (chunk.length < 100) break;
+    page += 1;
+  }
+  return allItems;
+}
 
 export default function GudangTransactionHistoryPage() {
   const router = useRouter();
@@ -159,7 +177,10 @@ export default function GudangTransactionHistoryPage() {
 
         if (cancelled) return;
 
-        const normalizedRows = pickLatestTransactionByParent(response.data ?? []);
+        const normalizedRows = pickLatestTransactionByParent(
+          response.data ?? [],
+          new Map(statuses.map((status) => [status.id, status.name])),
+        );
         setTransactions(normalizedRows);
         setTotalRecords(normalizedRows.length);
       } catch (loadError) {
@@ -175,7 +196,7 @@ export default function GudangTransactionHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, search, selectedDate, selectedType, selectedStatus]);
+  }, [currentPage, search, selectedDate, selectedType, selectedStatus, statuses]);
 
   const typeMap = useMemo(() => new Map(types.map((type) => [type.id, type.name])), [types]);
   const statusMap = useMemo(() => new Map(statuses.map((status) => [status.id, status.name])), [statuses]);
@@ -302,9 +323,9 @@ export default function GudangTransactionHistoryPage() {
 
       // Muat daftar semua item untuk SearchableItemSelect (hanya sekali)
       if (!modalItemsLoaded) {
-        sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC" })
+        loadAllItemsSortedByName()
           .then((res) => {
-            setModalItems(res.data ?? []);
+            setModalItems(res ?? []);
             setModalItemsLoaded(true);
           })
           .catch(console.error);
@@ -350,11 +371,6 @@ export default function GudangTransactionHistoryPage() {
         .filter((row) => row.item_id > 0 && Number(row.qty) > 0)
         .map((row) => ({ item_id: row.item_id, qty: Number(row.qty), input_unit: row.input_unit }));
 
-      const hasInvalidPersistedQty = revisionRows.some((row) => row.isPersisted && Number(row.qty) <= 0);
-      if (hasInvalidPersistedQty) {
-        throw new Error("Data tersimpan tidak boleh diubah menjadi qty 0. Tambahkan baris baru jika perlu koreksi.");
-      }
-
       if (details.length === 0) {
         throw new Error("Minimal satu item harus memiliki jumlah lebih dari 0.");
       }
@@ -379,6 +395,10 @@ export default function GudangTransactionHistoryPage() {
         normalizeTransactionId(revisionState.transaction.parent_transaction_id) ||
         normalizeTransactionId(revisionState.transaction.id);
 
+      console.info("[revision.submit] request", {
+        targetTransactionId,
+        payload,
+      });
       await sdk.stockTransactions.submitRevision(targetTransactionId, payload);
 
       setRevisionState(null);
@@ -388,6 +408,7 @@ export default function GudangTransactionHistoryPage() {
         router.push("/gudang/transaksi/pengajuan-revisi");
       }, 1500);
     } catch (saveError) {
+      console.error("[revision.submit] failed", saveError);
       setError(getErrorMessage(saveError, "Gagal mengajukan revisi transaksi."));
     } finally {
       setSavingRevision(false);
@@ -742,6 +763,7 @@ function TransactionRevisionModal({
                         value={row.item_id || null}
                         displayValue={row.item_name}
                         placeholder="Cari bahan..."
+                        disabled={row.isPersisted}
                         className={row.isPersisted ? "pointer-events-none opacity-80" : ""}
                         onChange={(itemId) => {
                           if (row.isPersisted) return;
@@ -773,14 +795,9 @@ function TransactionRevisionModal({
                         <input
                           type="number"
                           value={row.qty}
-                          min={row.isPersisted ? 1 : 0}
+                          min={0}
                           onChange={(e) => {
-                            const next = e.target.value;
-                            if (row.isPersisted && Number(next) <= 0) {
-                              updateRevisionRow(row.id, { qty: "1" });
-                              return;
-                            }
-                            updateRevisionRow(row.id, { qty: next });
+                            updateRevisionRow(row.id, { qty: e.target.value });
                           }}
                           className="h-12 w-full rounded-xl border border-slate-200 px-3 text-center text-lg outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
                         />
@@ -792,10 +809,14 @@ function TransactionRevisionModal({
                     <div className="col-span-1 flex justify-end">
                       <button
                         onClick={() => removeRevisionRow(row.id)}
-                        disabled={row.isPersisted}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-400 transition hover:bg-red-100 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-50 disabled:hover:text-red-400"
+                        className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                          row.isPersisted
+                            ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300"
+                            : "border-red-100 bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500"
+                        }`}
                         title="Hapus baris"
                         type="button"
+                        disabled={row.isPersisted}
                       >
                         <Trash2 size={16} />
                       </button>

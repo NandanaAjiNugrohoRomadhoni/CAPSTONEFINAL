@@ -781,8 +781,7 @@ export default function AdminMenuManagementPage() {
                                     entry.localId === row.localId ? { ...entry, item_id: itemId, unit } : entry,
                                   ),
                                 )
-                              )
-                            }
+                              }
                             />
                           )}
                         </div>
@@ -870,10 +869,11 @@ export default function AdminMenuManagementPage() {
       <DeleteConfirmModal
         open={modalMode === "delete"}
         title="Hapus Menu Makanan"
-        message={`Apakah Anda yakin ingin menghapus menu ${selectedMenu?.name}? Tindakan ini tidak dapat dibatalkan.`}
+        headline="Menu makanan akan dihapus"
+        description={`Apakah Anda yakin ingin menghapus menu ${selectedMenu?.name}? Tindakan ini tidak dapat dibatalkan.`}
         onClose={closeModal}
         onConfirm={deleteMenu}
-        loading={saving}
+        submitting={saving}
       />
 
       <SuccessModal

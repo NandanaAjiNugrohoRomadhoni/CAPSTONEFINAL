@@ -3,8 +3,9 @@
 import { CheckCircle2, X } from "lucide-react";
 
 type SuccessModalProps = {
-  open: boolean;
-  title: string;
+  open?: boolean;
+  isOpen?: boolean;
+  title?: string;
   headline: string;
   message: string;
   onClose: () => void;
@@ -12,12 +13,15 @@ type SuccessModalProps = {
 
 export default function SuccessModal({
   open,
-  title,
+  isOpen,
+  title = "Berhasil",
   headline,
   message,
   onClose,
 }: Readonly<SuccessModalProps>) {
-  if (!open) {
+  const visible = open ?? isOpen ?? false;
+
+  if (!visible) {
     return null;
   }
 

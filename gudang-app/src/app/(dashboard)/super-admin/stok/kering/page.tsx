@@ -102,7 +102,7 @@ export default function Page() {
     const filtered = (itemResponse.data ?? []).filter(item => item.category?.name?.toUpperCase() !== "BASAH");
     
     setItems(filtered);
-    setTotalRecords(itemResponse.summary?.total_rows ?? filtered.length);
+    setTotalRecords(itemResponse.meta?.total ?? filtered.length);
   }, [currentPage, searchTerm, categoryFilter, statusFilter, categories]);
 
   async function ensureAuxiliaryData() {

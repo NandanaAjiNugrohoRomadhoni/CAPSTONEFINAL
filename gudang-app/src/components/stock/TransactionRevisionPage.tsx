@@ -66,6 +66,9 @@ export default function TransactionRevisionPage({
   >([]);
   const [loadingConfirmRows, setLoadingConfirmRows] = useState(false);
   const [confirmingRevision, setConfirmingRevision] = useState(false);
+  const [rejectingRevision, setRejectingRevision] = useState(false);
+  const [rejectReasonOpen, setRejectReasonOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   const PAGE_SIZE = 10;
 
@@ -276,6 +279,34 @@ export default function TransactionRevisionPage({
     }
   }
 
+  function openRejectReasonModal() {
+    setRejectReason("");
+    setRejectReasonOpen(true);
+  }
+
+  async function confirmRevisionRejection() {
+    if (!confirmRevision) return;
+    const trimmedReason = rejectReason.trim();
+    if (!trimmedReason) {
+      setError("Alasan penolakan wajib diisi sebelum revisi ditolak.");
+      return;
+    }
+
+    setRejectingRevision(true);
+    try {
+      await sdk.stockTransactions.reject(confirmRevision.id, { reason: trimmedReason });
+      setConfirmRevision(null);
+      setRejectReasonOpen(false);
+      setRejectReason("");
+      setConfirmRows([]);
+      await loadRevisions();
+    } catch (err) {
+      setError(getErrorMessage(err, "Gagal menolak revisi."));
+    } finally {
+      setRejectingRevision(false);
+    }
+  }
+
   const visibleRevisions = useMemo(() => {
     const query = search.trim().toLowerCase();
     return revisions.filter((revision) => {
@@ -463,15 +494,25 @@ function handleExport() {
                     <td className="px-6 py-5 font-semibold text-[#16213E]">{normaliseTransactionLabel(typeMap.get(rev.type_id))}</td>
                     <td className="px-6 py-5">{categoryMap.get(rev.id) ?? "-"}</td>
                     <td className="px-6 py-5">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        getStatusTone(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) === "approved"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : getStatusTone(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) === "rejected"
-                            ? "bg-red-50 text-red-600"
-                            : "bg-amber-50 text-amber-600"
-                      }`}>
-                        {localizeStatusLabel(getStatusLabel(rev.approval_status_id))}
-                      </span>
+                      {role === "admin" && isPendingStatus(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) ? (
+                        <button
+                          type="button"
+                          className="inline-flex rounded-lg bg-[#2155CD] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(33,85,205,0.22)] transition hover:bg-[#1D4ED8]"
+                          onClick={() => void openConfirmModal(rev)}
+                        >
+                          Konfirmasi
+                        </button>
+                      ) : (
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          getStatusTone(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) === "approved"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : getStatusTone(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) === "rejected"
+                              ? "bg-red-50 text-red-600"
+                              : "bg-amber-50 text-amber-600"
+                        }`}>
+                          {localizeStatusLabel(getStatusLabel(rev.approval_status_id))}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex items-center justify-center gap-2">
@@ -482,15 +523,6 @@ function handleExport() {
                         >
                           Detail
                         </button>
-                        {role === "admin" && isPendingStatus(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) ? (
-                          <button
-                            type="button"
-                            className="inline-flex rounded-lg bg-[#2155CD] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1D4ED8]"
-                            onClick={() => void openConfirmModal(rev)}
-                          >
-                            Konfirmasi
-                          </button>
-                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -646,10 +678,14 @@ function handleExport() {
                       Tidak ada perubahan qty.
                     </div>
                   ) : (
-                    confirmRows.map((row, index) => (
+                    confirmRows.map((row, index) => {
+                      const changed = row.previousQty !== row.revisedQty;
+                      return (
                       <div
                         key={`${row.itemId}-${index}`}
-                        className="grid grid-cols-12 items-center gap-4 rounded-lg bg-white px-3 py-3.5 shadow-sm border border-[#E2E8F0]"
+                        className={`grid grid-cols-12 items-center gap-4 rounded-lg bg-white px-3 py-3.5 shadow-sm border ${
+                          changed ? "border-[#93C5FD] bg-[#EFF6FF]" : "border-[#E2E8F0]"
+                        }`}
                       >
                         <div className="col-span-4 text-[15px] font-semibold text-[#0F172A]">{row.itemName}</div>
                         <div className="col-span-3">
@@ -658,13 +694,18 @@ function handleExport() {
                           </div>
                         </div>
                         <div className="col-span-3">
-                          <div className="flex h-11 items-center justify-center rounded-lg border border-[#93C5FD] bg-[#EFF6FF] text-base font-bold text-[#1D4ED8]">
+                          <div className={`flex h-11 items-center justify-center rounded-lg text-base ${
+                            changed
+                              ? "border border-[#93C5FD] bg-[#EFF6FF] font-bold text-[#1D4ED8]"
+                              : "border border-[#CBD5E1] bg-[#F8FAFC] font-semibold text-[#0F172A]"
+                          }`}>
                             {row.revisedQty}
                           </div>
                         </div>
                         <div className="col-span-2 text-base font-semibold text-[#334155]">{row.unit}</div>
                       </div>
-                    ))
+                    );
+                    })
                   )}
                 </div>
               </div>
@@ -681,17 +722,86 @@ function handleExport() {
                 className="rounded-xl border-2 border-[#CBD5E1] bg-white px-6 py-2.5 text-base font-semibold text-[#475569] transition hover:bg-[#F8FAFC]"
                 onClick={() => setConfirmRevision(null)}
                 type="button"
-                disabled={confirmingRevision}
+                disabled={confirmingRevision || rejectingRevision}
               >
                 Batal
+              </button>
+              <button
+                className="rounded-xl bg-[#DC2626] px-6 py-2.5 text-base font-semibold text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={openRejectReasonModal}
+                type="button"
+                disabled={rejectingRevision || confirmingRevision || loadingConfirmRows || confirmRows.length === 0}
+              >
+                Tolak
               </button>
               <button
                 className="rounded-xl bg-[#2155CD] px-6 py-2.5 text-base font-semibold text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => void confirmRevisionApproval()}
                 type="button"
-                disabled={confirmingRevision || loadingConfirmRows || confirmRows.length === 0}
+                disabled={confirmingRevision || rejectingRevision || loadingConfirmRows || confirmRows.length === 0}
               >
                 {confirmingRevision ? "Memproses..." : "Konfirmasi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {rejectReasonOpen && confirmRevision && role === "admin" ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setRejectReasonOpen(false)} />
+          <div className="relative w-full max-w-[540px] overflow-hidden rounded-[24px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+            <div className="flex items-start justify-between border-b border-[#E2E8F0] px-6 py-5">
+              <div>
+                <h2 className="text-[24px] font-bold text-[#0F172A]">Alasan Penolakan</h2>
+                <p className="mt-1 text-sm font-medium text-[#64748B]">
+                  Isi alasan sebelum revisi REV-{String(confirmRevision.id).padStart(4, "0")} ditolak.
+                </p>
+              </div>
+              <button
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#FEE2E2] hover:text-[#DC2626]"
+                onClick={() => setRejectReasonOpen(false)}
+                type="button"
+                disabled={rejectingRevision}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-600">
+                Revisi akan berubah menjadi Ditolak setelah alasan dikirim.
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-[#334155]">
+                  Alasan Penolakan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                  className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-[#D7E0EE] bg-white px-4 py-3 text-base text-[#16213E] outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#DBEAFE]"
+                  placeholder="Masukkan alasan penolakan revisi transaksi"
+                  disabled={rejectingRevision}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-[#E2E8F0] px-6 py-4">
+              <button
+                className="rounded-xl border border-[#CBD5E1] bg-white px-5 py-2.5 text-base font-semibold text-[#475569] transition hover:bg-[#F8FAFC]"
+                onClick={() => setRejectReasonOpen(false)}
+                type="button"
+                disabled={rejectingRevision}
+              >
+                Batal
+              </button>
+              <button
+                className="rounded-xl bg-[#DC2626] px-6 py-2.5 text-base font-semibold text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void confirmRevisionRejection()}
+                type="button"
+                disabled={rejectingRevision || rejectReason.trim().length === 0}
+              >
+                {rejectingRevision ? "Mengirim..." : "Kirim Penolakan"}
               </button>
             </div>
           </div>

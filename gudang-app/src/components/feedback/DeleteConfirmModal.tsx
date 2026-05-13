@@ -3,13 +3,16 @@
 import { AlertTriangle, X } from "lucide-react";
 
 type DeleteConfirmModalProps = {
-  open: boolean;
+  open?: boolean;
+  isOpen?: boolean;
   title?: string;
-  headline: string;
-  description: string;
+  headline?: string;
+  description?: string;
+  message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   submitting?: boolean;
+  loading?: boolean;
   error?: string | null;
   onClose: () => void;
   onConfirm: () => void | Promise<void>;
@@ -17,17 +20,24 @@ type DeleteConfirmModalProps = {
 
 export default function DeleteConfirmModal({
   open,
+  isOpen,
   title = "Konfirmasi Hapus",
-  headline,
+  headline = "Data akan dihapus",
   description,
+  message,
   confirmLabel = "Hapus",
   cancelLabel = "Batal",
   submitting = false,
+  loading = false,
   error = null,
   onClose,
   onConfirm,
 }: Readonly<DeleteConfirmModalProps>) {
-  if (!open) {
+  const visible = open ?? isOpen ?? false;
+  const busy = submitting || loading;
+  const resolvedDescription = description ?? message ?? "Apakah Anda yakin ingin menghapus data ini?";
+
+  if (!visible) {
     return null;
   }
 
@@ -60,7 +70,7 @@ export default function DeleteConfirmModal({
             </div>
 
             <p className="mt-3 text-base font-semibold text-red-600">{headline}</p>
-            <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
+            <p className="mt-2 text-sm leading-7 text-slate-500">{resolvedDescription}</p>
             {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
           </div>
         </div>
@@ -75,11 +85,11 @@ export default function DeleteConfirmModal({
           </button>
           <button
             className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-red-600 hover:shadow-[0_14px_30px_rgba(239,68,68,0.24)] disabled:cursor-not-allowed disabled:bg-red-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-            disabled={submitting}
+            disabled={busy}
             onClick={() => void onConfirm()}
             type="button"
           >
-            {submitting ? "Menghapus..." : confirmLabel}
+            {busy ? "Menghapus..." : confirmLabel}
           </button>
         </div>
       </div>

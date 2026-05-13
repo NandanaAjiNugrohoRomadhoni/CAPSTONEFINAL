@@ -229,7 +229,9 @@ export default function Page() {
       });
 
       setMenus(nextMenus);
-      setTotalRecords(dishesResponse.summary?.total_rows ?? dishesResponse.data?.length ?? 0);
+      const totalFromMeta = dishesResponse.meta?.total;
+      const inferredTotal = nextMenus.length === 8 ? currentPage * 8 + 1 : (currentPage - 1) * 8 + nextMenus.length;
+      setTotalRecords(totalFromMeta ?? inferredTotal);
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat menu makanan."));
     } finally {

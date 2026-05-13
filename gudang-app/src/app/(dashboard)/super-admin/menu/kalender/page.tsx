@@ -11,7 +11,6 @@ import {
 } from "@/components/admin/ui";
 
 const weekDays = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
-const mealDisplayOrder = ["SIANG", "SORE", "PAGI"];
 const mealTone: Record<string, string> = {
   SIANG: "bg-[#DCEAFE] text-[#0A6DDE]",
   SORE: "bg-[#ECE8FF] text-[#7C3AED]",
@@ -24,6 +23,24 @@ const menuBadgePalette = [
   "bg-[#ECE8FF] text-[#7C3AED]",
   "bg-[#FCE7F3] text-[#BE185D]",
 ];
+const mealDisplayOrder = ["SIANG", "SORE", "PAGI"];
+
+function getPackageNumber(name: string | null | undefined) {
+  const match = String(name ?? "").match(/\d+/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+}
+
+function sortMenuPackages(packages: MenuRow[]) {
+  return [...packages].sort((a, b) => {
+    const numberDiff = getPackageNumber(a.name) - getPackageNumber(b.name);
+    if (numberDiff !== 0) return numberDiff;
+    return a.id - b.id;
+  });
+}
+
+function toLocalDateString(year: number, monthIndex: number, day: number) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 
 type CalendarEntry = {
   date: string;
@@ -32,6 +49,7 @@ type CalendarEntry = {
   menu_name: string;
 };
 
+type MenuRow = Awaited<ReturnType<typeof sdk.menus.list>>["data"][number];
 type SlotRow = Awaited<ReturnType<typeof sdk.menus.slots>>["data"][number];
 type SelectedMealCard = {
   label: string;
@@ -47,6 +65,7 @@ export default function Page() {
   const [viewDate, setViewDate] = useState<Date>(today);
   const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
   const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
+  const [menuPackages, setMenuPackages] = useState<MenuRow[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +79,9 @@ export default function Page() {
       setLoading(true);
       setError(null);
       try {
-        const [calendarResponse, slotResponse] = await Promise.all([
+        const [calendarResponse, menuResponse, slotResponse] = await Promise.all([
           sdk.menuSchedules.calendarProjection({ month }),
+          sdk.menus.list(),
           sdk.menus.slots(),
         ]);
 
@@ -74,6 +94,7 @@ export default function Page() {
             : [];
 
         setCalendarEntries(calendarData);
+        setMenuPackages(sortMenuPackages(menuResponse.data ?? []));
         setSlots(slotResponse.data ?? []);
       } catch (loadError) {
         if (!cancelled) {
@@ -125,26 +146,60 @@ export default function Page() {
     return cells;
   }, [daysInMonth, offset, previousMonthDays]);
 
-  const selectedEntry = calendarEntries.find((entry) => entry.day_of_month === selectedDay);
+  const projectedEntryMap = useMemo(() => {
+    const map = new Map<number, CalendarEntry>();
+    for (const entry of calendarEntries) {
+      map.set(entry.day_of_month, entry);
+    }
+    return map;
+  }, [calendarEntries]);
+
+  const dayEntryMap = useMemo(() => {
+    const map = new Map<number, CalendarEntry>();
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const projected = projectedEntryMap.get(day);
+      const cycleMenu = menuPackages.length > 0 ? menuPackages[(day - 1) % menuPackages.length] : null;
+      if (cycleMenu) {
+        map.set(day, {
+          date: projected?.date ?? toLocalDateString(viewDate.getFullYear(), viewDate.getMonth(), day),
+          day_of_month: day,
+          menu_id: cycleMenu.id,
+          menu_name: cycleMenu.name,
+        });
+      } else if (projected) {
+        map.set(day, projected);
+      }
+    }
+
+    return map;
+  }, [daysInMonth, menuPackages, projectedEntryMap, viewDate]);
+
+  const selectedEntryByDay = dayEntryMap.get(selectedDay) ?? null;
   const selectedMeals = useMemo(() => {
-    if (!selectedEntry) return [];
-    return slots
-      .filter((slot) => slot.menu_id === selectedEntry.menu_id)
+    if (!selectedEntryByDay) return [];
+    const uniqueSlots = new Map<string, SlotRow>();
+    for (const slot of slots) {
+      if (slot.menu_id !== selectedEntryByDay.menu_id) continue;
+      const key = `${normaliseMealLabel(slot.meal_time?.name)}::${slot.dish?.name ?? "-"}`;
+      if (!uniqueSlots.has(key)) uniqueSlots.set(key, slot);
+    }
+    return Array.from(uniqueSlots.values())
       .map((slot) => {
         const label = normaliseMealLabel(slot.meal_time?.name);
         return {
           label,
           meal: slot.dish?.name ?? "-",
           tone: mealTone[label] ?? "bg-[#F8FAFC] text-[#475569]",
-          packageName: selectedEntry.menu_name,
-          dateLabel: formatLongDate(selectedEntry.date),
+          packageName: selectedEntryByDay.menu_name,
+          dateLabel: formatLongDate(selectedEntryByDay.date),
         };
       })
       .sort(
         (left, right) =>
           mealDisplayOrder.indexOf(left.label) - mealDisplayOrder.indexOf(right.label),
       );
-  }, [selectedEntry, slots]);
+  }, [selectedEntryByDay, slots]);
 
   function getMenuBadgeTone(menuId: number) {
     return menuBadgePalette[Math.abs(menuId) % menuBadgePalette.length];
@@ -244,9 +299,7 @@ export default function Page() {
         <div className="grid grid-cols-7">
           {calendarCells.map((cell) => {
             const isSelected = cell.day === selectedDay && cell.currentMonth;
-            const dayEntry = calendarEntries.find(
-              (entry) => entry.day_of_month === cell.day && cell.currentMonth,
-            );
+            const dayEntry = cell.currentMonth ? (dayEntryMap.get(cell.day) ?? null) : null;
             const isCurrentToday = isTodayVisible && cell.currentMonth && cell.day === today.getDate();
 
             return (
@@ -289,16 +342,16 @@ export default function Page() {
       <SurfaceCard className="overflow-hidden">
         <div className="flex items-center gap-2 border-b border-[#E8EEF8] bg-[#EDF5FF] px-5 py-4">
           <h3 className="text-base font-semibold text-[#16213E]">
-            {selectedEntry ? formatLongDate(selectedEntry.date) : "Belum ada jadwal"}
+            {selectedEntryByDay ? formatLongDate(selectedEntryByDay.date) : "Belum ada jadwal"}
           </h3>
-          {selectedEntry ? (
+          {selectedEntryByDay ? (
             <span className="rounded-full bg-[#2155CD] px-2 py-0.5 text-[9px] font-bold text-white">
               AKTIF
             </span>
           ) : null}
-          {selectedEntry?.menu_name ? (
-            <span className={`rounded-[8px] px-2 py-1 text-[11px] font-semibold leading-none ${getMenuBadgeTone(selectedEntry.menu_id)}`}>
-              {selectedEntry.menu_name}
+          {selectedEntryByDay?.menu_name ? (
+            <span className={`rounded-[8px] px-2 py-1 text-[11px] font-semibold leading-none ${getMenuBadgeTone(selectedEntryByDay.menu_id)}`}>
+              {selectedEntryByDay.menu_name}
             </span>
           ) : null}
         </div>
@@ -313,7 +366,7 @@ export default function Page() {
               <p className="text-[10px] font-bold">{item.label}</p>
               <p className="mt-2 text-sm font-semibold text-[#16213E]">{item.meal}</p>
               <p className="mt-1 text-xs text-[#64748B]">
-                {selectedEntry?.menu_name ? `Bagian dari ${selectedEntry.menu_name}.` : "Belum ada paket aktif."}
+                {selectedEntryByDay?.menu_name ? `Bagian dari ${selectedEntryByDay.menu_name}.` : "Belum ada paket aktif."}
               </p>
             </button>
           ))}

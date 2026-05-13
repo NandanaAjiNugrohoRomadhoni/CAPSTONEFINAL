@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -162,19 +162,23 @@ export function ExportButton({
 export function MiniActionButton({
   children,
   tone = "neutral",
+  variant,
+  className = "",
   onClick,
   type = "button",
 }: Readonly<{
   children: ReactNode;
   tone?: "neutral" | "danger";
-  onClick?: () => void;
+  variant?: "neutral" | "danger";
+  className?: string;
+  onClick?: MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit" | "reset";
 }>) {
   const normalizedLabel =
     typeof children === "string" ? children.trim().toLowerCase() : "";
 
   const resolvedTone =
-    tone === "danger" || normalizedLabel === "hapus"
+    tone === "danger" || variant === "danger" || normalizedLabel === "hapus"
       ? "danger"
       : normalizedLabel === "edit"
         ? "edit"
@@ -193,7 +197,7 @@ export function MiniActionButton({
 
   return (
     <button
-      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out hover:-translate-y-0.5 ${toneClass}`}
+      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out hover:-translate-y-0.5 ${toneClass} ${className}`}
       onClick={onClick}
       type={type}
     >

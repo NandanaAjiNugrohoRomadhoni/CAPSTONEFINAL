@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import { PrimaryAction } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
@@ -289,6 +290,7 @@ export default function BarangMasukPage() {
         spk_id: selectedSpkId,
         details,
       });
+      refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);
       setSuccessOpen(true);
