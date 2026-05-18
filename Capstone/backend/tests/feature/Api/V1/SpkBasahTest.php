@@ -74,6 +74,22 @@ class SpkBasahTest extends CIUnitTestCase
         $this->assertSame('210.00', number_format((float) $details[1]['system_recommended_qty'], 2, '.', ''));
     }
 
+    public function testGenerateAllowsGudangRole(): void
+    {
+        $token = $this->login('gudang');
+
+        $this->createDailyPatient($this->login('dapur'), '2026-03-01', 100);
+
+        $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+            ]);
+
+        $response->assertStatus(201);
+        $response->assertJSONFragment(['message' => 'SPK basah generated successfully.']);
+    }
+
     public function testGenerateOnMonthEndIncludesOnlyRequestedDate(): void
     {
         $token = $this->login('dapur');
@@ -305,6 +321,52 @@ class SpkBasahTest extends CIUnitTestCase
             ->get()
             ->getRowArray();
         $this->assertNotNull($postedTx);
+    }
+
+    public function testPostStockAllowsGudangRole(): void
+    {
+        $db = Database::connect();
+
+        $basahCategoryId = (new ItemCategoryModel())->getIdByName(ItemCategoryModel::NAME_BASAH);
+        $this->assertNotNull($basahCategoryId);
+
+        $spkInsert = $db->table('spk_calculations')->insert([
+            'spk_type' => 'basah',
+            'calculation_scope' => 'combined_window',
+            'scope_key' => 'basah|combined_window|2026-03-01|2026-03-02|' . $basahCategoryId,
+            'version' => 1,
+            'is_latest' => true,
+            'calculation_date' => '2026-03-01',
+            'target_date_start' => '2026-03-01',
+            'target_date_end' => '2026-03-02',
+            'target_month' => null,
+            'estimated_patients' => 105,
+            'user_id' => 1,
+            'category_id' => $basahCategoryId,
+            'is_finish' => false,
+        ]);
+        $this->assertTrue($spkInsert);
+        $spkId = (int) $db->insertID();
+
+        $item = $db->table('items')->where('name', 'Ayam Basah')->get()->getRowArray();
+        $this->assertNotNull($item);
+
+        $db->table('spk_recommendations')->insert([
+            'spk_id' => $spkId,
+            'item_id' => (int) $item['id'],
+            'target_date' => '2026-03-01',
+            'current_stock_qty' => 100,
+            'required_qty' => 200,
+            'system_recommended_qty' => 110,
+            'recommended_qty' => 110,
+            'is_overridden' => false,
+        ]);
+
+        $response = $this->withHeaders(['Authorization' => 'Bearer ' . $this->login('gudang')])
+            ->post('api/v1/spk/basah/history/' . $spkId . '/post-stock');
+
+        $response->assertStatus(200);
+        $response->assertJSONFragment(['message' => 'SPK posted to stock transaction successfully.']);
     }
 
     public function testPostStockRejectsAlreadyPostedSpk(): void

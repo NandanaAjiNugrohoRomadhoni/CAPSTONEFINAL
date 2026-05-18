@@ -10,9 +10,11 @@ import {
   Pagination,
   PrimaryAction,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
-import { formatDate, formatNumber, getCurrentMonthPeriod, getErrorMessage } from "@/lib/admin-utils";
+import { formatDate, formatNumber, getCurrentMonthPeriod, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import { useAuthStore } from "@/store/authStore";
 import {
   refreshStockAdjustmentNotifications,
@@ -20,6 +22,7 @@ import {
 } from "@/lib/stock-adjustment-notifications";
 
 const ITEM_METADATA_CACHE_KEY = "capstone-stock-item-metadata-cache";
+const INVALID_STOCK_OPNAME_IDS_CACHE_KEY = "capstone-invalid-stock-opname-ids";
 
 type ItemMetadata = { name: string; categoryName: string };
 
@@ -67,6 +70,24 @@ type StockAdjustmentPageProps = {
   useDraftSubmissionChecklist?: boolean;
 };
 
+type StockAdjustmentTableRow = {
+  key: string;
+  headerId: number;
+  createdById: number;
+  isFirstDetail: boolean;
+  rowSpan: number;
+  opnameDate: string;
+  state: OpnameData["header"]["state"];
+  stateLabel: string;
+  createdByLabel: string;
+  itemName: string;
+  categoryName: string;
+  systemQtyLabel: string;
+  countedQtyLabel: string;
+  variance: number;
+  varianceLabel: string;
+};
+
 function readHistoryIds(storageKey: string) {
   if (typeof window === "undefined") return [] as number[];
 
@@ -88,6 +109,37 @@ function readHistoryIds(storageKey: string) {
 function writeHistoryIds(storageKey: string, ids: number[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(storageKey, JSON.stringify(Array.from(new Set(ids))));
+}
+
+function readInvalidStockOpnameIds() {
+  if (typeof window === "undefined") return [] as number[];
+
+  try {
+    const raw = window.localStorage.getItem(INVALID_STOCK_OPNAME_IDS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
+  } catch {
+    return [];
+  }
+}
+
+function rememberInvalidStockOpnameIds(ids: number[]) {
+  if (typeof window === "undefined" || ids.length === 0) return;
+  const next = Array.from(new Set([...readInvalidStockOpnameIds(), ...ids]));
+  window.localStorage.setItem(INVALID_STOCK_OPNAME_IDS_CACHE_KEY, JSON.stringify(next));
+}
+
+function removeCachedOpnames(storageKey: string, ids: number[]) {
+  if (typeof window === "undefined" || ids.length === 0) return;
+  const cached = readCachedOpnames(storageKey);
+  for (const id of ids) {
+    delete cached[id];
+  }
+  window.localStorage.setItem(getOpnameCacheKey(storageKey), JSON.stringify(cached));
 }
 
 function getOpnameCacheKey(storageKey: string) {
@@ -220,23 +272,6 @@ function writeCachedUserRoles(
   window.localStorage.setItem(USER_ROLE_CACHE_KEY, JSON.stringify(next));
 }
 
-async function readOpnameIdsFromNotifications() {
-  try {
-    const response = await sdk.notifications.list({
-      paginate: false,
-      type: "STOCK_OPNAME",
-      sortBy: "created_at",
-      sortDir: "DESC",
-    });
-    const rows = response.data ?? [];
-    return rows
-      .map((row) => Number(row.related_id))
-      .filter((id) => Number.isFinite(id) && id > 0);
-  } catch {
-    return [] as number[];
-  }
-}
-
 function sortOpnames(opnames: OpnameData[]) {
   return [...opnames].sort((left, right) => {
     const leftTime = new Date(left.header.opname_date).getTime();
@@ -270,6 +305,15 @@ function getReadableOpnameState(state: OpnameData["header"]["state"]) {
     default:
       return state;
   }
+}
+
+function getApiStatus(error: unknown) {
+  if (typeof error === "object" && error !== null && "status" in error) {
+    const status = Number((error as { status?: unknown }).status);
+    return Number.isFinite(status) ? status : null;
+  }
+
+  return null;
 }
 
 function getOpnameStateClasses(state: OpnameData["header"]["state"]) {
@@ -366,6 +410,14 @@ export default function StockAdjustmentPage({
   const [dateFilter, setDateFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Semua Jenis");
   const [currentPage, setCurrentPage] = useState(1);
+  const additionalHistoryStorageSignature = useMemo(
+    () => additionalHistoryStorageKeys.join("|"),
+    [additionalHistoryStorageKeys],
+  );
+  const stableAdditionalHistoryStorageKeys = useMemo(
+    () => additionalHistoryStorageKeys,
+    [additionalHistoryStorageSignature],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -394,12 +446,11 @@ export default function StockAdjustmentPage({
           })),
         ];
 
-        const notificationIds = await readOpnameIdsFromNotifications();
+        const invalidIds = readInvalidStockOpnameIds();
         const mergedIds = [
           ...readHistoryIds(historyStorageKey),
-          ...additionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
-          ...notificationIds,
-        ];
+          ...stableAdditionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
+        ].filter((id) => !invalidIds.includes(id));
 
         if (typeof window !== "undefined" && legacyLatestKey) {
           const legacyId = Number(window.sessionStorage.getItem(legacyLatestKey) ?? 0);
@@ -437,7 +488,7 @@ export default function StockAdjustmentPage({
     return () => {
       cancelled = true;
     };
-  }, [additionalHistoryStorageKeys, historyStorageKey, legacyLatestKey, user]);
+  }, [additionalHistoryStorageSignature, historyStorageKey, legacyLatestKey, stableAdditionalHistoryStorageKeys, user]);
 
   const [metadataLoading, setMetadataLoading] = useState(false);
 
@@ -447,8 +498,8 @@ export default function StockAdjustmentPage({
       setMetadataLoading(true);
       try {
         const [itemsResponse, activeItemsResponse, usersResponse] = await Promise.all([
-          sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC" }),
-          sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC", is_active: true }),
+          listAllItems({ sortBy: "name", sortDir: "ASC" }),
+          listAllItems({ sortBy: "name", sortDir: "ASC", is_active: true }),
           sdk.users
             .list({ perPage: 100, sortBy: "created_at", sortDir: "DESC" })
             .catch(() => ({ data: [] as UserRow[] })),
@@ -456,8 +507,8 @@ export default function StockAdjustmentPage({
 
         if (cancelled) return;
 
-        const nextItems = itemsResponse.data ?? [];
-        const nextActiveItems = activeItemsResponse.data ?? [];
+        const nextItems = itemsResponse;
+        const nextActiveItems = activeItemsResponse;
         const nextUsers = usersResponse.data ?? [];
 
         setItems(nextItems);
@@ -502,11 +553,20 @@ export default function StockAdjustmentPage({
     let cancelled = false;
 
     async function syncHistoryFromBackend() {
+      const historyKeys = [historyStorageKey, ...stableAdditionalHistoryStorageKeys];
+      const invalidIds = readInvalidStockOpnameIds();
       const mergedIds = [
         ...readHistoryIds(historyStorageKey),
-        ...additionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
-      ];
-      const uniqueIds = Array.from(new Set(mergedIds));
+        ...stableAdditionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
+      ].filter((id) => !invalidIds.includes(id));
+      const cachedOpnamesById = {
+        ...readCachedOpnames(historyStorageKey),
+        ...Object.assign(
+          {},
+          ...stableAdditionalHistoryStorageKeys.map((storageKey) => readCachedOpnames(storageKey)),
+        ),
+      };
+      const uniqueIds = Array.from(new Set(mergedIds)).filter((id) => Boolean(cachedOpnamesById[id]));
       if (uniqueIds.length === 0) return;
 
       // Always refresh latest IDs from backend to avoid stale state from local cache
@@ -516,9 +576,23 @@ export default function StockAdjustmentPage({
         if (cancelled) return;
 
         const freshOpnames: OpnameData[] = [];
-        for (const res of responses) {
+        const missingIds: number[] = [];
+        responses.forEach((res, index) => {
           if (res.status === "fulfilled" && res.value.data) {
             freshOpnames.push(res.value.data);
+            return;
+          }
+          if (res.status === "rejected" && getApiStatus(res.reason) === 404) {
+            missingIds.push(batch[index]);
+          }
+        });
+
+        if (missingIds.length > 0) {
+          rememberInvalidStockOpnameIds(missingIds);
+          for (const storageKey of historyKeys) {
+            const retainedIds = readHistoryIds(storageKey).filter((id) => !missingIds.includes(id));
+            writeHistoryIds(storageKey, retainedIds);
+            removeCachedOpnames(storageKey, missingIds);
           }
         }
 
@@ -542,7 +616,7 @@ export default function StockAdjustmentPage({
     return () => {
       cancelled = true;
     };
-  }, [opnames, additionalHistoryStorageKeys, historyStorageKey]);
+  }, [additionalHistoryStorageSignature, historyStorageKey, stableAdditionalHistoryStorageKeys]);
 
   const selectedItem = useMemo(
     () => activeItems.find((item) => Number(item.id) === Number(selectedItemId)) ?? null,
@@ -555,12 +629,17 @@ export default function StockAdjustmentPage({
   const cachedUserNames = useMemo(() => readCachedUserNames(), []);
   const cachedItemMetadata = useMemo(() => readCachedItemMetadata(), []);
 
-  const selectedItemCategory = useMemo(() => {
+  const selectedItemCategory = useMemo<string>(() => {
     if (!selectedItemId) return "-";
     const relatedItem = itemMap.get(Number(selectedItemId));
     const relatedStockRow = stockRowMap.get(Number(selectedItemId));
     const cachedMeta = cachedItemMetadata[Number(selectedItemId)];
-    return relatedItem?.category?.name ?? relatedStockRow?.category_name ?? cachedMeta?.categoryName ?? "-";
+    return (
+      String(relatedItem?.category?.name ?? "") ||
+      String(relatedStockRow?.category_name ?? "") ||
+      cachedMeta?.categoryName ||
+      "-"
+    );
   }, [cachedItemMetadata, itemMap, selectedItemId, stockRowMap]);
 
 
@@ -572,7 +651,7 @@ export default function StockAdjustmentPage({
   const countedQtyValue = useMemo(() => Number(countedQty || 0), [countedQty]);
   const previewVariance = countedQtyValue - selectedSystemQty;
 
-  const tableRows = useMemo(() => {
+  const tableRows = useMemo<StockAdjustmentTableRow[]>(() => {
     return opnames.flatMap((opname) =>
       opname.details.map((detail, index) => {
         const itemId = Number(detail.item_id);
@@ -602,14 +681,14 @@ export default function StockAdjustmentPage({
           stateLabel: getReadableOpnameState(opname.header.state),
           createdByLabel,
           itemName:
-            relatedItem?.name ??
-            relatedStockRow?.item_name ??
-            cachedMeta?.name ??
+            String(relatedItem?.name ?? "") ||
+            String(relatedStockRow?.item_name ?? "") ||
+            cachedMeta?.name ||
             `Item #${detail.item_id}`,
           categoryName:
-            relatedItem?.category?.name ??
-            relatedStockRow?.category_name ??
-            cachedMeta?.categoryName ??
+            String(relatedItem?.category?.name ?? "") ||
+            String(relatedStockRow?.category_name ?? "") ||
+            cachedMeta?.categoryName ||
             "-",
           systemQtyLabel: formatNumber(systemQty, Number.isInteger(systemQty) ? 0 : 1),
           countedQtyLabel: formatNumber(countedQtyValue, Number.isInteger(countedQtyValue) ? 0 : 1),
@@ -625,7 +704,7 @@ export default function StockAdjustmentPage({
       new Set(
         tableRows
           .map((row) => row.categoryName)
-          .filter((value) => value && value !== "-"),
+          .filter((value): value is string => typeof value === "string" && value !== "-"),
       ),
     ).sort((left, right) => left.localeCompare(right, "id-ID"));
   }, [tableRows]);
@@ -709,7 +788,7 @@ export default function StockAdjustmentPage({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `riwayat-penyesuaian-stok-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `riwayat-penyesuaian-stok-${toIsoDate(new Date())}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -727,7 +806,7 @@ export default function StockAdjustmentPage({
 
     try {
       const response = await sdk.stockOpnames.create({
-        opname_date: new Date().toISOString().slice(0, 10),
+        opname_date: toIsoDate(new Date()),
         details: [{ item_id: selectedItemId, counted_qty: Number(countedQty) }],
       });
 
@@ -746,7 +825,7 @@ export default function StockAdjustmentPage({
         nextOpname = buildFallbackOpnameData({
           header: {
             ...response.data,
-            opname_date: new Date().toISOString().slice(0, 10),
+            opname_date: toIsoDate(new Date()),
             created_by: response.data.created_by ?? Number(user?.id ?? 0),
             approved_by: response.data.approved_by ?? null,
             rejection_reason: response.data.rejection_reason ?? null,
@@ -1015,18 +1094,15 @@ export default function StockAdjustmentPage({
                 onChange={(event) => setDateFilter(event.target.value)}
                 className="h-12 w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
               />
-              <select
+              <ThemedSelect
+                className="w-[190px]"
                 value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-12 w-[190px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              >
-                <option value="Semua Jenis">Semua Jenis</option>
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoryFilter}
+                options={[
+                  { value: "Semua Jenis", label: "Semua Jenis" },
+                  ...categoryOptions.map((category) => ({ value: category, label: category })),
+                ]}
+              />
             </div>
               <div className="ml-auto flex flex-wrap items-center gap-3">
                 {useDraftSubmissionChecklist ? (
@@ -1521,8 +1597,8 @@ export default function StockAdjustmentPage({
                       const itemId = Number(detail?.item_id ?? 0);
                       const relatedItem = itemMap.get(itemId);
                       const relatedStockRow = stockRowMap.get(itemId);
-                      const itemName = relatedItem?.name ?? relatedStockRow?.item_name ?? `Item #${itemId}`;
-                      const categoryName = relatedItem?.category?.name ?? relatedStockRow?.category_name ?? "-";
+                      const itemName = String(relatedItem?.name ?? "") || String(relatedStockRow?.item_name ?? "") || `Item #${itemId}`;
+                      const categoryName = String(relatedItem?.category?.name ?? "") || String(relatedStockRow?.category_name ?? "") || "-";
                       const variance = Number(detail?.variance_qty ?? 0);
                       const varianceLabel = `${variance > 0 ? "+" : ""}${formatNumber(variance, Number.isInteger(variance) ? 0 : 1)}`;
                       const checked = selectedDraftIds.includes(opname.header.id);

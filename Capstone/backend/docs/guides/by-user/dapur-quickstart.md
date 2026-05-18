@@ -49,6 +49,6 @@ Generate requirements for dry goods and packaging, usually on a monthly or batch
 ## Gotchas
 - **Menu Slots:** Every menu (Packages 1–11) has three meal times: PAGI, SIANG, and SORE. Ensure all slots are filled for a complete calculation.
 - **Versioned SPK:** Generating an SPK for the same date/category again will create a NEW version. It does not overwrite the previous one. Always check the `is_latest` flag in history.
-- **Stock Posting:** Your SPK generation creates a "Draft" requirement. It does NOT subtract items from the warehouse until someone (Admin/Gudang) performs the **Post Stock** action.
+- **Stock Posting:** Your SPK generation creates a "Draft" requirement. It does NOT subtract items from the warehouse until an authorized SPK operator (`admin` or `gudang`) performs the **Post Stock** action.
 - **Item Lookups:** When defining compositions, you use the `item_id`. If an item is missing or inactive, you cannot add it to a dish.
 - **SPK Prefill:** Once an SPK is posted, the Gudang role can use the `/api/v1/spk/stock-in-prefill/(:num)` endpoint to quickly create a "Stock IN" transaction for the requested items.

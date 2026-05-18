@@ -21,6 +21,7 @@ import StockItemModal, { type StockItemFormValue } from "@/components/stock/Stoc
 type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type ItemCategoryRecord = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
 type ItemUnitRecord = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
+type ItemListQuery = NonNullable<Parameters<typeof sdk.items.list>[0]>;
 type NoticeState = { title: string; headline: string; message: string } | null;
 type ModalMode = "create" | "edit" | null;
 
@@ -75,7 +76,7 @@ export default function Page() {
   const [statusFilter, setStatusFilter] = useState("Semua Status");
 
   const loadPageData = useCallback(async () => {
-    const params: any = {
+    const params: ItemListQuery = {
       perPage: 10,
       page: currentPage,
       sortBy: "id",
@@ -85,7 +86,7 @@ export default function Page() {
     if (searchTerm.trim()) params.q = searchTerm.trim();
     if (categoryFilter !== "Semua Jenis") {
       const cat = categories.find(c => c.name === categoryFilter);
-      if (cat) params.category_id = cat.id;
+      if (cat) params.item_category_id = cat.id;
     }
     if (statusFilter !== "Semua Status") {
       params.is_active = statusFilter === "Aktif";
@@ -473,7 +474,15 @@ export default function Page() {
           </table>
         </div>
 
-        <Pagination totalLabel={`${itemRows.length === 0 ? 0 : 1}-${itemRows.length} dari ${itemRows.length} item`} />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalLabel={`${totalRecords === 0 ? 0 : (currentPage - 1) * 10 + 1}-${Math.min(
+            currentPage * 10,
+            totalRecords,
+          )} dari ${totalRecords} item`}
+        />
       </SurfaceCard>
 
       <StockItemModal

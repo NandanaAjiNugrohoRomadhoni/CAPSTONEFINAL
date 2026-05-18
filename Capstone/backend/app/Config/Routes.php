@@ -6,6 +6,9 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get("/", "Home::index");
+$routes->get("api/docs/spec", "DocsController::spec");
+$routes->get("api/docs/specs", "DocsController::spec");
+$routes->get("api/docs", "DocsController::index");
 
 $routes->group(
     "api/v1",
@@ -376,7 +379,6 @@ $routes->group(
                         static fn() => service("response")->setStatusCode(204),
                     );
                     $routes->put("items/(:num)", 'Items::update/$1');
-                    $routes->delete("items/(:num)", 'Items::delete/$1');
 
                     $routes->get(
                         "stock-transactions",
@@ -458,6 +460,14 @@ $routes->group(
                         'MenuSchedules::update/$1',
                     );
                     $routes->post("daily-patients", "DailyPatients::create");
+                },
+            );
+
+            $routes->group(
+                "",
+                ["filter" => "role:admin,dapur,gudang"],
+                static function ($routes) {
+                    // [MODULE: SPK Write & Helper Surface] Roles: admin, dapur, gudang | Controller: App\Controllers\Api\V1\SpkBasah, SpkKeringPengemas, SpkStockInPrefill
                     $routes->post("spk/basah/generate", "SpkBasah::generate");
                     $routes->post(
                         "spk/basah/operational-stock-preview",
@@ -478,6 +488,22 @@ $routes->group(
                     $routes->get(
                         "spk/stock-in-prefill/(:num)",
                         'SpkStockInPrefill::show/$1',
+                    );
+                },
+            );
+
+            $routes->group(
+                "",
+                ["filter" => "role:admin,gudang"],
+                static function ($routes) {
+                    // [MODULE: SPK Stock Finalization Surface] Roles: admin, gudang | Controller: App\Controllers\Api\V1\SpkBasah, SpkKeringPengemas
+                    $routes->post(
+                        "spk/basah/history/(:num)/post-stock",
+                        'SpkBasah::postStock/$1',
+                    );
+                    $routes->post(
+                        "spk/kering-pengemas/history/(:num)/post-stock",
+                        'SpkKeringPengemas::postStock/$1',
                     );
                 },
             );
@@ -547,15 +573,6 @@ $routes->group(
                     "stock-transactions/(:num)/reject",
                     static fn() => service("response")->setStatusCode(204),
                 );
-                $routes->post(
-                    "spk/basah/history/(:num)/post-stock",
-                    'SpkBasah::postStock/$1',
-                );
-                $routes->post(
-                    "spk/kering-pengemas/history/(:num)/post-stock",
-                    'SpkKeringPengemas::postStock/$1',
-                );
-
                 // User management endpoints
                 $routes->get("users", "Users::index");
                 $routes->options(
@@ -591,6 +608,7 @@ $routes->group(
                     static fn() => service("response")->setStatusCode(204),
                 );
                 $routes->delete("users/(:num)", 'Users::delete/$1');
+                $routes->delete("items/(:num)", 'Items::delete/$1');
                 $routes->patch("items/(:num)/restore", 'Items::restore/$1');
                 $routes->patch("users/(:num)/restore", 'Users::restore/$1');
             });

@@ -8,12 +8,12 @@ Automates stock recommendations based on meal schedules and patient counts.
 - `POST /api/v1/spk/basah/generate`: Generate recommendations.
 - `GET /api/v1/spk/basah/history`: List previous calculations.
 - `POST /api/v1/spk/basah/history/{id}/override`: Adjust recommended quantities.
-- `POST /api/v1/spk/basah/history/{id}/post-stock`: Commit recommendations to stock (Admin).
+- `POST /api/v1/spk/basah/history/{id}/post-stock`: Commit recommendations to stock (`admin`, `gudang`).
 
 ### SPK Kering & Pengemas (Dry/Packaging Items)
 - `POST /api/v1/spk/kering-pengemas/generate`: Generate recommendations.
 - `GET /api/v1/spk/kering-pengemas/history`: List previous calculations.
-- `POST /api/v1/spk/kering-pengemas/history/{id}/post-stock`: Commit recommendations to stock (Admin).
+- `POST /api/v1/spk/kering-pengemas/history/{id}/post-stock`: Commit recommendations to stock (`admin`, `gudang`).
 
 ## Business Rules
 

@@ -55,7 +55,7 @@ export class SpkResource {
    * Previews same-day operational stock consumption for basah preparation.
    *
    * @endpoint POST /api/v1/spk/basah/operational-stock-preview
-   * @access   admin | dapur
+   * @access   admin | dapur | gudang
    * @returns {Promise<OperationalStockPreviewResponse>}
    * @throws {ValidationApiError} if validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)

@@ -11,6 +11,10 @@ Manages the movement and history of inventory items.
 - `POST /api/v1/stock-transactions/{id}/submit-revision`: Propose changes to a transaction.
 - `POST /api/v1/stock-transactions/{id}/approve`: Finalize and post transaction (Admin).
 - `POST /api/v1/stock-transactions/{id}/reject`: Deny a pending transaction (Admin).
+    - Accepts an optional request body: `{ "reason": "string" }`.
+    - The `reason` key from the request is stored in the `stock_transactions.rejection_reason` column.
+    - Backward compatible: the request body can be omitted or empty.
+    - **Note**: The transaction-level `reason` field (set during creation) retains its original meaning as a general transaction note and is distinct from this rejection-specific reason.
 - `POST /api/v1/stock-transactions/direct-corrections`: Immediate stock adjustment (Admin).
 
 ## Business Rules

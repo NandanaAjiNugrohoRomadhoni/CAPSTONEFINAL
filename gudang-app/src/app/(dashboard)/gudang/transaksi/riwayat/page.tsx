@@ -10,6 +10,7 @@ import {
   MiniActionButton,
   Pagination,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import SearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
@@ -408,8 +409,11 @@ export default function GudangTransactionHistoryPage() {
         router.push("/gudang/transaksi/pengajuan-revisi");
       }, 1500);
     } catch (saveError) {
-      console.error("[revision.submit] failed", saveError);
-      setError(getErrorMessage(saveError, "Gagal mengajukan revisi transaksi."));
+      const message = getErrorMessage(saveError, "Gagal mengajukan revisi transaksi.");
+      const friendlyMessage = /pending|already|approved|revision|revisi/i.test(message)
+        ? "Revisi belum bisa dikirim ulang karena backend masih menolak revisi baru untuk transaksi ini. Data form tetap aman, silakan tunggu backend membuka endpoint update/multi-revisi pending."
+        : message;
+      setError(friendlyMessage);
     } finally {
       setSavingRevision(false);
     }
@@ -471,30 +475,24 @@ export default function GudangTransactionHistoryPage() {
               onChange={(event) => setSelectedDate(event.target.value)}
               className="h-10 min-w-[150px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
             />
-            <select
+            <ThemedSelect
+              className="h-10 min-w-[140px] rounded-lg"
               value={selectedType}
-              onChange={(event) => setSelectedType(event.target.value)}
-              className="h-10 min-w-[140px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
-            >
-              <option value="">Semua Jenis</option>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-            <select
+              onChange={setSelectedType}
+              options={[
+                { value: "", label: "Semua Jenis" },
+                ...types.map((type) => ({ value: String(type.id), label: String(type.name) })),
+              ]}
+            />
+            <ThemedSelect
+              className="h-10 min-w-[150px] rounded-lg"
               value={selectedStatus}
-              onChange={(event) => setSelectedStatus(event.target.value)}
-              className="h-10 min-w-[150px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
-            >
-              <option value="">Semua Status</option>
-              {statuses.map((status) => (
-                <option key={status.id} value={status.id}>
-                  {status.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedStatus}
+              options={[
+                { value: "", label: "Semua Status" },
+                ...statuses.map((status) => ({ value: String(status.id), label: String(status.name) })),
+              ]}
+            />
             <div className="ml-auto">
               <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
             </div>

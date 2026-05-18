@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
-import { getErrorMessage } from "@/lib/admin-utils";
+import { getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
+import CommonSearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
 type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
@@ -82,13 +84,13 @@ export default function BarangKeluarPage() {
     async function load() {
       try {
         const [itemResponse, mealTimeResponse] = await Promise.all([
-          sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC", is_active: true }),
+          listAllItems({ sortBy: "name", sortDir: "ASC", is_active: true }),
           sdk.mealTimes.list({ paginate: false, sortBy: "id", sortDir: "ASC" }),
         ]);
 
         if (cancelled) return;
 
-        setItems(itemResponse.data ?? []);
+        setItems(itemResponse);
         setMealTimes(sortMealTimes(mealTimeResponse.data ?? []));
       } catch (loadError) {
         if (!cancelled) {
@@ -108,7 +110,7 @@ export default function BarangKeluarPage() {
     };
   }, []);
 
-  const serviceDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const serviceDate = useMemo(() => toIsoDate(new Date()), []);
 
   useEffect(() => {
     const saved = readSavedRecommendation(serviceDate);
@@ -175,7 +177,7 @@ export default function BarangKeluarPage() {
     setValidating(true);
 
     try {
-      const serviceDate = new Date().toISOString().slice(0, 10);
+      const serviceDate = toIsoDate(new Date());
       const previews = await Promise.all(
         mealTimes.map(async (mealTime) => {
           const response = await sdk.spk.operationalStockPreview({
@@ -280,7 +282,7 @@ export default function BarangKeluarPage() {
         throw new Error(`Bahan ${itemMap.get(duplicateId)?.name ?? `Item #${duplicateId}`} tidak boleh diinput dua kali.`);
       }
 
-      const serviceDate = new Date().toISOString().slice(0, 10);
+      const serviceDate = toIsoDate(new Date());
       await ensureDailyPatientForDate(serviceDate, totalPatients);
 
       await sdk.stockTransactions.create({
@@ -340,7 +342,7 @@ export default function BarangKeluarPage() {
 
       await sdk.stockTransactions.create({
         type_name: "OUT",
-        transaction_date: new Date().toISOString().slice(0, 10),
+        transaction_date: toIsoDate(new Date()),
         details,
       });
       refreshStockAdjustmentNotifications();
@@ -459,7 +461,7 @@ export default function BarangKeluarPage() {
                       {row.locked ? (
                         <div className="col-span-4 text-lg font-semibold text-gray-900">{row.item_name}</div>
                       ) : (
-                        <SearchableItemSelect
+                        <CommonSearchableItemSelect
                           options={basahItemOptions}
                           value={row.item_id || null}
                           placeholder="Pilih Nama Bahan"
@@ -603,7 +605,8 @@ export default function BarangKeluarPage() {
 
                 {rows.map((row) => (
                   <div key={row.id} className="grid grid-cols-12 items-center gap-3 border-t px-4 py-3">
-                    <SearchableItemSelect
+                    <CommonSearchableItemSelect
+                      className="col-span-5"
                       options={keringItemOptions}
                       value={row.item_id}
                       placeholder="Pilih Nama Bahan"
@@ -773,7 +776,7 @@ function RecommendationPreviewModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <div className="grid gap-3 rounded-2xl bg-[#EEF4FF] px-4 py-3 md:grid-cols-4">
-            <InfoBlock label="Tanggal" value={new Date().toLocaleDateString("id-ID")} />
+            <InfoBlock label="Tanggal" value={new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })} />
             <InfoBlock label="Jumlah Pasien" value={`${patientCount} orang`} />
             <InfoBlock label="Paket Menu" value={menuName} />
             <InfoBlock label="Total Bahan" value={`${totalRows} bahan`} />

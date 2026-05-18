@@ -455,19 +455,19 @@ await sdk.auth.login({
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
 | `sdk.spk.basahMenuCalendar(query?)` | `GET /api/v1/spk/basah/menu-calendar` | `admin`, `dapur`, `gudang` |
-| `sdk.spk.operationalStockPreview(payload)` | `POST /api/v1/spk/basah/operational-stock-preview` | `admin`, `dapur` |
-| `sdk.spk.generateBasah(payload)` | `POST /api/v1/spk/basah/generate` | `admin`, `dapur` |
+| `sdk.spk.operationalStockPreview(payload)` | `POST /api/v1/spk/basah/operational-stock-preview` | `admin`, `dapur`, `gudang` |
+| `sdk.spk.generateBasah(payload)` | `POST /api/v1/spk/basah/generate` | `admin`, `dapur`, `gudang` |
 | `sdk.spk.listBasah()` | `GET /api/v1/spk/basah/history` | `admin`, `dapur`, `gudang` |
 | `sdk.spk.getBasah(id)` | `GET /api/v1/spk/basah/history/{id}` | `admin`, `dapur`, `gudang` |
-| `sdk.spk.overrideBasah(id, payload)` | `POST /api/v1/spk/basah/history/{id}/override` | `admin`, `dapur` |
-| `sdk.spk.postBasahStock(id)` | `POST /api/v1/spk/basah/history/{id}/post-stock` | `admin` only |
+| `sdk.spk.overrideBasah(id, payload)` | `POST /api/v1/spk/basah/history/{id}/override` | `admin`, `dapur`, `gudang` |
+| `sdk.spk.postBasahStock(id)` | `POST /api/v1/spk/basah/history/{id}/post-stock` | `admin`, `gudang` |
 | `sdk.spk.keringPengemasMenuCalendar(query?)` | `GET /api/v1/spk/kering-pengemas/menu-calendar` | `admin`, `dapur`, `gudang` |
-| `sdk.spk.generateKeringPengemas(payload)` | `POST /api/v1/spk/kering-pengemas/generate` | `admin`, `dapur` |
+| `sdk.spk.generateKeringPengemas(payload)` | `POST /api/v1/spk/kering-pengemas/generate` | `admin`, `dapur`, `gudang` |
 | `sdk.spk.listKeringPengemas()` | `GET /api/v1/spk/kering-pengemas/history` | `admin`, `dapur`, `gudang` |
 | `sdk.spk.getKeringPengemas(id)` | `GET /api/v1/spk/kering-pengemas/history/{id}` | `admin`, `dapur`, `gudang` |
-| `sdk.spk.overrideKeringPengemas(id, payload)` | `POST /api/v1/spk/kering-pengemas/history/{id}/override` | `admin`, `dapur` |
-| `sdk.spk.postKeringPengemasStock(id)` | `POST /api/v1/spk/kering-pengemas/history/{id}/post-stock` | `admin` only |
-| `sdk.spk.stockInPrefill(id)` | `GET /api/v1/spk/stock-in-prefill/{id}` | `admin`, `dapur` |
+| `sdk.spk.overrideKeringPengemas(id, payload)` | `POST /api/v1/spk/kering-pengemas/history/{id}/override` | `admin`, `dapur`, `gudang` |
+| `sdk.spk.postKeringPengemasStock(id)` | `POST /api/v1/spk/kering-pengemas/history/{id}/post-stock` | `admin`, `gudang` |
+| `sdk.spk.stockInPrefill(id)` | `GET /api/v1/spk/stock-in-prefill/{id}` | `admin`, `dapur`, `gudang` |
 
 #### SPK Recommendation logic
 

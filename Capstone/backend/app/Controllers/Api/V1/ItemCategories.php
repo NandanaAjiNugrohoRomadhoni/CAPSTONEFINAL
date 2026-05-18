@@ -6,7 +6,13 @@ use App\Controllers\BaseController;
 use App\Models\ItemCategoryModel;
 use App\Models\ItemModel;
 use CodeIgniter\HTTP\ResponseInterface;
+use OpenApi\Annotations as OA;
 
+/**
+ * Item Categories
+ *
+ * Inventory lookup resource for item category administration.
+ */
 class ItemCategories extends BaseController
 {
     private ItemCategoryModel $itemCategoryModel;
@@ -34,6 +40,31 @@ class ItemCategories extends BaseController
         $this->itemModel         = new ItemModel();
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/item-categories",
+     *     operationId="listItemCategories",
+     *     tags={"Item Categories"},
+     *     summary="List item categories",
+     *     description="Returns active item categories in the standard lookup collection envelope. Accessible to admin and gudang users from the inventory route group. Runtime supports page, perPage, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, updated_at_to, and paginate=false for dropdown-style reads; unknown query parameters or invalid values return HTTP 400.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="page", in="query", @OA\Schema(type="integer", minimum=1, example=1)),
+     *     @OA\Parameter(name="perPage", in="query", @OA\Schema(type="integer", minimum=1, maximum=100, example=10)),
+     *     @OA\Parameter(name="paginate", in="query", description="Set to false or 0 to return all active rows while keeping the same data/meta/links envelope with meta.paginated=false.", @OA\Schema(type="string", enum={"true","false","1","0"}, example="false")),
+     *     @OA\Parameter(name="q", in="query", description="Primary text search term. If q and search are both present, q wins.", @OA\Schema(type="string", example="KER")),
+     *     @OA\Parameter(name="search", in="query", description="Fallback text search term when q is absent.", @OA\Schema(type="string", example="BAS")),
+     *     @OA\Parameter(name="sortBy", in="query", @OA\Schema(type="string", enum={"id","name","created_at","updated_at"}, example="name")),
+     *     @OA\Parameter(name="sortDir", in="query", @OA\Schema(type="string", enum={"ASC","DESC"}, example="ASC")),
+     *     @OA\Parameter(name="created_at_from", in="query", @OA\Schema(type="string", example="2026-04-10")),
+     *     @OA\Parameter(name="created_at_to", in="query", @OA\Schema(type="string", example="2026-04-18")),
+     *     @OA\Parameter(name="updated_at_from", in="query", @OA\Schema(type="string", example="2026-04-10 00:00:00")),
+     *     @OA\Parameter(name="updated_at_to", in="query", @OA\Schema(type="string", example="2026-04-18 23:59:59")),
+     *     @OA\Response(response=200, description="Active item category collection.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryCollectionResponse")),
+     *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function index(): ResponseInterface
     {
         $queryParams = $this->request->getGet();
@@ -102,6 +133,21 @@ class ItemCategories extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/item-categories/{id}",
+     *     operationId="showItemCategory",
+     *     tags={"Item Categories"},
+     *     summary="Show one item category",
+     *     description="Returns one active item category. Accessible to admin and gudang users. Soft-deleted rows are treated as not found.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=1)),
+     *     @OA\Response(response=200, description="Active item category resource.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryResource")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="Item category not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function show(int $id): ResponseInterface
     {
         $itemCategory = $this->itemCategoryModel->find($id);
@@ -117,6 +163,22 @@ class ItemCategories extends BaseController
             ->setJSON(['data' => $itemCategory]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/item-categories",
+     *     operationId="createItemCategory",
+     *     tags={"Item Categories"},
+     *     summary="Create item category",
+     *     description="Creates a new item category. Admin only. Names are trimmed before persistence. The runtime will not auto-restore a soft-deleted row with the same case-insensitive name: it returns HTTP 400 with restore guidance and errors.restore_id instead.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(required=true, @OA\JsonContent(required={"name"}, @OA\Property(property="name", type="string", maxLength=50, example="MINUMAN"))),
+     *     @OA\Response(response=201, description="Item category created successfully.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryMutationResponse")),
+     *     @OA\Response(response=400, description="Validation failed for missing name, duplicate active name, or deleted-name collision that must be restored explicitly.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=422, description="Persistence failed while creating the item category.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
@@ -167,6 +229,24 @@ class ItemCategories extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/item-categories/{id}",
+     *     operationId="updateItemCategory",
+     *     tags={"Item Categories"},
+     *     summary="Update item category",
+     *     description="Updates an existing active item category. Admin only. The runtime behaves like a partial update: if name is omitted, it returns HTTP 200 with the current row unchanged. Renaming to a soft-deleted name does not auto-restore that row and instead returns HTTP 400 with restore guidance.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=1)),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(type="object", @OA\Property(property="name", type="string", maxLength=50, example="MINUMAN"))),
+     *     @OA\Response(response=200, description="Item category updated successfully, or returned unchanged when no name field was sent.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryMutationResponse")),
+     *     @OA\Response(response=400, description="Validation failed for invalid name, duplicate active name, or deleted-name collision that must be handled through the restore route.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="Item category not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=422, description="Persistence failed while updating the item category.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function update(int $id): ResponseInterface
     {
         $itemCategory = $this->itemCategoryModel->find($id);
@@ -232,6 +312,23 @@ class ItemCategories extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Delete(
+     *     path="/api/v1/item-categories/{id}",
+     *     operationId="deleteItemCategory",
+     *     tags={"Item Categories"},
+     *     summary="Delete item category",
+     *     description="Soft-deletes an item category. Admin only. Deletion is blocked while active items still reference the category, in which case the runtime returns HTTP 400 with an item_category_id error.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=1)),
+     *     @OA\Response(response=200, description="Item category deleted successfully.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=400, description="Validation failed because active items still use this category.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="Item category not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=422, description="Persistence failed while deleting the item category.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function delete(int $id): ResponseInterface
     {
         $itemCategory = $this->itemCategoryModel->find($id);
@@ -262,6 +359,23 @@ class ItemCategories extends BaseController
             ->setJSON(['message' => 'Item category deleted successfully.']);
     }
 
+    /**
+     * @OA\Patch(
+     *     path="/api/v1/item-categories/{id}/restore",
+     *     operationId="restoreItemCategory",
+     *     tags={"Item Categories"},
+     *     summary="Restore item category",
+     *     description="Restores a soft-deleted item category. Admin only. The operation is idempotent for already-active rows and still returns HTTP 200 with the current category. Restore is conflict-checked: if an active category already uses the same name, runtime returns HTTP 400 and does not auto-rename or merge anything.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=4)),
+     *     @OA\Response(response=200, description="Item category restored successfully, or the current active row was returned unchanged.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryMutationResponse")),
+     *     @OA\Response(response=400, description="Validation failed because an active item category already uses the deleted row's name.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="Item category not found, including among soft-deleted rows.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=422, description="Persistence failed while restoring the item category.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function restore(int $id): ResponseInterface
     {
         $itemCategory = $this->itemCategoryModel->findByIdIncludingDeleted($id);

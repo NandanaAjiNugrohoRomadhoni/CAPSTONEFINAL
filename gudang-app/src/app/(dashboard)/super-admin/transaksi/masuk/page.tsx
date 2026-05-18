@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
-import { getErrorMessage } from "@/lib/admin-utils";
+import { getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import { PrimaryAction } from "@/components/admin/ui";
+import CommonSearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
 type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
@@ -21,6 +23,7 @@ type Row = {
   unit: string;
   locked: boolean;
 };
+type PrefillDetail = { item_id: number; qty: number };
 
 type AlertState = {
   title: string;
@@ -35,6 +38,49 @@ type SearchableItemSelectProps = {
   disabled?: boolean;
   onChange: (itemId: number | null, unit?: string) => void;
 };
+
+function normalizePrefillDetails(source: unknown): PrefillDetail[] {
+  const root = source as {
+    data?: {
+      details?: unknown;
+      items?: unknown;
+      recommendations?: unknown;
+      print_ready?: { recommendations?: unknown };
+    };
+  };
+  const candidates =
+    root.data?.details ??
+    root.data?.items ??
+    root.data?.recommendations ??
+    root.data?.print_ready?.recommendations ??
+    [];
+
+  if (!Array.isArray(candidates)) return [];
+
+  return candidates
+    .map((candidate) => {
+      const row = candidate as {
+        item_id?: unknown;
+        item?: { id?: unknown };
+        qty?: unknown;
+        final_recommended_qty?: unknown;
+        system_recommended_qty?: unknown;
+        recommended_qty?: unknown;
+        required_qty?: unknown;
+      };
+      const itemId = Number(row.item_id ?? row.item?.id ?? 0);
+      const qty = Number(
+        row.qty ??
+          row.final_recommended_qty ??
+          row.system_recommended_qty ??
+          row.recommended_qty ??
+          row.required_qty ??
+          0,
+      );
+      return { item_id: itemId, qty };
+    })
+    .filter((detail) => Number.isFinite(detail.item_id) && detail.item_id > 0 && Number.isFinite(detail.qty));
+}
 
 export default function BarangMasukPage() {
   const [activeTab, setActiveTab] = useState<"basah" | "kering">("basah");
@@ -56,13 +102,13 @@ export default function BarangMasukPage() {
     async function load() {
       try {
         const [itemResponse, categoryResponse] = await Promise.all([
-          sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC", is_active: true }),
+          listAllItems({ sortBy: "name", sortDir: "ASC", is_active: true }),
           sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
         ]);
 
         if (cancelled) return;
 
-        setItems(itemResponse.data ?? []);
+        setItems(itemResponse);
         setCategories(categoryResponse.data ?? []);
       } catch (loadError) {
         if (!cancelled) {
@@ -182,8 +228,24 @@ export default function BarangMasukPage() {
     setLoadingPrefill(true);
 
     try {
-      const response = await sdk.spk.stockInPrefill(selectedSpkId);
-      const details = response.data.details ?? [];
+      let details: PrefillDetail[] = [];
+      try {
+        const response = await sdk.spk.stockInPrefill(selectedSpkId);
+        details = normalizePrefillDetails(response);
+      } catch (prefillApiError) {
+        const errorMessage = getErrorMessage(prefillApiError, "");
+        if (!errorMessage.toLowerCase().includes("insufficient permissions")) {
+          throw prefillApiError;
+        }
+      }
+
+      if (details.length === 0) {
+        const detailResponse =
+          activeTab === "basah"
+            ? await sdk.spk.getBasah(selectedSpkId)
+            : await sdk.spk.getKeringPengemas(selectedSpkId);
+        details = normalizePrefillDetails(detailResponse);
+      }
 
       if (details.length === 0) {
         throw new Error("SPK yang dipilih belum memiliki detail bahan untuk prefill.");
@@ -198,7 +260,7 @@ export default function BarangMasukPage() {
             qty_spk: Number(detail.qty),
             qty_actual: String(Number(detail.qty)),
             unit: item?.unit_base ?? "-",
-            locked: true,
+            locked: false,
           };
         }),
       );
@@ -259,7 +321,7 @@ export default function BarangMasukPage() {
 
       await sdk.stockTransactions.create({
         type_name: "IN",
-        transaction_date: new Date().toISOString().slice(0, 10),
+        transaction_date: toIsoDate(new Date()),
         spk_id: selectedSpkId,
         details,
       });
@@ -368,7 +430,8 @@ export default function BarangMasukPage() {
                       {row.item_id ? `IT-${String(row.item_id).padStart(3, "0")}` : "-"}
                     </div>
 
-                    <SearchableItemSelect
+                    <CommonSearchableItemSelect
+                      className="col-span-4"
                       options={filteredItemOptions}
                       value={row.item_id}
                       placeholder="Pilih Nama Bahan"

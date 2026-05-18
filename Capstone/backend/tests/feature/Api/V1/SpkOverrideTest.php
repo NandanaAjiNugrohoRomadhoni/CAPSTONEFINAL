@@ -116,6 +116,34 @@ class SpkOverrideTest extends CIUnitTestCase
         $this->assertTrue((bool) $json['data']['override']['is_overridden']);
     }
 
+    public function testOverrideAllowsGudangRole(): void
+    {
+        $token = $this->login('gudang');
+        $db = Database::connect();
+
+        $spk = $this->createBasahSpk($this->login('dapur'), '2026-03-01', 100);
+        $spkId = (int) $spk['data']['id'];
+
+        $recommendation = $db->table('spk_recommendations')
+            ->where('spk_id', $spkId)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getRowArray();
+
+        $this->assertNotNull($recommendation);
+
+        $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/history/' . $spkId . '/override', [
+                'recommendation_id' => (int) $recommendation['id'],
+                'recommended_qty' => 55,
+                'reason' => 'Gudang adjustment before finalize.',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJSONFragment(['message' => 'SPK recommendation item overridden successfully.']);
+    }
+
     public function testOverrideRequiresNonEmptyReasonAndDoesNotMutateRow(): void
     {
         $token = $this->login('dapur');

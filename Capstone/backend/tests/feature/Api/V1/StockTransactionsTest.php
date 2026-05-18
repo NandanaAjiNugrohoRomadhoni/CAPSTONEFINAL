@@ -3311,6 +3311,149 @@ class StockTransactionsTest extends CIUnitTestCase
         $rejectedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
         $this->assertSame($rejectedStatusId, $rejectJson['data']['approval_status_id']);
         $this->assertIsInt($rejectJson['data']['approved_by']);
+
+        $transactionModel = new StockTransactionModel();
+        $rejectedRevision = $transactionModel->find($revisionId);
+        $this->assertNull($rejectedRevision['rejection_reason']);
+    }
+
+    public function testRejectRevisionWithReasonPersistsRejectionReasonWithoutReusingReason(): void
+    {
+        $adminToken = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $inType    = $typeModel->where('name', 'IN')->first();
+
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-06-05',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 10],
+                ],
+            ]);
+
+        $parentId = json_decode($createResult->getJSON(), true)['data']['id'];
+
+        $revisionResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
+                'transaction_date' => '2026-06-06',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 20],
+                ],
+            ]);
+
+        $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
+        $reason     = 'Please fix the revised quantity before resubmitting.';
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $revisionId . '/reject', [
+                'reason' => $reason,
+            ])
+            ->assertStatus(200);
+
+        $transactionModel = new StockTransactionModel();
+        $rejectedRevision = $transactionModel->find($revisionId);
+
+        $this->assertSame($reason, $rejectedRevision['rejection_reason']);
+        $this->assertNull($rejectedRevision['reason']);
+    }
+
+    public function testRejectRevisionWithBlankReasonReturnsValidationError(): void
+    {
+        $adminToken = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $inType    = $typeModel->where('name', 'IN')->first();
+
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-06-06',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 10],
+                ],
+            ]);
+
+        $parentId = json_decode($createResult->getJSON(), true)['data']['id'];
+
+        $revisionResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
+                'transaction_date' => '2026-06-07',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 20],
+                ],
+            ]);
+
+        $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $revisionId . '/reject', [
+                'reason' => '   ',
+            ]);
+
+        $result->assertStatus(400);
+        $result->assertJSONFragment(['message' => 'Validation failed.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('The reason field is required.', $json['errors']['reason']);
+
+        $transactionModel = new StockTransactionModel();
+        $rejectedRevision = $transactionModel->find($revisionId);
+        $this->assertNull($rejectedRevision['rejection_reason']);
+    }
+
+    public function testRejectRevisionWithTooLongReasonReturnsValidationError(): void
+    {
+        $adminToken = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $inType    = $typeModel->where('name', 'IN')->first();
+
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-06-07',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 10],
+                ],
+            ]);
+
+        $parentId = json_decode($createResult->getJSON(), true)['data']['id'];
+
+        $revisionResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
+                'transaction_date' => '2026-06-08',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 20],
+                ],
+            ]);
+
+        $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $revisionId . '/reject', [
+                'reason' => str_repeat('a', 256),
+            ]);
+
+        $result->assertStatus(400);
+        $result->assertJSONFragment(['message' => 'Validation failed.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('The reason field must not exceed 255 characters.', $json['errors']['reason']);
+
+        $transactionModel = new StockTransactionModel();
+        $rejectedRevision = $transactionModel->find($revisionId);
+        $this->assertNull($rejectedRevision['rejection_reason']);
     }
 
     public function testRejectRevisionDoesNotMutateQty(): void

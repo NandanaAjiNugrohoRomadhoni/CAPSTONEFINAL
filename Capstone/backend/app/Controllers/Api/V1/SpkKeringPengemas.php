@@ -10,7 +10,13 @@ use App\Services\SpkKeringPengemasGenerationService;
 use App\Services\SpkOverrideService;
 use App\Services\SpkStockPostingService;
 use CodeIgniter\HTTP\ResponseInterface;
+use OpenApi\Annotations as OA;
 
+/**
+ * SPK Kering/Pengemas
+ *
+ * Dry-item and packaging planning workflow surface for menu projection, generation, history review, override, and post-stock finalization.
+ */
 class SpkKeringPengemas extends BaseController
 {
     protected MenuScheduleManagementService $menuScheduleService;
@@ -30,6 +36,24 @@ class SpkKeringPengemas extends BaseController
         $this->spkStockPostingService            = new SpkStockPostingService();
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/spk/kering-pengemas/menu-calendar",
+     *     operationId="getSpkKeringPengemasMenuCalendarProjection",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="Resolve SPK kering/pengemas menu calendar projection",
+     *     description="Returns the protected SPK kering/pengemas menu-calendar projection wrapper around the shared MenuScheduleManagementService resolver. Accessible to admin, dapur, and gudang users. Runtime requires exactly one resolver mode: date, month, or start_date plus end_date. The payload shape intentionally mirrors the canonical /api/v1/menu-calendar runtime response for the same query.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="date", in="query", description="Single-day resolver mode in Y-m-d format. Mutually exclusive with month and start_date/end_date.", @OA\Schema(type="string", example="2026-03-12")),
+     *     @OA\Parameter(name="month", in="query", description="Month resolver mode in Y-m format. Mutually exclusive with date and start_date/end_date.", @OA\Schema(type="string", example="2026-03")),
+     *     @OA\Parameter(name="start_date", in="query", description="Range resolver start date in Y-m-d format. Must be sent together with end_date.", @OA\Schema(type="string", example="2026-03-12")),
+     *     @OA\Parameter(name="end_date", in="query", description="Range resolver end date in Y-m-d format. Must be sent together with start_date.", @OA\Schema(type="string", example="2026-03-15")),
+     *     @OA\Response(response=200, description="Resolver response for one of the supported modes.", @OA\JsonContent(ref="#/components/schemas/MenuCalendarProjectionResponse")),
+     *     @OA\Response(response=400, description="Validation failed because no resolver mode, multiple resolver modes, or invalid date formatting was provided.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function menuCalendarProjection(): ResponseInterface
     {
         $result = $this->menuScheduleService->resolveCalendar($this->request->getGet());
@@ -56,6 +80,21 @@ class SpkKeringPengemas extends BaseController
             ->setJSON($payload);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/spk/kering-pengemas/generate",
+     *     operationId="generateSpkKeringPengemas",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="Generate SPK kering/pengemas",
+     *     description="Generates a new versioned SPK kering/pengemas history row and recommendation set for the requested target_month. Accessible to admin, dapur, and gudang users. Runtime requires a valid target_month in Y-m format and uses the previous month's approved usage snapshot. Generation creates SPK calculation and recommendation history only; it does not create stock transactions or finalize stock movement.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(required=true, @OA\JsonContent(type="object", required={"target_month"}, @OA\Property(property="target_month", type="string", example="2026-04"))),
+     *     @OA\Response(response=201, description="SPK kering/pengemas generated successfully.", @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateResponse")),
+     *     @OA\Response(response=400, description="Validation failed for invalid target months, missing approved usage baseline, missing categories, or unresolved item mappings.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function generate(): ResponseInterface
     {
         $user = auth()->user();
@@ -89,6 +128,19 @@ class SpkKeringPengemas extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/spk/kering-pengemas/history",
+     *     operationId="listSpkKeringPengemasHistory",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="List SPK kering/pengemas history",
+     *     description="Returns persisted SPK kering/pengemas history rows in newest-first order by calculation_date descending and id descending. Accessible to admin, dapur, and gudang users.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="SPK kering/pengemas history collection.", @OA\JsonContent(ref="#/components/schemas/SpkBasahHistoryCollectionResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function history(): ResponseInterface
     {
         $rows = $this->spkCalculationModel
@@ -134,6 +186,21 @@ class SpkKeringPengemas extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/spk/kering-pengemas/history/{id}",
+     *     operationId="showSpkKeringPengemasHistory",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="Show SPK kering/pengemas history detail",
+     *     description="Returns one persisted SPK kering/pengemas history row with recommendation items and print_ready payload. Accessible to admin, dapur, and gudang users.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="SPK kering/pengemas history identifier.", @OA\Schema(type="integer", minimum=1, example=31)),
+     *     @OA\Response(response=200, description="Persisted SPK kering/pengemas detail response.", @OA\JsonContent(ref="#/components/schemas/SpkBasahShowResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="SPK kering/pengemas history not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function show(int $id): ResponseInterface
     {
         $header = $this->spkCalculationModel
@@ -225,6 +292,22 @@ class SpkKeringPengemas extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/spk/kering-pengemas/history/{id}/post-stock",
+     *     operationId="postSpkKeringPengemasToStock",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="Post SPK kering/pengemas into stock transactions",
+     *     description="Finalizes an SPK kering/pengemas history row by aggregating positive recommendation quantities into a stock transaction and marking the SPK as finished. Accessible to admin and gudang users. Runtime rejects missing SPK rows, already-posted SPKs, empty recommendation sets, and all-nonpositive recommendation sets.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="SPK kering/pengemas history identifier.", @OA\Schema(type="integer", minimum=1, example=31)),
+     *     @OA\Response(response=200, description="SPK kering/pengemas posted successfully and finalized.", @OA\JsonContent(ref="#/components/schemas/SpkBasahPostStockResponse")),
+     *     @OA\Response(response=400, description="Validation failed because the SPK is already posted, has no recommendation rows, or has no positive quantities to post.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="SPK history not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function postStock(int $id): ResponseInterface
     {
         $user = auth()->user();
@@ -260,6 +343,23 @@ class SpkKeringPengemas extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/spk/kering-pengemas/history/{id}/override",
+     *     operationId="overrideSpkKeringPengemasRecommendation",
+     *     tags={"SPK Kering/Pengemas"},
+     *     summary="Override one SPK kering/pengemas recommendation item",
+     *     description="Overrides one stored SPK kering/pengemas recommendation before finalization. Accessible to admin, dapur, and gudang users. Runtime accepts only recommendation_id, recommended_qty, and reason.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="SPK kering/pengemas history identifier.", @OA\Schema(type="integer", minimum=1, example=31)),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/SpkRecommendationOverrideRequest")),
+     *     @OA\Response(response=200, description="Recommendation overridden successfully.", @OA\JsonContent(ref="#/components/schemas/SpkRecommendationOverrideResponse")),
+     *     @OA\Response(response=400, description="Validation failed for unknown fields, invalid recommendation ids, invalid quantities, or missing reasons.", @OA\JsonContent(ref="#/components/schemas/SpkRecommendationOverrideResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group, or the SPK is already finalized.", @OA\JsonContent(ref="#/components/schemas/SpkRecommendationOverrideResponse")),
+     *     @OA\Response(response=404, description="SPK history or recommendation item not found.", @OA\JsonContent(ref="#/components/schemas/SpkRecommendationOverrideResponse"))
+     * )
+     */
     public function overrideItem(int $id): ResponseInterface
     {
         $user = auth()->user();

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -247,8 +248,8 @@ export default function Page() {
     if (items.length > 0) return;
     setItemsLoading(true);
     try {
-      const itemsResponse = await sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC", is_active: true });
-      setItems(itemsResponse.data ?? []);
+      const itemsResponse = await listAllItems({ sortBy: "name", sortDir: "ASC", is_active: true });
+      setItems(itemsResponse);
     } catch (err) {
       console.error("Failed to load item metadata for menu compositions:", err);
     } finally {

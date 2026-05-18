@@ -1544,7 +1544,7 @@ class StockTransactionService
         ];
     }
 
-    public function rejectRevision(int $revisionId, int $approverId, ?string $ipAddress = null): array
+    public function rejectRevision(int $revisionId, array $data, int $approverId, ?string $ipAddress = null): array
     {
         // Ensure revision exists
         $revision = $this->transactionModel->findRevisionById($revisionId);
@@ -1563,6 +1563,27 @@ class StockTransactionService
                 'message' => 'Validation failed.',
                 'errors'  => ['id' => 'Transaction is not a revision.'],
             ];
+        }
+
+        $rejectionReason = null;
+        if (array_key_exists('reason', $data)) {
+            $rejectionReason = trim((string) $data['reason']);
+
+            if ($rejectionReason === '') {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => ['reason' => 'The reason field is required.'],
+                ];
+            }
+
+            if (mb_strlen($rejectionReason) > 255) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => ['reason' => 'The reason field must not exceed 255 characters.'],
+                ];
+            }
         }
 
         // Get status IDs
@@ -1636,6 +1657,7 @@ class StockTransactionService
         $updated   = $this->transactionModel->update($revisionId, [
             'approval_status_id' => $rejectedStatusId,
             'approved_by'        => $approverId,
+            'rejection_reason'   => $rejectionReason,
         ]);
 
         if (! $updated) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import sdk from "@/lib";
 import { formatDate, formatQuantity, getCurrentMonthPeriod, getErrorMessage } from "@/lib/admin-utils";
@@ -24,6 +24,7 @@ type SpkHistoryRow = {
   total_recommended_qty: number;
 };
 
+type SpkHistoryEntry = Awaited<ReturnType<typeof sdk.spk.listBasah>>["data"][number];
 type BasahDetail = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"];
 type KeringDetail = Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>["data"];
 type SpkDetailState =
@@ -36,6 +37,26 @@ export default function SpkHistoryReportPage() {
   const [openingDetailId, setOpeningDetailId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const pageStartIndex = (currentPage - 1) * pageSize;
+  const paginatedRows = useMemo(
+    () => rows.slice(pageStartIndex, pageStartIndex + pageSize),
+    [pageStartIndex, rows],
+  );
+  const pageStartLabel = rows.length === 0 ? 0 : pageStartIndex + 1;
+  const pageEndLabel = Math.min(rows.length, pageStartIndex + pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rows.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,10 +66,10 @@ export default function SpkHistoryReportPage() {
       setError(null);
 
       try {
-        const response = await sdk.reports.getSpkHistory(getCurrentMonthPeriod());
+        const nextRows = await loadSpkHistoryRows();
         if (cancelled) return;
 
-        setRows((response.data.rows as SpkHistoryRow[]) ?? []);
+        setRows(nextRows);
       } catch (loadError) {
         if (!cancelled) {
           setError(getErrorMessage(loadError, "Gagal memuat riwayat SPK."));
@@ -128,7 +149,7 @@ export default function SpkHistoryReportPage() {
                 </tr>
               </thead>
               <tbody className="text-sm text-gray-700">
-                {rows.map((row) => (
+                {paginatedRows.map((row) => (
                   <tr
                     key={`${row.spk_type}-${row.spk_id}`}
                     className="border-t border-gray-200 transition hover:bg-gray-50"
@@ -163,7 +184,10 @@ export default function SpkHistoryReportPage() {
           </div>
 
           <Pagination
-            totalLabel={`${rows.length === 0 ? 0 : 1}-${rows.length} dari ${rows.length} item`}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            totalLabel={`${pageStartLabel}-${pageEndLabel} dari ${rows.length} item`}
+            totalPages={totalPages}
           />
         </SurfaceCard>
       </div>
@@ -171,6 +195,96 @@ export default function SpkHistoryReportPage() {
       {detailState ? <SpkDetailModal detailState={detailState} onClose={() => setDetailState(null)} /> : null}
     </>
   );
+}
+
+async function loadSpkHistoryRows() {
+  const [reportResult, basahResult, keringResult] = await Promise.allSettled([
+    sdk.reports.getSpkHistory(getCurrentMonthPeriod()),
+    sdk.spk.listBasah(),
+    sdk.spk.listKeringPengemas(),
+  ]);
+
+  const rowsByKey = new Map<string, SpkHistoryRow>();
+
+  if (reportResult.status === "fulfilled") {
+    const reportRows = (reportResult.value.data.rows as SpkHistoryRow[] | undefined) ?? [];
+    reportRows.forEach((row) => {
+      const spkType = normalizeSpkType(row.spk_type);
+      rowsByKey.set(historyKey(row.spk_id, spkType), {
+        ...row,
+        spk_type: spkType,
+      });
+    });
+  }
+
+  const historyRequests: Promise<SpkHistoryRow>[] = [];
+
+  if (basahResult.status === "fulfilled") {
+    basahResult.value.data.forEach((entry) => {
+      const key = historyKey(entry.id, "BASAH");
+      if (!rowsByKey.has(key)) {
+        historyRequests.push(rowFromHistoryEntry(entry, "BASAH"));
+      }
+    });
+  }
+
+  if (keringResult.status === "fulfilled") {
+    keringResult.value.data.forEach((entry) => {
+      const key = historyKey(entry.id, "KERING_PENGEMAS");
+      if (!rowsByKey.has(key)) {
+        historyRequests.push(rowFromHistoryEntry(entry, "KERING_PENGEMAS"));
+      }
+    });
+  }
+
+  const hydratedRows = await Promise.all(historyRequests);
+  hydratedRows.forEach((row) => rowsByKey.set(historyKey(row.spk_id, row.spk_type), row));
+
+  if (
+    reportResult.status === "rejected" &&
+    basahResult.status === "rejected" &&
+    keringResult.status === "rejected"
+  ) {
+    throw reportResult.reason;
+  }
+
+  return [...rowsByKey.values()].sort((a, b) => {
+    const dateDiff = new Date(b.calculation_date).getTime() - new Date(a.calculation_date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return b.spk_id - a.spk_id;
+  });
+}
+
+async function rowFromHistoryEntry(entry: SpkHistoryEntry, spkType: "BASAH" | "KERING_PENGEMAS"): Promise<SpkHistoryRow> {
+  try {
+    const response = spkType === "BASAH" ? await sdk.spk.getBasah(entry.id) : await sdk.spk.getKeringPengemas(entry.id);
+    const detail = response.data;
+    return {
+      spk_id: entry.id,
+      calculation_date: entry.calculation_date,
+      spk_type: spkType,
+      category_name: detail.category?.name ?? entry.category?.name ?? null,
+      total_recommendations: detail.items.length,
+      total_recommended_qty: detail.items.reduce((sum, item) => sum + Number(item.final_recommended_qty ?? 0), 0),
+    };
+  } catch {
+    return {
+      spk_id: entry.id,
+      calculation_date: entry.calculation_date,
+      spk_type: spkType,
+      category_name: entry.category?.name ?? null,
+      total_recommendations: 0,
+      total_recommended_qty: 0,
+    };
+  }
+}
+
+function normalizeSpkType(value: string) {
+  return value === "BASAH" ? "BASAH" : "KERING_PENGEMAS";
+}
+
+function historyKey(spkId: number, spkType: string) {
+  return `${spkType}-${spkId}`;
 }
 
 function SpkDetailModal({

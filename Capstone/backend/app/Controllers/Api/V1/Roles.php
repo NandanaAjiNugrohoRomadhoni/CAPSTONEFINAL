@@ -5,7 +5,13 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\BaseController;
 use App\Models\RoleModel;
 use CodeIgniter\HTTP\ResponseInterface;
+use OpenApi\Annotations as OA;
 
+/**
+ * Roles
+ *
+ * Read-only role lookup resource.
+ */
 class Roles extends BaseController
 {
     private RoleModel $roleModel;
@@ -31,6 +37,31 @@ class Roles extends BaseController
         $this->roleModel = new RoleModel();
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/roles",
+     *     operationId="listRoles",
+     *     tags={"Roles"},
+     *     summary="List roles",
+     *     description="Returns active roles in the standard lookup collection envelope. Admin only. This resource is read-only in runtime: there are no implemented create, update, delete, or restore routes. Runtime supports page, perPage, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, updated_at_to, and paginate=false for dropdown reads.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="page", in="query", @OA\Schema(type="integer", minimum=1, example=1)),
+     *     @OA\Parameter(name="perPage", in="query", @OA\Schema(type="integer", minimum=1, maximum=100, example=10)),
+     *     @OA\Parameter(name="paginate", in="query", description="Set to false or 0 to return all active rows while keeping the same envelope with meta.paginated=false.", @OA\Schema(type="string", enum={"true","false","1","0"}, example="false")),
+     *     @OA\Parameter(name="q", in="query", description="Primary text search term. If q and search are both present, q wins.", @OA\Schema(type="string", example="gu")),
+     *     @OA\Parameter(name="search", in="query", description="Fallback text search term when q is absent.", @OA\Schema(type="string", example="admin")),
+     *     @OA\Parameter(name="sortBy", in="query", @OA\Schema(type="string", enum={"id","name","created_at","updated_at"}, example="name")),
+     *     @OA\Parameter(name="sortDir", in="query", @OA\Schema(type="string", enum={"ASC","DESC"}, example="ASC")),
+     *     @OA\Parameter(name="created_at_from", in="query", @OA\Schema(type="string", example="2026-04-10")),
+     *     @OA\Parameter(name="created_at_to", in="query", @OA\Schema(type="string", example="2026-04-18")),
+     *     @OA\Parameter(name="updated_at_from", in="query", @OA\Schema(type="string", example="2026-04-10 00:00:00")),
+     *     @OA\Parameter(name="updated_at_to", in="query", @OA\Schema(type="string", example="2026-04-18 23:59:59")),
+     *     @OA\Response(response=200, description="Active role collection.", @OA\JsonContent(ref="#/components/schemas/RoleCollectionResponse")),
+     *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     * )
+     */
     public function index(): ResponseInterface
     {
         $queryParams = $this->request->getGet();

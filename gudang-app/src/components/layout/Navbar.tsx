@@ -43,9 +43,12 @@ export default function Navbar({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const currentUserId = user?.id ?? null;
   const currentNotificationRole = resolveNotificationRole(user?.role?.name);
   const [notifications, setNotifications] = useState<StockAdjustmentNotification[]>([]);
   const [notificationNow, setNotificationNow] = useState(() => Date.now());
+  const notificationRequestRef = useRef<Promise<void> | null>(null);
+  const lastNotificationLoadAtRef = useRef(0);
 
   const pageTitle = useMemo(() => {
     const titleMap: Record<string, string> = {
@@ -110,19 +113,35 @@ export default function Navbar({
   );
   const unreadNotificationCount = scopedNotifications.filter((item) => !item.read).length;
 
-  const loadNotifications = useCallback(async () => {
-    if (!user) {
+  const loadNotifications = useCallback(async (force = false) => {
+    if (!currentUserId) {
       setNotifications([]);
       return;
     }
 
-    try {
-      const nextNotifications = await listStockAdjustmentNotifications(currentNotificationRole);
-      setNotifications(nextNotifications);
-    } catch {
-      setNotifications([]);
+    const now = Date.now();
+    if (!force && now - lastNotificationLoadAtRef.current < 1500) {
+      return notificationRequestRef.current ?? undefined;
     }
-  }, [currentNotificationRole, user]);
+
+    if (notificationRequestRef.current) {
+      return notificationRequestRef.current;
+    }
+
+    lastNotificationLoadAtRef.current = now;
+    notificationRequestRef.current = (async () => {
+      try {
+        const nextNotifications = await listStockAdjustmentNotifications(currentNotificationRole);
+        setNotifications(nextNotifications);
+      } catch {
+        setNotifications([]);
+      } finally {
+        notificationRequestRef.current = null;
+      }
+    })();
+
+    return notificationRequestRef.current;
+  }, [currentNotificationRole, currentUserId]);
 
   async function handleLogout() {
     await logout();
@@ -136,7 +155,7 @@ export default function Navbar({
 
   useEffect(() => {
     const unsubscribe = subscribeStockAdjustmentNotifications(() => {
-      void loadNotifications();
+      void loadNotifications(true);
     });
 
     return unsubscribe;
@@ -158,29 +177,13 @@ export default function Navbar({
     }
 
     const timeoutId = window.setTimeout(() => {
-      void loadNotifications();
+      void loadNotifications(true);
     }, 0);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
   }, [loadNotifications, openNotif]);
-
-  useEffect(() => {
-    if (!openNotif) {
-      return;
-    }
-
-    console.log(
-      "[notif:panel]",
-      visibleNotifications.map((notification) => ({
-          title: notification.title,
-          kind: notification.kind,
-          sourceType: notification.sourceType,
-          createdAt: notification.createdAt,
-        })),
-    );
-  }, [openNotif, visibleNotifications]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -297,6 +300,7 @@ export default function Navbar({
 
         <p className="hidden text-sm text-gray-400 md:block">
           {new Intl.DateTimeFormat("id-ID", {
+            timeZone: "Asia/Jakarta",
             weekday: "short",
             day: "2-digit",
             month: "short",
@@ -315,7 +319,7 @@ export default function Navbar({
                   void markAllStockAdjustmentNotificationsRead()
                     .catch(() => undefined)
                     .finally(() => {
-                      void loadNotifications();
+                      void loadNotifications(true);
                     });
                 }
                 return next;
@@ -360,7 +364,7 @@ export default function Navbar({
                           void markStockAdjustmentNotificationRead(notification.id)
                             .catch(() => undefined)
                             .finally(() => {
-                              void loadNotifications();
+                              void loadNotifications(true);
                               if (notification.route) {
                                 router.push(notification.route);
                               }
@@ -414,7 +418,7 @@ export default function Navbar({
                           .catch(() => undefined)
                           .finally(() => {
                             setShowAllNotifications(false);
-                            void loadNotifications();
+                            void loadNotifications(true);
                           });
                       }}
                       type="button"

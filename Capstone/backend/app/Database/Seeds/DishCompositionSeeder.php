@@ -9,7 +9,7 @@ class DishCompositionSeeder extends Seeder
 {
     public function run(): void
     {
-        $itemIds = $this->resolveRequiredItemIds(['Beras', 'Ayam', 'Minyak Goreng', 'Telur']);
+        $itemIds = $this->resolveRequiredItemIds(['Beras', 'Daging Ayam', 'Minyak Goreng', 'Telur']);
 
         $dishes = $this->db->table('dishes')
             ->select('id, name')

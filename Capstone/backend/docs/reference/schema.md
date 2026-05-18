@@ -327,6 +327,7 @@ Fungsi: Header transaksi stok, termasuk transaksi normal dan revisi.
 | `user_id` | bigint | not null, FK | User pembuat transaksi |
 | `spk_id` | bigint | nullable | Relasi opsional ke `spk_calculations.id` pada fase integrasi SPK |
 | `reason` | text | nullable | Alasan transaksi (digunakan pada koreksi stok langsung atau backfill) |
+| `rejection_reason` | varchar(255) | nullable | Alasan penolakan admin untuk transaksi revisi yang di-reject |
 | `legacy_source_table` | varchar(100) | nullable | Table name for historical backfill linkage (e.g. `stock_opname_details`) |
 | `legacy_source_id` | bigint | nullable | Header ID from the legacy source table |
 | `legacy_source_detail_id` | bigint | nullable | Detail row ID from the legacy source table |
@@ -347,6 +348,7 @@ Catatan desain:
 - Revisi yang baru disubmit disimpan dengan status `PENDING` dan tidak langsung mengubah `items.qty`.
 - `approved_by` diisi saat admin melakukan approve atau reject terhadap revisi.
 - Koreksi stok langsung disimpan sebagai transaksi final (`is_revision = false`, `parent_transaction_id = null`) dan menggunakan `reason` pada header transaksi untuk menjelaskan penyebab koreksi.
+- Revisi yang di-reject dapat menyimpan catatan admin pada `rejection_reason`; input API tetap memakai key `reason` khusus untuk endpoint reject revision.
 - Mutasi stok dari revisi hanya diterapkan ketika status revisi berubah menjadi `APPROVED`.
 - Saat revisi di-approve, aplikasi menerapkan **selisih bersih** antara detail revisi pending dan **baseline efektif** per item (latest approved sibling dalam lineage, atau parent original jika belum ada approved sibling).
 - Semua revisi pada satu lineage tetap sibling ke parent original (tidak ada revision chaining).

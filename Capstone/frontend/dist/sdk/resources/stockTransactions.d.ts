@@ -1,5 +1,5 @@
 import type { ApiClient } from "../client";
-import type { ApiDataResponse, ApiListResponse, ApiMessageDataResponse, CreateStockTransactionRequest, DirectStockCorrectionRequest, ListStockTransactionsQuery, StockTransaction, StockTransactionCreateResult, StockTransactionDetail, StockTransactionModerationResult, StockTransactionRevisionResult, SubmitRevisionRequest } from "../types";
+import type { ApiDataResponse, ApiListResponse, ApiMessageDataResponse, CreateStockTransactionRequest, DirectStockCorrectionRequest, ListStockTransactionsQuery, RejectStockTransactionRequest, StockTransaction, StockTransactionCreateResult, StockTransactionDetail, StockTransactionModerationResult, StockTransactionRevisionResult, SubmitRevisionRequest } from "../types";
 /**
  * StockTransactions SDK Resource
  *
@@ -107,6 +107,7 @@ export declare class StockTransactionsResource {
      *
      * @endpoint POST /api/v1/stock-transactions/{id}/reject
      * @access   admin
+     * @param payload - Optional JSON body with `reason`. Omitting the body remains supported for backward compatibility.
      * @returns {Promise<ApiMessageDataResponse<StockTransactionModerationResult>>}
      * @throws {ValidationApiError} if the revision is not rejectable (400)
      * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -114,5 +115,5 @@ export declare class StockTransactionsResource {
      * @throws {NotFoundApiError} if the revision does not exist (404)
      * @sideeffect Does not mutate `items.qty`.
      */
-    reject(id: number): Promise<ApiMessageDataResponse<StockTransactionModerationResult>>;
+    reject(id: number, payload?: RejectStockTransactionRequest): Promise<ApiMessageDataResponse<StockTransactionModerationResult>>;
 }

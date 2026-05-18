@@ -6,6 +6,7 @@ import type {
   CreateStockTransactionRequest,
   DirectStockCorrectionRequest,
   ListStockTransactionsQuery,
+  RejectStockTransactionRequest,
   StockTransaction,
   StockTransactionCreateResult,
   StockTransactionDetail,
@@ -168,6 +169,7 @@ export class StockTransactionsResource {
    *
    * @endpoint POST /api/v1/stock-transactions/{id}/reject
    * @access   admin
+   * @param payload - Optional JSON body with `reason`. Omitting the body remains supported for backward compatibility.
    * @returns {Promise<ApiMessageDataResponse<StockTransactionModerationResult>>}
    * @throws {ValidationApiError} if the revision is not rejectable (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -175,10 +177,14 @@ export class StockTransactionsResource {
    * @throws {NotFoundApiError} if the revision does not exist (404)
    * @sideeffect Does not mutate `items.qty`.
    */
-  public reject(id: number): Promise<ApiMessageDataResponse<StockTransactionModerationResult>> {
+  public reject(
+    id: number,
+    payload?: RejectStockTransactionRequest
+  ): Promise<ApiMessageDataResponse<StockTransactionModerationResult>> {
     return this.client.request<ApiMessageDataResponse<StockTransactionModerationResult>>({
       method: "POST",
-      path: `/stock-transactions/${id}/reject`
+      path: `/stock-transactions/${id}/reject`,
+      ...(payload ? { body: payload } : {})
     });
   }
 }
@@ -200,7 +206,6 @@ function buildStockTransactionsQuery(query: ListStockTransactionsQuery): Record<
   if (query.sortDir !== undefined) result.sortDir = query.sortDir;
   if (query.type_id !== undefined) result.type_id = query.type_id;
   if (query.status_id !== undefined) result.status_id = query.status_id;
-  if (query.is_revision !== undefined) result.is_revision = query.is_revision ? 1 : 0;
   if (query.transaction_date_from !== undefined) result.transaction_date_from = query.transaction_date_from;
   if (query.transaction_date_to !== undefined) result.transaction_date_to = query.transaction_date_to;
   if (query.created_at_from !== undefined) result.created_at_from = query.created_at_from;

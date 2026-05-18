@@ -19,7 +19,7 @@ An SPK calculation follows a simple progression:
 Before generation, you can preview the current operational stock for the day.
 
 - **Endpoint**: `POST /api/v1/spk/basah/operational-stock-preview`
-- **Role**: `admin`, `dapur`
+- **Role**: `admin`, `dapur`, `gudang`
 - **Payload**:
   ```json
   {
@@ -31,7 +31,7 @@ Before generation, you can preview the current operational stock for the day.
 Generate fresh recommendations for a given target date and estimated number of patients.
 
 - **Endpoint**: `POST /api/v1/spk/basah/generate`
-- **Role**: `admin`, `dapur`
+- **Role**: `admin`, `dapur`, `gudang`
 - **Payload**:
   ```json
   {
@@ -44,7 +44,7 @@ Generate fresh recommendations for a given target date and estimated number of p
 Modify specific item quantities if manual adjustment is needed.
 
 - **Endpoint**: `POST /api/v1/spk/basah/history/{id}/override`
-- **Role**: `admin`, `dapur`
+- **Role**: `admin`, `dapur`, `gudang`
 - **Payload**:
   ```json
   {
@@ -58,7 +58,7 @@ Modify specific item quantities if manual adjustment is needed.
 Finalizes the SPK and adjusts inventory (e.g., generating necessary stock mutations).
 
 - **Endpoint**: `POST /api/v1/spk/basah/history/{id}/post-stock`
-- **Role**: `admin`
+- **Role**: `admin`, `gudang`
 
 ## Failure Paths
 

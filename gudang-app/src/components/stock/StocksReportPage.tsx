@@ -17,6 +17,7 @@ import {
   Pagination,
   StatusPill,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 
 type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
@@ -329,29 +330,27 @@ export default function StocksReportPage() {
                 readOnly={false}
               />
             </div>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
+            <ThemedSelect
+              className="min-w-[180px]"
               value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-            >
-              <option>Semua Jenis</option>
-              {categoryOptions.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
+              onChange={setCategoryFilter}
+              options={[
+                { value: "Semua Jenis", label: "Semua Jenis" },
+                ...categoryOptions.map((category) => ({ value: category, label: category })),
+              ]}
+            />
+            <ThemedSelect
+              className="min-w-[180px]"
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-            >
-              <option>Semua Status</option>
-              <option>Aman</option>
-              <option>Menipis</option>
-              <option>Kritis</option>
-              <option>Habis</option>
-            </select>
+              onChange={setStatusFilter}
+              options={[
+                { value: "Semua Status", label: "Semua Status" },
+                { value: "Aman", label: "Aman" },
+                { value: "Menipis", label: "Menipis" },
+                { value: "Kritis", label: "Kritis" },
+                { value: "Habis", label: "Habis" },
+              ]}
+            />
           </div>
           <div className="ml-auto">
             <ExportButton onClick={handleExport}>Export Data</ExportButton>

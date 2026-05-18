@@ -18,6 +18,7 @@ class StockTransactionModel extends Model
         'user_id',
         'spk_id',
         'reason',
+        'rejection_reason',
         'legacy_source_table',
         'legacy_source_id',
         'legacy_source_detail_id',
@@ -72,7 +73,6 @@ class StockTransactionModel extends Model
         string $sortDir,
         ?int $typeId,
         ?int $statusId,
-        ?bool $isRevision,
         ?string $transactionDateFrom,
         ?string $transactionDateTo,
         ?string $createdAtFrom,
@@ -96,10 +96,6 @@ class StockTransactionModel extends Model
 
         if ($statusId !== null) {
             $builder->where('stock_transactions.approval_status_id', $statusId);
-        }
-
-        if ($isRevision !== null) {
-            $builder->where('stock_transactions.is_revision', $isRevision);
         }
 
         if ($transactionDateFrom !== null) {

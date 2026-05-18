@@ -1,6 +1,7 @@
 "use client";
 
-import type { MouseEventHandler, ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEventHandler, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarDays,
   ChevronLeft,
@@ -31,18 +32,21 @@ export function AdminPageHeading({
 
 export function PrimaryAction({
   children,
+  disabled = false,
   onClick,
   type = "button",
   className = "",
 }: Readonly<{
   children: ReactNode;
-  onClick?: () => void;
+  disabled?: boolean;
+  onClick?: MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit" | "reset";
   className?: string;
 }>) {
   return (
     <button
-      className={`rounded-lg bg-[#2155CD] px-4 py-2.5 text-base font-medium text-white shadow-[0_10px_24px_rgba(33,85,205,0.24)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(33,85,205,0.28)] ${className}`}
+      className={`rounded-lg bg-[#2155CD] px-4 py-2.5 text-base font-medium text-white shadow-[0_10px_24px_rgba(33,85,205,0.24)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(33,85,205,0.28)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-[0_10px_24px_rgba(33,85,205,0.24)] ${className}`}
+      disabled={disabled}
       onClick={onClick}
       type={type}
     >
@@ -125,6 +129,100 @@ export function FilterSelect({
       <span>{label}</span>
       <ChevronRight size={14} className="rotate-90 text-[#64748B]" />
     </button>
+  );
+}
+
+export type ThemedSelectOption = {
+  value: string;
+  label: string;
+};
+
+export function ThemedSelect({
+  value,
+  options,
+  onChange,
+  className = "",
+  placeholder = "Pilih opsi",
+}: Readonly<{
+  value: string;
+  options: ThemedSelectOption[];
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}>) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const selected = options.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => setRect(buttonRef.current?.getBoundingClientRect() ?? null);
+    const closeOnOutside = (event: MouseEvent) => {
+      if (buttonRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    document.addEventListener("mousedown", closeOnOutside);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", closeOnOutside);
+    };
+  }, [open]);
+
+  const menu =
+    open && rect
+      ? createPortal(
+          <div
+            className="z-[9999] max-h-64 overflow-auto rounded-xl border border-[#D7E0EE] bg-white p-2 text-base text-[#16213E] shadow-[0_18px_50px_rgba(15,23,42,0.18)]"
+            style={{
+              left: rect.left,
+              minWidth: rect.width,
+              position: "fixed",
+              top: rect.bottom + 8,
+            }}
+          >
+            {options.map((option) => (
+              <button
+                key={option.value}
+                className={`block w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  option.value === value
+                    ? "bg-[#EAF1FF] font-semibold text-[#2155CD]"
+                    : "hover:bg-[#F1F5F9]"
+                }`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        className={`flex h-12 items-center justify-between gap-3 rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none transition-all hover:bg-[#F8FAFC] ${open ? "border-[#2155CD] ring-2 ring-[#DBEAFE]" : ""} ${className}`}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span>{selected?.label ?? placeholder}</span>
+        <ChevronRight size={16} className={`text-[#64748B] transition-transform ${open ? "-rotate-90" : "rotate-90"}`} />
+      </button>
+      {menu}
+    </>
   );
 }
 

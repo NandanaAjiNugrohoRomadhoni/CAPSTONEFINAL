@@ -95,8 +95,8 @@ Enforcement role operasional dilakukan oleh `App\Filters\RoleFilter` yang dikonf
 
 ```json
 {
-  "username": "admin",
-  "password": "password123"
+  "username": "example-user",
+  "password": "example-password"
 }
 ```
 
@@ -110,8 +110,8 @@ Enforcement role operasional dilakukan oleh `App\Filters\RoleFilter` yang dikonf
   "user": {
     "id": 1,
     "role_id": 1,
-    "name": "Admin User",
-    "username": "admin",
+    "name": "Example User",
+    "username": "example-user",
     "is_active": true,
     "role": {
       "id": 1,
@@ -153,8 +153,8 @@ Authenticated users can change their own password. This endpoint requires the us
 
 ```json
 {
-  "current_password": "password123",
-  "password": "newpassword123"
+  "current_password": "example-current-password",
+  "password": "example-new-password"
 }
 ```
 
@@ -249,7 +249,8 @@ Supported query parameters for all lookup list endpoints:
     "page": 1,
     "perPage": 10,
     "total": 3,
-    "totalPages": 1
+    "totalPages": 1,
+    "paginated": true
   },
   "links": {
     "self": "/api/v1/item-categories?page=1&perPage=10",
@@ -328,7 +329,8 @@ Supported query parameters for all lookup list endpoints:
     "page": 1,
     "perPage": 10,
     "total": 3,
-    "totalPages": 1
+    "totalPages": 1,
+    "paginated": true
   },
   "links": {
     "self": "/api/v1/transaction-types?page=1&perPage=10",
@@ -527,9 +529,9 @@ Supported query parameters:
     {
       "id": 1,
       "role_id": 1,
-      "name": "Admin User",
-      "username": "admin",
-      "email": "admin@example.com",
+      "name": "Example User",
+      "username": "example-user",
+      "email": "example.user@example.test",
       "is_active": true,
       "created_at": "2026-04-02 10:00:00",
       "updated_at": "2026-04-02 10:00:00",
@@ -571,7 +573,7 @@ Lookup contract:
   "name": "New User",
   "username": "newuser",
   "email": "newuser@example.com",
-  "password": "password123",
+  "password": "example-user-password",
   "is_active": true
 }
 ```
@@ -665,7 +667,7 @@ This endpoint is for administrators to change another user's password. Changing 
 
 ```json
 {
-  "password": "newpassword123"
+  "password": "example-reset-password"
 }
 ```
 
@@ -1373,7 +1375,7 @@ Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone
 |---|---|---|
 | POST | `/api/v1/stock-transactions/{id}/submit-revision` | Submit revision against parent transaction |
 | POST | `/api/v1/stock-transactions/{id}/approve` | Approve revision transaction |
-| POST | `/api/v1/stock-transactions/{id}/reject` | Reject revision transaction |
+| POST | `/api/v1/stock-transactions/{id}/reject` | Reject revision transaction (optional body: `reason`) |
 | POST | `/api/v1/stock-opnames` | Create dedicated stock opname draft |
 | GET | `/api/v1/stock-opnames/{id}` | Get stock opname header and details |
 | POST | `/api/v1/stock-opnames/{id}/submit` | Submit stock opname draft for approval |
@@ -1395,6 +1397,8 @@ Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone
 - successive approved sibling revisions diperbolehkan sepanjang alur tetap sequential (satu pending per lineage);
 - revision-on-revision tetap ditolak;
 - reject revision tidak mengubah `items.qty`;
+- reject revision menerima body JSON opsional `{ "reason": "..." }` untuk catatan penolakan admin;
+- request field `reason` disimpan ke kolom `stock_transactions.rejection_reason`, bukan ke `stock_transactions.reason`;
 - parent transaction tetap dipertahankan sebagai histori asal.
 
 #### 5.5.10 Stock Opname Compatibility Facade
@@ -1603,6 +1607,8 @@ SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
 | GET | `/api/v1/spk/stock-in-prefill/{id}` | Prefill data untuk transaksi IN berdasarkan SPK |
 
 Access note: endpoint read untuk SPK history/calendar (`GET /spk/basah/menu-calendar`, `GET /spk/basah/history*`, `GET /spk/kering-pengemas/menu-calendar`, `GET /spk/kering-pengemas/history*`) tersedia untuk `admin`, `dapur`, dan `gudang`.
+
+Access note: seluruh write/helper flow SPK yang saat ini diimplementasikan juga tersedia untuk `admin`, `dapur`, dan `gudang`, termasuk `POST /spk/basah/operational-stock-preview`, `POST /spk/basah/generate`, `POST /spk/basah/history/{id}/override`, `POST /spk/kering-pengemas/generate`, `POST /spk/kering-pengemas/history/{id}/override`, dan `GET /spk/stock-in-prefill/{id}`. Final stock posting (`POST /spk/*/history/{id}/post-stock`) tersedia untuk `admin` dan `gudang`.
 
 #### 5.7.5 Controller/Service Boundary Freeze
 

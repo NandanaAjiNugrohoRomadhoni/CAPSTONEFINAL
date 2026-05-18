@@ -143,26 +143,4 @@ class DishCompositionModel extends Model
             ->where('dish_id', $dishId)
             ->countAllResults();
     }
-
-    /**
-     * @return list<string>
-     */
-    public function getDistinctDishNamesByItemId(int $itemId): array
-    {
-        $rows = $this->builder()
-            ->select('dishes.name')
-            ->join('dishes', 'dishes.id = dish_compositions.dish_id')
-            ->join('items', 'items.id = dish_compositions.item_id')
-            ->where('dish_compositions.item_id', $itemId)
-            ->where('items.deleted_at', null)
-            ->distinct()
-            ->orderBy('dishes.name', 'ASC')
-            ->get()
-            ->getResultArray();
-
-        return array_values(array_filter(array_map(
-            static fn(array $row): string => trim((string) ($row['name'] ?? '')),
-            $rows
-        )));
-    }
 }

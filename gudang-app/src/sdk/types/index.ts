@@ -11,4 +11,5 @@ export * from "./roles";
 export * from "./spk";
 export * from "./stockOpnames";
 export * from "./stockTransactions";
+export * from "./units";
 export * from "./users";

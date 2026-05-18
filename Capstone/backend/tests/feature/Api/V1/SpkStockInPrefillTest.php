@@ -126,6 +126,33 @@ class SpkStockInPrefillTest extends CIUnitTestCase
         $this->assertCount(count($editedDetails), $savedDetails);
     }
 
+    public function testPrefillAllowsGudangRole(): void
+    {
+        $dapurToken = $this->login('dapur');
+        $gudangToken = $this->login('gudang');
+
+        $this->createDailyPatient($dapurToken, '2026-03-01', 100);
+
+        $generated = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+            ]);
+        $generated->assertStatus(201);
+
+        $generatedJson = json_decode($generated->getJSON(), true);
+        $spkId = (int) $generatedJson['data']['id'];
+
+        $prefill = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->get('api/v1/spk/stock-in-prefill/' . $spkId);
+
+        $prefill->assertStatus(200);
+
+        $prefillJson = json_decode($prefill->getJSON(), true);
+        $this->assertIsArray($prefillJson);
+        $this->assertSame($spkId, (int) ($prefillJson['data']['spk_id'] ?? 0));
+    }
+
     protected function seedRoles(): void
     {
         $roleModel = new RoleModel();

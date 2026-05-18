@@ -5,7 +5,13 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\BaseController;
 use App\Services\AuthService;
 use CodeIgniter\HTTP\ResponseInterface;
+use OpenApi\Annotations as OA;
 
+/**
+ * Auth
+ *
+ * Documents the implemented authentication endpoints exposed under `/api/v1/auth`.
+ */
 class Auth extends BaseController
 {
     protected AuthService $authService;
@@ -15,6 +21,33 @@ class Auth extends BaseController
         $this->authService = new AuthService();
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/auth/login",
+     *     tags={"Auth"},
+     *     operationId="authLogin",
+     *     summary="Authenticate a user and issue a bearer token.",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"username","password"},
+     *             @OA\Property(property="username", type="string", example="example-user"),
+ *             @OA\Property(property="password", type="string", format="password", example="example-password")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Login successful.",
+     *         @OA\JsonContent(ref="#/components/schemas/LoginResponse")
+     *     ),
+     *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Credentials are invalid or the account is inactive or deleted.",
+     *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
+     *     )
+     * )
+     */
     public function login(): ResponseInterface
     {
         $data = $this->request->getJSON(true);
@@ -56,6 +89,26 @@ class Auth extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/auth/me",
+     *     tags={"Auth"},
+     *     operationId="authMe",
+     *     summary="Return the authenticated user's current profile.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Authenticated user profile.",
+     *         @OA\JsonContent(ref="#/components/schemas/UserResource")
+     *     ),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Account is inactive or has been deleted.",
+     *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
+     *     )
+     * )
+     */
     public function me(): ResponseInterface
     {
         $user = auth()->user();
@@ -85,6 +138,17 @@ class Auth extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/auth/logout",
+     *     tags={"Auth"},
+     *     operationId="authLogout",
+     *     summary="Revoke the current bearer token.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, ref="#/components/responses/MessageOnlyResponse"),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse")
+     * )
+     */
     public function logout(): ResponseInterface
     {
         $user = auth()->user();
@@ -106,6 +170,30 @@ class Auth extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Patch(
+     *     path="/api/v1/auth/password",
+     *     tags={"Auth"},
+     *     operationId="authChangePassword",
+     *     summary="Change the authenticated user's password.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"current_password","password"},
+ *             @OA\Property(property="current_password", type="string", format="password", example="example-current-password"),
+ *             @OA\Property(property="password", type="string", format="password", minLength=8, example="example-new-password")
+ *         )
+ *     ),
+     *     @OA\Response(response=200, ref="#/components/responses/MessageOnlyResponse"),
+     *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Authentication is required or the current password is incorrect.",
+     *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
+     *     )
+     * )
+     */
     public function changePassword(): ResponseInterface
     {
         $user = auth()->user();

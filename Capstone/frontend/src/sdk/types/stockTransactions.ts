@@ -21,6 +21,8 @@ export interface StockTransaction {
   user_id: number;
   spk_id: number | null;
   reason: string | null;
+  /** Optional admin rejection note stored separately from transaction `reason`. */
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,7 +65,6 @@ export interface ListStockTransactionsQuery {
   sortDir?: "ASC" | "DESC";
   type_id?: number;
   status_id?: number;
-  is_revision?: boolean;
   transaction_date_from?: string;
   transaction_date_to?: string;
   created_at_from?: string;
@@ -84,6 +85,11 @@ export interface SubmitRevisionRequest {
   transaction_date: string;
   spk_id?: number | null;
   details: StockTransactionDetailInput[];
+}
+
+/** Optional request payload for admin-only `POST /api/v1/stock-transactions/{id}/reject`. */
+export interface RejectStockTransactionRequest {
+  reason?: string;
 }
 
 /** Request payload for admin-only `POST /api/v1/stock-transactions/direct-corrections`. */

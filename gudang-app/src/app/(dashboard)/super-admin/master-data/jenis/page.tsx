@@ -7,6 +7,7 @@ import { Search, X } from "lucide-react";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import sdk from "@/lib";
+import { listAllItems } from "@/lib/items";
 
 type ModalMode = "add" | "edit" | "delete" | null;
 
@@ -182,8 +183,8 @@ export default function JenisBahanPage() {
 
     try {
       const deletedName = selectedItem.name;
-      const itemsResponse = await sdk.items.list({ perPage: 100, sortBy: "name", sortDir: "ASC" });
-      const usedByItems = (itemsResponse.data ?? []).some(
+      const itemsResponse = await listAllItems({ sortBy: "name", sortDir: "ASC" });
+      const usedByItems = itemsResponse.some(
         (item) => Number(item.item_category_id ?? item.category?.id) === Number(selectedItem.id),
       );
 

@@ -193,6 +193,45 @@ class SpkKeringPengemasTest extends CIUnitTestCase
         $this->assertArrayHasKey('final_recommended_qty', $showJson['data']['items'][0]);
     }
 
+    public function testGenerateAllowsGudangRole(): void
+    {
+        $token = $this->login('gudang');
+        $db = Database::connect();
+
+        $postedStatusId = (int) $db->table('approval_statuses')->where('name', 'APPROVED')->get()->getRowArray()['id'];
+        $outTypeId = (int) $db->table('transaction_types')->where('name', 'OUT')->get()->getRowArray()['id'];
+        $item = $db->table('items')->where('name', 'Beras Kering')->get()->getRowArray();
+        $this->assertNotNull($item);
+
+        $db->table('stock_transactions')->insert([
+            'type_id' => $outTypeId,
+            'transaction_date' => '2026-03-05',
+            'is_revision' => false,
+            'parent_transaction_id' => null,
+            'approval_status_id' => $postedStatusId,
+            'approved_by' => null,
+            'user_id' => 1,
+            'spk_id' => null,
+        ]);
+        $txId = (int) $db->insertID();
+        $db->table('stock_transaction_details')->insert([
+            'transaction_id' => $txId,
+            'item_id' => (int) $item['id'],
+            'qty' => 500,
+            'input_qty' => 500,
+            'input_unit' => 'base',
+        ]);
+
+        $generate = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/kering-pengemas/generate', [
+                'target_month' => '2026-04',
+            ]);
+
+        $generate->assertStatus(201);
+        $generate->assertJSONFragment(['message' => 'SPK kering/pengemas generated successfully.']);
+    }
+
     public function testMenuCalendarProjectionMatchesCanonicalResolverShape(): void
     {
         $token = $this->login('admin');

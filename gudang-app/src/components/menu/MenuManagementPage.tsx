@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -175,14 +176,13 @@ function SearchableIngredientSelect({
 
 async function loadAvailableItems(mode: "admin" | "dapur") {
   if (mode === "admin") {
-    const itemsResponse = await sdk.items.list({
-      perPage: 100,
+    const itemsResponse = await listAllItems({
       sortBy: "name",
       sortDir: "ASC",
       is_active: true,
     });
 
-    return (itemsResponse.data ?? []).map((item) => ({
+    return itemsResponse.map((item) => ({
       id: Number(item.id),
       name: item.name,
       unit_base: item.unit_base,

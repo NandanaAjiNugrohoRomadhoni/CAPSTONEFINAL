@@ -17,6 +17,10 @@ type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type ItemUnitRow = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
 type TransactionTypeRow = Awaited<ReturnType<typeof sdk.transactionTypes.list>>["data"][number];
 type StatusRow = Awaited<ReturnType<typeof sdk.approvalStatuses.list>>["data"][number];
+type TransactionRevisionRow = TransactionRow & {
+  user_name?: string | null;
+  user?: { name?: string | null; username?: string | null } | null;
+};
 
 type TransactionRevisionPageProps = {
   title: string;
@@ -29,7 +33,7 @@ export default function TransactionRevisionPage({
   subtitle,
   role,
 }: Readonly<TransactionRevisionPageProps>) {
-  const [revisions, setRevisions] = useState<TransactionRow[]>([]);
+  const [revisions, setRevisions] = useState<TransactionRevisionRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +41,7 @@ export default function TransactionRevisionPage({
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
 
-  const [detailTransaction, setDetailTransaction] = useState<TransactionRow | null>(null);
+  const [detailTransaction, setDetailTransaction] = useState<TransactionRevisionRow | null>(null);
   const [detailRows, setDetailRows] = useState<
     Array<{
       itemId: number;
@@ -54,7 +58,7 @@ export default function TransactionRevisionPage({
   const [statuses, setStatuses] = useState<StatusRow[]>([]);
   const [categoryMap, setCategoryMap] = useState<Map<number, string>>(new Map());
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [confirmRevision, setConfirmRevision] = useState<TransactionRow | null>(null);
+  const [confirmRevision, setConfirmRevision] = useState<TransactionRevisionRow | null>(null);
   const [confirmRows, setConfirmRows] = useState<
     Array<{
       itemId: number;
@@ -85,7 +89,7 @@ export default function TransactionRevisionPage({
         if (!isRevision) return false;
         return true;
       });
-      setRevisions(revisionRows);
+      setRevisions(revisionRows as TransactionRevisionRow[]);
     } catch (err) {
       setError(getErrorMessage(err, "Gagal memuat daftar pengajuan revisi."));
     } finally {
@@ -153,7 +157,11 @@ export default function TransactionRevisionPage({
     return normalized.includes("pending") || normalized.includes("menunggu");
   }
 
-  async function openDetails(transaction: TransactionRow) {
+  function getRevisionUserLabel(revision: TransactionRevisionRow) {
+    return revision.user_name || revision.user?.name || revision.user?.username || `User #${revision.user_id}`;
+  }
+
+  async function openDetails(transaction: TransactionRevisionRow) {
     setDetailTransaction(transaction);
     setLoadingDetails(true);
     try {
@@ -208,7 +216,7 @@ export default function TransactionRevisionPage({
     }
   }
 
-  async function openConfirmModal(revision: TransactionRow) {
+  async function openConfirmModal(revision: TransactionRevisionRow) {
     if (revision.parent_transaction_id == null) return;
     setConfirmRevision(revision);
     setLoadingConfirmRows(true);
@@ -312,7 +320,7 @@ export default function TransactionRevisionPage({
     return revisions.filter((revision) => {
       const revisionId = `rev-${String(revision.id).padStart(4, "0")}`.toLowerCase();
       const parentId = `tr-${String(revision.parent_transaction_id).padStart(4, "0")}`.toLowerCase();
-      const userLabel = (revision.user_name || `User #${revision.user_id}`).toLowerCase();
+      const userLabel = getRevisionUserLabel(revision).toLowerCase();
       const statusLabel = localizeStatusLabel(getStatusLabel(revision.approval_status_id)).toLowerCase();
 
       const matchesSearch =
@@ -390,7 +398,7 @@ function handleExport() {
         `REV-${String(rev.id).padStart(4, "0")}`,
         `TR-${String(rev.parent_transaction_id ?? rev.id).padStart(4, "0")}`,
         formatDate(rev.transaction_date),
-        rev.user_name || `User #${rev.user_id}`,
+        getRevisionUserLabel(rev),
         normaliseTransactionLabel(typeMap.get(rev.type_id)),
         categoryMap.get(rev.id) ?? "-",
         localizeStatusLabel(getStatusLabel(rev.approval_status_id)),
@@ -490,7 +498,7 @@ function handleExport() {
                       </p>
                     </td>
                     <td className="px-6 py-5">{formatDate(rev.transaction_date)}</td>
-                    <td className="px-6 py-5">{rev.user_name || `User #${rev.user_id}`}</td>
+                    <td className="px-6 py-5">{getRevisionUserLabel(rev)}</td>
                     <td className="px-6 py-5 font-semibold text-[#16213E]">{normaliseTransactionLabel(typeMap.get(rev.type_id))}</td>
                     <td className="px-6 py-5">{categoryMap.get(rev.id) ?? "-"}</td>
                     <td className="px-6 py-5">

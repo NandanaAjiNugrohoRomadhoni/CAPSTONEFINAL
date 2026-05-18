@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\ItemCategoryModel;
-use App\Models\DishCompositionModel;
 use App\Models\ItemModel;
 use App\Models\ItemUnitModel;
 
@@ -22,14 +21,12 @@ class ItemManagementService
     protected ItemModel $itemModel;
     protected ItemCategoryModel $itemCategoryModel;
     protected ItemUnitModel $itemUnitModel;
-    protected DishCompositionModel $dishCompositionModel;
 
     public function __construct()
     {
         $this->itemModel         = new ItemModel();
         $this->itemCategoryModel = new ItemCategoryModel();
         $this->itemUnitModel     = new ItemUnitModel();
-        $this->dishCompositionModel = new DishCompositionModel();
     }
 
     public function getAllItems(array $queryParams): array
@@ -365,18 +362,7 @@ class ItemManagementService
             ];
         }
 
-        $linkedDishNames = $this->dishCompositionModel->getDistinctDishNamesByItemId($id);
-        if ($linkedDishNames !== []) {
-            return [
-                'success' => false,
-                'message' => 'Barang Dipakai Pada Menu ' . implode(', ', $linkedDishNames) . '.',
-                'errors'  => [
-                    'linked_dishes' => $linkedDishNames,
-                ],
-            ];
-        }
-
-        if (! $this->itemModel->delete($id, true)) {
+        if (! $this->itemModel->delete($id)) {
             return [
                 'success' => false,
                 'message' => 'Failed to delete item.',
