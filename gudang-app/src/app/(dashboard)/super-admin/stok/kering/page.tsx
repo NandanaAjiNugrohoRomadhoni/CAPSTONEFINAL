@@ -13,6 +13,7 @@ import {
   PrimaryAction,
   StatusPill,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
@@ -21,6 +22,7 @@ import StockItemModal, { type StockItemFormValue } from "@/components/stock/Stoc
 type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type ItemCategoryRecord = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
 type ItemUnitRecord = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
+type ItemListQuery = NonNullable<Parameters<typeof sdk.items.list>[0]>;
 type NoticeState = { title: string; headline: string; message: string } | null;
 type ModalMode = "create" | "edit" | null;
 
@@ -54,6 +56,10 @@ const statCards = [
   },
 ] as const;
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toUpperCase();
+}
+
 export default function Page() {
   const [items, setItems] = useState<ItemRecord[]>([]);
   const [categories, setCategories] = useState<ItemCategoryRecord[]>([]);
@@ -75,35 +81,31 @@ export default function Page() {
   const [statusFilter, setStatusFilter] = useState("Semua Status");
 
   const loadPageData = useCallback(async () => {
-    const params: any = {
-      perPage: 10,
-      page: currentPage,
+    const baseParams: ItemListQuery = {
+      perPage: 100,
       sortBy: "id",
       sortDir: "ASC",
     };
 
-    if (searchTerm.trim()) params.q = searchTerm.trim();
+    if (searchTerm.trim()) baseParams.q = searchTerm.trim();
     if (categoryFilter !== "Semua Jenis") {
       const cat = categories.find(c => c.name === categoryFilter);
-      if (cat) params.category_id = cat.id;
-    }
-    if (statusFilter !== "Semua Status") {
-      // Status filtering logic (safe, warning, etc.) might be complex server-side 
-      // if not supported by API. If not supported, we'll keep it client-side but 
-      // the pagination will be based on the fetched data.
-      // For now, let's assume we fetch by activity/category and handle the rest.
-      params.is_active = true; // Kering usually active
+      if (cat) baseParams.item_category_id = cat.id;
     }
 
-    const itemResponse = await sdk.items.list(params);
-    
-    // We need to exclude 'BASAH' from the results if it's 'Stok Kering' page.
-    // If the API supports it, great. If not, we filter client-side.
-    const filtered = (itemResponse.data ?? []).filter(item => item.category?.name?.toUpperCase() !== "BASAH");
-    
-    setItems(filtered);
-    setTotalRecords(itemResponse.meta?.total ?? filtered.length);
-  }, [currentPage, searchTerm, categoryFilter, statusFilter, categories]);
+    const allItems: ItemRecord[] = [];
+    let page = 1;
+    while (page <= 20) {
+      const itemResponse = await sdk.items.list({ ...baseParams, page });
+      const chunk = (itemResponse.data ?? []).filter(item => item.category?.name?.toUpperCase() !== "BASAH");
+      allItems.push(...chunk);
+      if ((itemResponse.data ?? []).length < 100) break;
+      page += 1;
+    }
+
+    setItems(allItems);
+    setTotalRecords(allItems.length);
+  }, [searchTerm, categoryFilter, categories]);
 
   async function ensureAuxiliaryData() {
     if (categories.length > 0 && itemUnits.length > 0) return;
@@ -127,7 +129,7 @@ export default function Page() {
       setError(null);
 
       try {
-        await loadPageData();
+        await Promise.all([ensureAuxiliaryData(), loadPageData()]);
       } catch (loadError) {
         if (!cancelled) {
           setError(getErrorMessage(loadError, "Gagal memuat stok kering."));
@@ -343,12 +345,25 @@ export default function Page() {
     });
   }, [items]);
 
-  const totalPages = Math.max(1, Math.ceil(totalRecords / 10));
-  const visibleItems = itemRows;
+  const filteredItems = useMemo(() => {
+    const normalizedStatus = normalizeFilterValue(statusFilter);
+    if (normalizedStatus === normalizeFilterValue("Semua Status")) return itemRows;
+    return itemRows.filter((item) => normalizeFilterValue(item.label) === normalizedStatus);
+  }, [itemRows, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / 10));
+  const visibleItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return filteredItems.slice(startIndex, startIndex + 10);
+  }, [currentPage, filteredItems]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const counts = useMemo(() => {
     return itemRows.reduce(
@@ -415,29 +430,27 @@ export default function Page() {
                 value={searchTerm}
               />
             </div>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              onChange={(event) => setCategoryFilter(event.target.value)}
+            <ThemedSelect
+              className="min-w-[180px]"
               value={categoryFilter}
-            >
-              <option>Semua Jenis</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={setCategoryFilter}
+              options={[
+                { value: "Semua Jenis", label: "Semua Jenis" },
+                ...categoryOptions.map((category) => ({ value: category.name, label: category.name })),
+              ]}
+            />
+            <ThemedSelect
+              className="min-w-[180px]"
               value={statusFilter}
-            >
-              <option>Semua Status</option>
-              <option>Aman</option>
-              <option>Menipis</option>
-              <option>Kritis</option>
-              <option>Habis</option>
-            </select>
+              onChange={setStatusFilter}
+              options={[
+                { value: "Semua Status", label: "Semua Status" },
+                { value: "Aman", label: "Aman" },
+                { value: "Menipis", label: "Menipis" },
+                { value: "Kritis", label: "Kritis" },
+                { value: "Habis", label: "Habis" },
+              ]}
+            />
           </div>
           <div className="ml-auto">
             <ExportButton />
@@ -458,7 +471,7 @@ export default function Page() {
               </tr>
             </thead>
             <tbody className="bg-white text-sm text-gray-700">
-              {itemRows.map((item) => (
+              {visibleItems.map((item) => (
                 <tr
                   key={item.idLabel}
                   className="border-t border-gray-200 transition hover:bg-gray-50"
@@ -487,7 +500,7 @@ export default function Page() {
                   </td>
                 </tr>
               ))}
-              {!loading && itemRows.length === 0 ? (
+              {!loading && visibleItems.length === 0 ? (
                 <tr>
                   <td className="px-6 py-8 text-center text-gray-400" colSpan={7}>
                     Belum ada data stok kering.
@@ -502,10 +515,10 @@ export default function Page() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          totalLabel={`${totalRecords === 0 ? 0 : (currentPage - 1) * 10 + 1}-${Math.min(
+          totalLabel={`${filteredItems.length === 0 ? 0 : (currentPage - 1) * 10 + 1}-${Math.min(
             currentPage * 10,
-            totalRecords,
-          )} dari ${totalRecords} item`}
+            filteredItems.length,
+          )} dari ${filteredItems.length} item`}
         />
       </SurfaceCard>
 

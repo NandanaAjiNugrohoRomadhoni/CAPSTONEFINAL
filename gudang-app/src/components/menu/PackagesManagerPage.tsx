@@ -6,6 +6,7 @@ import { ChevronDown, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
   AdminPageHeading,
@@ -22,6 +23,12 @@ type NoticeState = {
 } | null;
 
 type DishOption = {
+  id: number;
+  name: string;
+  isActive: boolean;
+};
+
+type MealTimeOption = {
   id: number;
   name: string;
 };
@@ -47,7 +54,7 @@ type SearchableMealSelectProps = {
   placeholder: string;
   options: DishOption[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, option?: DishOption) => void;
 };
 
 const mealTone: Record<MealKey, string> = {
@@ -115,13 +122,16 @@ function buildPackageCards(
     .map((menu) => ({
       id: menu.id,
       title: menu.name,
-      active: menu.id === 2,
-      meals:
-        groupedSlots.get(menu.id) ?? {
-          siang: null,
-          sore: null,
-          pagi: null,
-        },
+      meals: groupedSlots.get(menu.id) ?? {
+        siang: null,
+        sore: null,
+        pagi: null,
+      },
+      active: Object.values(groupedSlots.get(menu.id) ?? {
+        siang: null,
+        sore: null,
+        pagi: null,
+      }).some(Boolean),
     }));
 }
 
@@ -281,12 +291,17 @@ function SearchableMealSelect({
                   }`}
                   onClick={() => {
                     setQuery(option.name);
-                    onChange(option.name);
+                    onChange(option.name, option);
                     setOpen(false);
                   }}
                   type="button"
                 >
-                  {option.name}
+                  <span className="flex-1">{option.name}</span>
+                  {!option.isActive ? (
+                    <span className="ml-3 rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#B91C1C]">
+                      Nonaktif
+                    </span>
+                  ) : null}
                 </button>
               ))
             ) : (
@@ -307,6 +322,11 @@ export default function PackagesManagerPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<PackageCard[]>([]);
   const [menuOptions, setMenuOptions] = useState<DishOption[]>([]);
+  const [mealTimeOptions, setMealTimeOptions] = useState<MealTimeOption[]>([]);
+  const [pendingInactiveSelection, setPendingInactiveSelection] = useState<{
+    mealKey: MealKey;
+    dish: DishOption;
+  } | null>(null);
   const [menuSlots, setMenuSlots] = useState<
     Array<{
       id: number;
@@ -335,6 +355,16 @@ export default function PackagesManagerPage() {
     [menuOptions],
   );
 
+  const mealTimeNameToId = useMemo(
+    () =>
+      new Map(
+        mealTimeOptions.map((option) => [normalizeMealKey(option.name), option.id] as const).filter(
+          (entry): entry is [MealKey, number] => entry[0] !== null,
+        ),
+      ),
+    [mealTimeOptions],
+  );
+
   async function loadPackages() {
     setLoading(true);
     try {
@@ -350,6 +380,25 @@ export default function PackagesManagerPage() {
       setError(getErrorMessage(loadError, "Gagal memuat data paket menu."));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMealTimes() {
+    try {
+      const mealTimesResponse = await sdk.mealTimes.list({
+        paginate: false,
+        sortBy: "id",
+        sortDir: "ASC",
+      });
+
+      setMealTimeOptions(
+        (mealTimesResponse.data ?? []).map((mealTime) => ({
+          id: Number(mealTime.id),
+          name: mealTime.name,
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to load meal time metadata:", err);
     }
   }
 
@@ -389,7 +438,7 @@ export default function PackagesManagerPage() {
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      await loadPackages();
+      await Promise.all([loadPackages(), loadMealTimes()]);
       if (!cancelled) {
         void loadSlots();
       }
@@ -415,6 +464,7 @@ export default function PackagesManagerPage() {
           .map((dish) => ({
             id: Number(dish.id),
             name: dish.name,
+            isActive: (dish as { is_active?: boolean | null }).is_active !== false,
           }))
           .sort((left, right) => left.name.localeCompare(right.name)),
       );
@@ -440,6 +490,17 @@ export default function PackagesManagerPage() {
     });
     setModalMode("edit");
     await ensureMenuOptions();
+  }
+
+  function confirmInactiveDishSelection() {
+    if (!pendingInactiveSelection) return;
+
+    const { mealKey, dish } = pendingInactiveSelection;
+    setMealValues((current) => ({
+      ...current,
+      [mealKey]: dish.name,
+    }));
+    setPendingInactiveSelection(null);
   }
 
   function getSlotState(menuId: number, mealKey: MealKey): SlotState {
@@ -477,8 +538,9 @@ export default function PackagesManagerPage() {
         const selectedDishName = mealValues[mealKey].trim();
 
         const slot = getSlotState(selectedPackageId, mealKey);
+        const mealTimeId = slot.mealTimeId ?? mealTimeNameToId.get(mealKey) ?? null;
 
-        if (!slot.mealTimeId) {
+        if (!mealTimeId) {
           continue;
         }
 
@@ -526,7 +588,7 @@ export default function PackagesManagerPage() {
           requests.push(
             sdk.menus.assignSlot({
               menu_id: selectedPackageId,
-              meal_time_id: slot.mealTimeId,
+              meal_time_id: mealTimeId,
               dish_id: selectedDishId,
             }),
           );
@@ -709,12 +771,17 @@ export default function PackagesManagerPage() {
                               slotState.dishName ?? `Cari menu ${mealLabel[mealKey].toLowerCase()}`
                             }
                             value={mealValues[mealKey]}
-                            onChange={(nextValue) =>
+                            onChange={(nextValue, option) => {
+                              if (option && !option.isActive) {
+                                setPendingInactiveSelection({ mealKey, dish: option });
+                                return;
+                              }
+
                               setMealValues((current) => ({
                                 ...current,
                                 [mealKey]: nextValue,
-                              }))
-                            }
+                              }));
+                            }}
                           />
                         </div>
                       );
@@ -751,6 +818,21 @@ export default function PackagesManagerPage() {
         headline={successState?.headline ?? ""}
         message={successState?.message ?? ""}
         onClose={() => setSuccessState(null)}
+      />
+
+      <DeleteConfirmModal
+        open={pendingInactiveSelection !== null}
+        title="Menu Nonaktif"
+        headline="Menu ini sedang nonaktif"
+        description={
+          pendingInactiveSelection
+            ? `${pendingInactiveSelection.dish.name} sedang berstatus nonaktif. Tetap gunakan menu ini pada paket?`
+            : "Menu ini sedang berstatus nonaktif. Tetap gunakan menu ini pada paket?"
+        }
+        confirmLabel="Tetap Gunakan"
+        cancelLabel="Batal"
+        onClose={() => setPendingInactiveSelection(null)}
+        onConfirm={confirmInactiveDishSelection}
       />
     </>
   );

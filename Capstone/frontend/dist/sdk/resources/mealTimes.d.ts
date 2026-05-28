@@ -5,7 +5,7 @@ import type { ApiListResponse, LookupListQuery, MealTime } from "../types";
  *
  * Wraps:    /api/v1/meal-times
  * Contract: api-contract.md §5.2
- * Access:   admin | gudang
+ * Access:   admin | dapur | gudang
  *
  * Lists meal-time lookup rows used by menu and SPK workflows.
  */
@@ -16,7 +16,7 @@ export declare class MealTimesResource {
      * Lists meal times with pagination, filtering, and optional full lookup reads.
      *
      * @endpoint GET /api/v1/meal-times
-     * @access   admin | gudang
+     * @access   admin | dapur | gudang
      *
      * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
      * @returns {Promise<ApiListResponse<MealTime>>}

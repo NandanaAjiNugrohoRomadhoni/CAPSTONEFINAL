@@ -5,7 +5,7 @@ import type { ApiDataResponse, ApiListResponse, ApiMessageDataResponse, ApiMessa
  *
  * Wraps:    /api/v1/item-units
  * Contract: api-contract.md §5.2.4
- * Access:   admin | gudang
+ * Access:   admin | dapur | gudang (read); admin (write)
  *
  * Manages FK-backed item-unit lookups used by item unit resolution.
  */
@@ -16,7 +16,7 @@ export declare class ItemUnitsResource {
      * Lists item units with pagination, filtering, and optional full lookup reads.
      *
      * @endpoint GET /api/v1/item-units
-     * @access   admin | gudang
+     * @access   admin | dapur | gudang
      * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
      * @returns {Promise<ApiListResponse<ItemUnit>>}
      * @throws {ValidationApiError} if query validation fails (400)
@@ -29,7 +29,7 @@ export declare class ItemUnitsResource {
      * Returns one active item unit.
      *
      * @endpoint GET /api/v1/item-units/{id}
-     * @access   admin | gudang
+     * @access   admin | dapur | gudang
      * @returns {Promise<ApiDataResponse<ItemUnit>>}
      * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
      * @throws {AuthorizationApiError} if the caller lacks the required role (403)

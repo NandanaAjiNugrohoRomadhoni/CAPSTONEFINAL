@@ -10,6 +10,15 @@ import UserModal, {
   type EditableUser,
   type RoleOption,
 } from "@/components/users/UserModal";
+import {
+  AdminPageHeading,
+  FilterSearch,
+  MiniActionButton,
+  Pagination,
+  PrimaryAction,
+  SurfaceCard,
+  ThemedSelect,
+} from "@/components/admin/ui";
 import { getRoleLabel, useAuthStore } from "@/store/authStore";
 
 type ManagedUser = EditableUser & {
@@ -34,10 +43,6 @@ function formatDate(value: string): string {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function formatUserId(value: number): string {
-  return `US${String(value).padStart(3, "0")}`;
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -97,6 +102,7 @@ export default function UsersPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [refreshOnSuccessClose, setRefreshOnSuccessClose] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadData() {
     setLoading(true);
@@ -115,7 +121,11 @@ export default function UsersPage() {
   async function ensureRoles() {
     if (roles.length > 0) return;
     try {
-      const rolesResponse = await sdk.roles.list();
+      const rolesResponse = await sdk.roles.list({
+        paginate: false,
+        sortBy: "id",
+        sortDir: "ASC",
+      });
       setRoles(rolesResponse.data as RoleOption[]);
     } catch (err) {
       console.error("Failed to load roles:", err);
@@ -124,11 +134,12 @@ export default function UsersPage() {
 
   useEffect(() => {
     void loadData();
+    void ensureRoles();
   }, []);
 
   const manageableRoles = useMemo(
-    () => roles.filter((role) => role.name === "dapur" || role.name === "gudang"),
-    [roles],
+    () => (currentUser?.role?.name === "admin" ? roles.filter((role) => role.name !== "admin") : roles),
+    [currentUser?.role?.name, roles],
   );
 
   const filteredUsers = useMemo(() => {
@@ -154,6 +165,23 @@ export default function UsersPage() {
       })
       .sort((left, right) => left.id - right.id);
   }, [currentUser?.role?.name, roleFilter, search, statusFilter, users]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter, statusFilter]);
+
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(startIndex, startIndex + pageSize);
+  }, [currentPage, filteredUsers]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   async function openCreateModal() {
     setModalMode("create");
@@ -373,109 +401,94 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[22px] font-semibold text-gray-900">
-            Manajemen Pengguna
-          </h1>
-          <p className="mt-1 text-sm text-gray-400">
-            Untuk melihat dan mengelola informasi pengguna
-          </p>
-        </div>
+      <AdminPageHeading
+        title="Manajemen Pengguna"
+        subtitle="Untuk melihat dan mengelola informasi pengguna"
+        action={<PrimaryAction onClick={openCreateModal}>Buat Akun Pengguna</PrimaryAction>}
+      />
 
-        <button
-          onClick={openCreateModal}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition hover:bg-blue-700"
-          type="button"
-        >
-          Buat Akun Pengguna
-        </button>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <SurfaceCard className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b bg-[#F8FAFC] px-5 py-4">
-          <div className="flex h-10 w-[240px] items-center rounded-lg border border-gray-200 bg-white px-3">
-            <Search size={16} className="mr-2 text-gray-400" />
-            <input
+          <div className="w-full max-w-[320px]">
+            <FilterSearch
               placeholder="Cari Nama / Username"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="w-full text-sm text-gray-700 outline-none placeholder:text-gray-400"
+              onChange={setSearch}
+              readOnly={false}
             />
           </div>
 
-          <select
+          <ThemedSelect
+            className="min-w-[170px]"
             value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-base text-gray-600"
-          >
-            <option value="all">Semua Role</option>
-            {manageableRoles.map((role) => (
-              <option key={role.id} value={role.name}>
-                {getRoleLabel(role.name)}
-              </option>
-            ))}
-          </select>
+            onChange={setRoleFilter}
+            options={[
+              { value: "all", label: "Semua Role" },
+              ...manageableRoles.map((role) => ({
+                value: role.name,
+                label: getRoleLabel(role.name),
+              })),
+            ]}
+          />
 
-          <select
+          <ThemedSelect
+            className="min-w-[180px]"
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-base text-gray-600"
-          >
-            <option value="all">Semua Status</option>
-            <option value="active">Aktif</option>
-            <option value="inactive">Nonaktif</option>
-          </select>
+            onChange={setStatusFilter}
+            options={[
+              { value: "all", label: "Semua Status" },
+              { value: "active", label: "Aktif" },
+              { value: "inactive", label: "Nonaktif" },
+            ]}
+          />
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-base">
             <thead>
-              <tr className="bg-[#F1F5F9] text-xs uppercase tracking-wide text-gray-500">
-                <th className="px-6 py-3 text-left">ID Pengguna</th>
-                <th className="px-6">Tanggal</th>
-                <th className="px-6 text-left">Nama Pengguna</th>
-                <th className="px-6 text-left">Username</th>
-                <th className="px-6">Role</th>
-                <th className="px-6">Status</th>
-                <th className="px-6 text-center">Aksi</th>
+              <tr className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                <th className="px-6 py-3">Tanggal</th>
+                <th className="px-6 py-3 text-left">Nama Pengguna</th>
+                <th className="px-6 py-3 text-left">Username</th>
+                <th className="px-6 py-3">Role</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3 text-center">Aksi</th>
               </tr>
             </thead>
 
-            <tbody className="text-gray-700">
+            <tbody className="bg-white text-base text-[#334155]">
               {loading ? (
                 <tr>
-                  <td className="px-6 py-10 text-center text-gray-500" colSpan={7}>
+                  <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={6}>
                     Memuat data pengguna...
                   </td>
                 </tr>
-              ) : filteredUsers.length === 0 ? (
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-10 text-center text-gray-500" colSpan={7}>
+                  <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={6}>
                     Tidak ada pengguna yang cocok dengan filter saat ini.
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className="border-t border-gray-200 transition hover:bg-gray-50"
+                    className="border-t border-[#E2E8F0] transition hover:bg-[#F8FAFC]"
                   >
-                    <td className="px-6 py-4 font-medium text-gray-900">{formatUserId(user.id)}</td>
-                    <td className="px-6 text-center text-gray-600">
+                    <td className="px-6 py-4 text-center text-[#475569]">
                       {formatDate(user.created_at)}
                     </td>
-                    <td className="px-6 font-medium text-gray-900">{user.name}</td>
-                    <td className="px-6 text-gray-500">{user.username}</td>
-                    <td className="px-6 text-center text-gray-600">
+                    <td className="px-6 py-4 font-semibold text-[#16213E]">{user.name}</td>
+                    <td className="px-6 py-4 text-[#475569]">{user.username}</td>
+                    <td className="px-6 py-4 text-center text-[#475569]">
                       {getRoleLabel(user.role?.name)}
                     </td>
-                    <td className="px-6 text-center">
+                    <td className="px-6 py-4 text-center">
                       <span
-                        className={`rounded-full px-3 py-[4px] text-xs font-medium ${
+                        className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
                           user.is_active
-                            ? "bg-green-100 text-green-600"
-                            : "bg-red-100 text-red-600"
+                            ? "bg-[#DCFCE7] text-[#16A34A]"
+                            : "bg-[#FEE2E2] text-[#DC2626]"
                         }`}
                       >
                         {user.is_active ? "Aktif" : "Nonaktif"}
@@ -483,27 +496,17 @@ export default function UsersPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex flex-wrap justify-center gap-2">
-                        <button
-                          className="rounded-lg bg-gray-100 px-3 py-[6px] text-xs text-gray-600 transition hover:bg-gray-200"
-                          onClick={() => openEditModal(user)}
-                          type="button"
-                        >
+                        <MiniActionButton onClick={() => openEditModal(user)}>
                           Edit
-                        </button>
-                        <button
-                          className="rounded-lg bg-gray-100 px-3 py-[6px] text-xs text-gray-600 transition hover:bg-gray-200"
+                        </MiniActionButton>
+                        <MiniActionButton
                           onClick={() => void handleToggleStatus(user)}
-                          type="button"
                         >
                           {user.is_active ? "Nonaktifkan" : "Aktifkan"}
-                        </button>
-                        <button
-                          className="rounded-lg bg-red-50 px-3 py-[6px] text-xs text-red-600 transition hover:bg-red-100"
-                          onClick={() => openDeleteModal(user)}
-                          type="button"
-                        >
+                        </MiniActionButton>
+                        <MiniActionButton onClick={() => openDeleteModal(user)} tone="danger">
                           Hapus
-                        </button>
+                        </MiniActionButton>
                       </div>
                     </td>
                   </tr>
@@ -513,11 +516,22 @@ export default function UsersPage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between border-t bg-[#F8FAFC] px-6 py-3 text-xs text-gray-400">
-          <span>{filteredUsers.length} pengguna ditampilkan</span>
-          {pageError && <span className="text-red-600">{pageError}</span>}
-        </div>
-      </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalLabel={
+            filteredUsers.length > 0
+              ? `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, filteredUsers.length)} dari ${filteredUsers.length} pengguna`
+              : "0 dari 0 pengguna"
+          }
+        />
+        {pageError ? (
+          <div className="border-t border-[#E2E8F0] bg-[#FFF7ED] px-6 py-3 text-sm text-red-600">
+            {pageError}
+          </div>
+        ) : null}
+      </SurfaceCard>
 
       <UserModal
         key={

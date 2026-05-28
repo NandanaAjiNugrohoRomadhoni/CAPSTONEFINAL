@@ -12,8 +12,10 @@ Provides a real-time summary of operational status and key metrics.
 - **Data Points**: Typically includes:
   - Total items with low stock.
   - Pending stock transactions awaiting approval.
-  - Today's menu schedule.
+  - Today's menu schedule (active dishes only).
   - Recent stock movements.
+
+Deactivated dishes are automatically excluded from menu-derived dashboard outputs because their menu slot assignments are removed on deactivation.
 
 ## Related Documentation
 - [Reporting Guide](./reports.md)

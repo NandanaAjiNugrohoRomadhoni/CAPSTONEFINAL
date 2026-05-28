@@ -88,9 +88,10 @@ class SpkKeringPengemas extends BaseController
      *     summary="Generate SPK kering/pengemas",
      *     description="Generates a new versioned SPK kering/pengemas history row and recommendation set for the requested target_month. Accessible to admin, dapur, and gudang users. Runtime requires a valid target_month in Y-m format and uses the previous month's approved usage snapshot. Generation creates SPK calculation and recommendation history only; it does not create stock transactions or finalize stock movement.",
      *     security={{"bearerAuth":{}}},
-     *     @OA\RequestBody(required=true, @OA\JsonContent(type="object", required={"target_month"}, @OA\Property(property="target_month", type="string", example="2026-04"))),
-     *     @OA\Response(response=201, description="SPK kering/pengemas generated successfully.", @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateResponse")),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/SpkKeringPengemasGenerateRequest")),
+     *     @OA\Response(response=201, description="SPK kering/pengemas generated successfully.", @OA\JsonContent(ref="#/components/schemas/SpkKeringPengemasGenerateResponse")),
      *     @OA\Response(response=400, description="Validation failed for invalid target months, missing approved usage baseline, missing categories, or unresolved item mappings.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=409, description="An active SPK already exists for the same generation scope and regenerate was not enabled.", @OA\JsonContent(ref="#/components/schemas/SpkGenerateConflictResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
      *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
      * )
@@ -113,10 +114,11 @@ class SpkKeringPengemas extends BaseController
 
         if (! $result['success']) {
             return $this->response
-                ->setStatusCode(400)
+                ->setStatusCode($result['status'] ?? 400)
                 ->setJSON([
                     'message' => $result['message'],
                     'errors'  => $result['errors'] ?? [],
+                    ...((isset($result['conflict']) && is_array($result['conflict'])) ? ['conflict' => $result['conflict']] : []),
                 ]);
         }
 

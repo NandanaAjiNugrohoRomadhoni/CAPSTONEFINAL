@@ -215,7 +215,7 @@ export default function BarangKeluarPage() {
         patientCount: totalPatients,
         menuName: nextMeta.menuName,
         totalItems: nextMeta.totalItems,
-        rows: aggregated.map((row) => ({ ...row, locked: true })),
+        rows: aggregated.map((row) => ({ ...row, locked: false })),
       };
 
       writeSavedRecommendation(nextRecommendation);
@@ -458,30 +458,26 @@ export default function BarangKeluarPage() {
                       <div className="col-span-2 text-base font-medium text-gray-500">
                         {row.item_id ? `IT-${String(row.item_id).padStart(3, "0")}` : "-"}
                       </div>
-                      {row.locked ? (
-                        <div className="col-span-4 text-lg font-semibold text-gray-900">{row.item_name}</div>
-                      ) : (
-                        <CommonSearchableItemSelect
-                          options={basahItemOptions}
-                          value={row.item_id || null}
-                          placeholder="Pilih Nama Bahan"
-                          className="col-span-4"
-                          onChange={(nextId, unit) =>
-                            setValidatedRows((current) =>
-                              current.map((item) =>
-                                item.id === row.id
-                                  ? {
-                                      ...item,
-                                      item_id: nextId ?? 0,
-                                      item_name: nextId ? basahItemOptions.find((option) => option.id === nextId)?.label ?? "" : "",
-                                      unit: nextId ? unit ?? "-" : "-",
-                                    }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                      )}
+                      <CommonSearchableItemSelect
+                        options={basahItemOptions}
+                        value={row.item_id || null}
+                        placeholder="Pilih Nama Bahan"
+                        className="col-span-4"
+                        onChange={(nextId, unit) =>
+                          setValidatedRows((current) =>
+                            current.map((item) =>
+                              item.id === row.id
+                                ? {
+                                    ...item,
+                                    item_id: nextId ?? 0,
+                                    item_name: nextId ? basahItemOptions.find((option) => option.id === nextId)?.label ?? "" : "",
+                                    unit: nextId ? unit ?? "-" : "-",
+                                  }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
                       <div className="col-span-2 text-base font-medium text-gray-600">{row.qty_spk}</div>
                       <input
                         type="number"
@@ -1107,7 +1103,7 @@ function aggregatePreviewItems(items: PreviewItem[], itemMap: Map<number, ItemRo
       unit,
       qty_spk: qty,
       qty_actual: String(qty),
-      locked: true,
+      locked: false,
     });
   }
 

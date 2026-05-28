@@ -2419,7 +2419,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($qtyAfterParent + 10, $qtyAfterApprove);
     }
 
-    public function testSubmitRevisionRejectsSecondPendingSiblingInSameLineage(): void
+    public function testSubmitRevisionReusesExistingPendingSiblingInSameLineage(): void
     {
         $adminToken = $this->login('admin');
 
@@ -2457,22 +2457,38 @@ class StockTransactionsTest extends CIUnitTestCase
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
                 'details'          => [
-                    ['item_id' => 1, 'qty' => 15],
+                    ['item_id' => 2, 'qty' => 15],
                 ],
             ]);
-        $revisionTwoResult->assertStatus(400);
+        $revisionTwoResult->assertStatus(201);
 
         $json = json_decode($revisionTwoResult->getJSON(), true);
-        $this->assertSame('Another revision for this transaction is still pending review.', $json['errors']['id']);
+        $this->assertSame('Revision submitted successfully.', $json['message']);
+        $this->assertSame($revisionOneId, $json['data']['id']);
 
         $qtyAfterSecondSubmitAttempt = (float) $itemModel->find(1)['qty'];
         $this->assertSame($qtyBefore + 10, $qtyAfterSecondSubmitAttempt);
+        $this->assertSame(3000.0, (float) $itemModel->find(2)['qty']);
 
         $transactionModel    = new \App\Models\StockTransactionModel();
         $revisionOneAfterTry = $transactionModel->find($revisionOneId);
         $approvalStatusModel = new ApprovalStatusModel();
         $pendingStatusId     = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
         $this->assertSame($pendingStatusId, (int) $revisionOneAfterTry['approval_status_id']);
+        $this->assertSame('2026-05-27', $revisionOneAfterTry['transaction_date']);
+
+        $pendingRevisions = $transactionModel
+            ->where('parent_transaction_id', $parentId)
+            ->where('is_revision', true)
+            ->where('approval_status_id', $pendingStatusId)
+            ->findAll();
+        $this->assertCount(1, $pendingRevisions);
+
+        $detailModel = new StockTransactionDetailModel();
+        $revisionDetails = $detailModel->getDetailsByTransactionId($revisionOneId);
+        $this->assertCount(1, $revisionDetails);
+        $this->assertSame(2, (int) $revisionDetails[0]['item_id']);
+        $this->assertSame(15.0, (float) $revisionDetails[0]['qty']);
     }
 
     public function testSubmitRevisionAllowsNewSiblingAfterPreviousRejected(): void
@@ -2525,6 +2541,66 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $qtyAfterSecondSubmit = (float) $itemModel->find(1)['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterSecondSubmit);
+    }
+
+    public function testSubmitRevisionReplacesPendingRevisionSpkAndDetails(): void
+    {
+        $gudangToken = $this->login('gudang');
+
+        $typeModel = new TransactionTypeModel();
+        $inType    = $typeModel->where('name', 'IN')->first();
+
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-05-25',
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 10],
+                ],
+            ]);
+
+        $parentId = json_decode($createResult->getJSON(), true)['data']['id'];
+
+        $revisionOneResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
+                'transaction_date' => '2026-05-26',
+                'spk_id'           => 99,
+                'details'          => [
+                    ['item_id' => 1, 'qty' => 12],
+                    ['item_id' => 2, 'qty' => 3, 'input_unit' => 'convert'],
+                ],
+            ]);
+        $revisionOneResult->assertStatus(201);
+        $revisionId = json_decode($revisionOneResult->getJSON(), true)['data']['id'];
+
+        $revisionTwoResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
+                'transaction_date' => '2026-05-27',
+                'spk_id'           => null,
+                'details'          => [
+                    ['item_id' => 2, 'qty' => 500, 'input_unit' => 'base'],
+                ],
+            ]);
+        $revisionTwoResult->assertStatus(201);
+
+        $revisionTwoJson = json_decode($revisionTwoResult->getJSON(), true);
+        $this->assertSame($revisionId, $revisionTwoJson['data']['id']);
+
+        $transactionModel = new StockTransactionModel();
+        $revision         = $transactionModel->find($revisionId);
+        $this->assertSame('2026-05-27', $revision['transaction_date']);
+        $this->assertNull($revision['spk_id']);
+
+        $detailModel = new StockTransactionDetailModel();
+        $details     = $detailModel->getDetailsByTransactionId($revisionId);
+        $this->assertCount(1, $details);
+        $this->assertSame(2, (int) $details[0]['item_id']);
+        $this->assertSame(500.0, (float) $details[0]['qty']);
+        $this->assertSame(500.0, (float) $details[0]['input_qty']);
+        $this->assertSame('base', $details[0]['input_unit']);
     }
 
     public function testSubmitRevisionAllowsNewSiblingAfterPreviousApproved(): void

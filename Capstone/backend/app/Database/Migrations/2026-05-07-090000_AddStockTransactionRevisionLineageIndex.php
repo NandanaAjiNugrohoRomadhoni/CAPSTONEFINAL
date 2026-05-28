@@ -34,7 +34,27 @@ class AddStockTransactionRevisionLineageIndex extends Migration
             return;
         }
 
+        if ($this->hasDependentParentTransactionForeignKey()) {
+            return;
+        }
+
         $this->db->query('DROP INDEX ' . self::INDEX_NAME . ' ON ' . $this->tableName());
+    }
+
+    private function hasDependentParentTransactionForeignKey(): bool
+    {
+        $row = $this->db->query(
+            'SELECT COUNT(*) AS fk_count ' .
+            'FROM information_schema.key_column_usage kcu ' .
+            'WHERE kcu.constraint_schema = DATABASE() ' .
+            'AND kcu.table_name = ? ' .
+            'AND kcu.column_name = ? ' .
+            'AND kcu.referenced_table_name = ? ' .
+            'AND kcu.referenced_column_name = ?',
+            [$this->tableName(false), 'parent_transaction_id', $this->tableName(false), 'id']
+        )->getRowArray();
+
+        return (int) ($row['fk_count'] ?? 0) > 0;
     }
 
     private function hasIndex(string $indexName): bool
@@ -57,6 +77,14 @@ class AddStockTransactionRevisionLineageIndex extends Migration
 
     private function tableName(bool $withPrefix = true): string
     {
-        return $withPrefix ? $this->db->prefixTable('stock_transactions') : 'stock_transactions';
+        $table = 'stock_transactions';
+
+        if (! $withPrefix) {
+            return $table;
+        }
+
+        $prefix = (string) ($this->db->DBPrefix ?? '');
+
+        return $prefix . $table;
     }
 }

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\DishCompositionModel;
 use App\Models\DishModel;
 use App\Models\MenuDishModel;
+use Config\Database;
+use CodeIgniter\Database\BaseConnection;
 
 class DishManagementService
 {
@@ -20,14 +22,17 @@ class DishManagementService
         'created_at_to',
         'updated_at_from',
         'updated_at_to',
+        'is_active',
     ];
 
     protected DishModel $dishModel;
     protected DishCompositionModel $dishCompositionModel;
     protected MenuDishModel $menuDishModel;
+    protected BaseConnection $db;
 
     public function __construct()
     {
+        $this->db                  = Database::connect();
         $this->dishModel           = new DishModel();
         $this->dishCompositionModel = new DishCompositionModel();
         $this->menuDishModel       = new MenuDishModel();
@@ -65,6 +70,7 @@ class DishManagementService
             ? $requestedSortBy
             : 'name';
         $sortDir       = strtoupper((string) ($queryParams['sortDir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+        $isActive      = $this->parseNullableBoolean($queryParams['is_active'] ?? null);
 
         $result = $this->dishModel->getAllDishes(
             $page,
@@ -77,6 +83,7 @@ class DishManagementService
             $queryParams['created_at_to'] ?? null,
             $queryParams['updated_at_from'] ?? null,
             $queryParams['updated_at_to'] ?? null,
+            $isActive,
         );
 
         return [
@@ -205,11 +212,19 @@ class DishManagementService
             ];
         }
 
-        if ($this->dishCompositionModel->countByDishId($id) > 0 || $this->menuDishModel->countByDishId($id) > 0) {
+        if ((bool) ($existing['is_active'] ?? false) === true) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['dish_id' => 'The dish is still referenced by menu compositions or menu slots.'],
+                'errors'  => ['dish_id' => 'The dish must be inactive before it can be deleted.'],
+            ];
+        }
+
+        if ($this->menuDishModel->countByDishId($id) > 0) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => ['dish_id' => 'The dish is still referenced by menu slots.'],
             ];
         }
 
@@ -223,6 +238,97 @@ class DishManagementService
         return [
             'success' => true,
             'message' => 'Dish deleted successfully.',
+        ];
+    }
+
+    public function deactivateDish(int $id): array
+    {
+        $existing = $this->dishModel->findById($id);
+
+        if ($existing === null) {
+            return [
+                'success' => false,
+                'message' => 'Dish not found.',
+            ];
+        }
+
+        $this->db->transStart();
+
+        $updated = $this->dishModel->builder()
+            ->where('id', $id)
+            ->set([
+                'is_active'  => false,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ])
+            ->update();
+
+        if (! $updated) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to deactivate dish.',
+                'errors'  => [],
+            ];
+        }
+
+        $deletedMenuDishes = $this->menuDishModel->deleteByDishId($id);
+
+        if ($deletedMenuDishes === false) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to deactivate dish.',
+                'errors'  => $this->menuDishModel->errors(),
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return [
+                'success' => false,
+                'message' => 'Failed to deactivate dish.',
+                'errors'  => [],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'dish'    => $this->dishModel->findById($id),
+        ];
+    }
+
+    public function reactivateDish(int $id): array
+    {
+        $existing = $this->dishModel->findById($id);
+
+        if ($existing === null) {
+            return [
+                'success' => false,
+                'message' => 'Dish not found.',
+            ];
+        }
+
+        if ((bool) ($existing['is_active'] ?? false) === true) {
+            return [
+                'success' => true,
+                'dish'    => $existing,
+            ];
+        }
+
+        if (! $this->dishModel->update($id, ['is_active' => true])) {
+            return [
+                'success' => false,
+                'message' => 'Failed to reactivate dish.',
+                'errors'  => $this->dishModel->errors(),
+            ];
+        }
+
+        return [
+            'success' => true,
+            'dish'    => $this->dishModel->findById($id),
         ];
     }
 
@@ -240,6 +346,10 @@ class DishManagementService
 
         if (isset($queryParams['paginate']) && ! in_array(strtolower((string) $queryParams['paginate']), ['true', 'false', '1', '0'], true)) {
             $errors['paginate'] = 'The paginate field must be a boolean value.';
+        }
+
+        if (isset($queryParams['is_active']) && ! in_array(strtolower((string) $queryParams['is_active']), ['true', 'false', '1', '0'], true)) {
+            $errors['is_active'] = 'The is_active field must be a boolean value.';
         }
 
         if (isset($queryParams['sortBy']) && ! in_array($queryParams['sortBy'], DishModel::SORTABLE_COLUMNS, true)) {
@@ -266,5 +376,14 @@ class DishManagementService
         }
 
         return ! in_array(strtolower((string) $value), ['false', '0'], true);
+    }
+
+    private function parseNullableBoolean(mixed $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return in_array(strtolower((string) $value), ['true', '1'], true);
     }
 }

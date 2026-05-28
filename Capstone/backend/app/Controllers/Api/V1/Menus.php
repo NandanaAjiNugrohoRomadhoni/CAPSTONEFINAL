@@ -82,7 +82,7 @@ class Menus extends BaseController
      *     operationId="createMenuDish",
      *     tags={"Menus"},
      *     summary="Assign dish to menu slot",
-     *     description="Assigns a dish to one menu and meal-time slot. Accessible to admin and dapur users. Runtime rejects duplicate occupied slots with HTTP 400 using the composite validation key menu_id,meal_time_id.",
+     *     description="Assigns a dish to one menu and meal-time slot. Accessible to admin and dapur users. Runtime rejects inactive dishes with the validation message 'The selected dish is inactive.' and also rejects duplicate occupied slots with HTTP 400 using the composite validation key menu_id,meal_time_id.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
@@ -128,7 +128,7 @@ class Menus extends BaseController
      *     operationId="updateMenuDish",
      *     tags={"Menus"},
      *     summary="Update menu slot assignment",
-     *     description="Updates an existing menu slot assignment. Accessible to admin and dapur users. At least one of menu_id, meal_time_id, or dish_id must be provided. Duplicate occupied slots return HTTP 400 with the composite validation key menu_id,meal_time_id, missing rows return HTTP 404, and persistence failure returns HTTP 422.",
+     *     description="Updates an existing menu slot assignment. Accessible to admin and dapur users. At least one of menu_id, meal_time_id, or dish_id must be provided. Inactive dishes are rejected with the validation message 'The selected dish is inactive.' on dish_id. Duplicate occupied slots return HTTP 400 with the composite validation key menu_id,meal_time_id, missing rows return HTTP 404, and persistence failure returns HTTP 422.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, description="Menu slot identifier.", @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\RequestBody(

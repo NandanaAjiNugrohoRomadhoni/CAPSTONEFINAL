@@ -52,140 +52,19 @@ class StockOpnameService
 
     public function createDraft(array $data, int $userId, ?string $ipAddress = null): array
     {
-        $unknownTopLevelFields = array_diff(array_keys($data), self::ALLOWED_CREATE_FIELDS);
-        if ($unknownTopLevelFields !== []) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => [
-                    'fields' => 'Unknown field(s): ' . implode(', ', $unknownTopLevelFields),
-                ],
-            ];
+        $validationResult = $this->validateDraftPayload($data);
+        if (! $validationResult['success']) {
+            return $validationResult;
         }
 
-        if (! isset($data['opname_date']) || strtotime((string) $data['opname_date']) === false) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => [
-                    'opname_date' => 'The opname_date field is required and must be a valid date.',
-                ],
-            ];
-        }
-
-        $notes = null;
-        if (array_key_exists('notes', $data) && $data['notes'] !== null) {
-            $notes = trim((string) $data['notes']);
-            if ($notes !== '' && mb_strlen($notes) > 1000) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        'notes' => 'The notes field must not exceed 1000 characters.',
-                    ],
-                ];
-            }
-
-            if ($notes === '') {
-                $notes = null;
-            }
-        }
-
-        if (! isset($data['details']) || ! is_array($data['details']) || $data['details'] === []) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => [
-                    'details' => 'The details field is required and must be a non-empty array.',
-                ],
-            ];
-        }
-
-        $normalizedDetails = [];
-        $itemIds           = [];
-
-        foreach ($data['details'] as $index => $detail) {
-            if (! is_array($detail)) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}" => 'Each detail entry must be an object.',
-                    ],
-                ];
-            }
-
-            $unknownDetailFields = array_diff(array_keys($detail), self::ALLOWED_DETAIL_FIELDS);
-            if ($unknownDetailFields !== []) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}" => 'Unknown field(s): ' . implode(', ', $unknownDetailFields),
-                    ],
-                ];
-            }
-
-            if (! isset($detail['item_id']) || ! is_numeric($detail['item_id'])) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}.item_id" => 'The item_id field is required and must be numeric.',
-                    ],
-                ];
-            }
-
-            if (! array_key_exists('counted_qty', $detail) || ! is_numeric($detail['counted_qty']) || (float) $detail['counted_qty'] < 0) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}.counted_qty" => 'The counted_qty field is required and must be a non-negative number.',
-                    ],
-                ];
-            }
-
-            $itemId = (int) $detail['item_id'];
-            if (in_array($itemId, $itemIds, true)) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}.item_id" => 'Duplicate item_id found in details.',
-                    ],
-                ];
-            }
-
-            $item = $this->itemModel->find($itemId);
-            if ($item === null) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        "details.{$index}.item_id" => 'The selected item is invalid.',
-                    ],
-                ];
-            }
-
-            $itemIds[] = $itemId;
-
-            $systemQty   = round((float) $item['qty'], 2);
-            $countedQty  = round((float) $detail['counted_qty'], 2);
-            $varianceQty = round($countedQty - $systemQty, 2);
-
-            $normalizedDetails[] = [
-                'item_id'      => $itemId,
-                'system_qty'   => $systemQty,
-                'counted_qty'  => $countedQty,
-                'variance_qty' => $varianceQty,
-            ];
-        }
+        $normalizedDetails = $validationResult['normalized_details'];
+        $notes             = $validationResult['notes'];
+        $opnameDate        = $validationResult['opname_date'];
 
         $this->db->transStart();
 
         $stockOpnameData = [
-            'opname_date' => $data['opname_date'],
+            'opname_date' => $opnameDate,
             'state'       => StockOpnameModel::STATE_DRAFT,
             'notes'       => $notes,
             'created_by'  => $userId,
@@ -231,7 +110,7 @@ class StockOpnameService
             null,
             [
                 'id'          => (int) $stockOpnameId,
-                'opname_date' => $data['opname_date'],
+                'opname_date' => $opnameDate,
                 'state'       => StockOpnameModel::STATE_DRAFT,
                 'notes'       => $notes,
                 'details'     => $normalizedDetails,
@@ -265,6 +144,142 @@ class StockOpnameService
             'data'    => [
                 'id'    => (int) $stockOpnameId,
                 'state' => StockOpnameModel::STATE_DRAFT,
+            ],
+        ];
+    }
+
+    public function updateDraft(int $id, array $data, int $userId, ?string $ipAddress = null): array
+    {
+        $stockOpname = $this->stockOpnameModel->findById($id);
+        if ($stockOpname === null) {
+            return [
+                'success' => false,
+                'message' => 'Stock opname not found.',
+                'errors'  => [],
+                'status'  => 404,
+            ];
+        }
+
+        if (! in_array($stockOpname['state'], [StockOpnameModel::STATE_DRAFT, StockOpnameModel::STATE_REJECTED], true)) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'state' => sprintf('Invalid state transition from %s to UPDATE.', $stockOpname['state']),
+                ],
+                'status'  => 400,
+            ];
+        }
+
+        $validationResult = $this->validateDraftPayload($data);
+        if (! $validationResult['success']) {
+            $validationResult['status'] = 400;
+
+            return $validationResult;
+        }
+
+        $normalizedDetails = $validationResult['normalized_details'];
+        $notes             = $validationResult['notes'];
+        $opnameDate        = $validationResult['opname_date'];
+        $existingDetails   = $this->stockOpnameDetailModel->getDetailsByStockOpnameId($id);
+        $oldValues         = [
+            'header'  => $stockOpname,
+            'details' => $existingDetails,
+        ];
+
+        $this->db->transStart();
+
+        $updated = $this->stockOpnameModel->update($id, [
+            'opname_date' => $opnameDate,
+            'notes'       => $notes,
+        ]);
+
+        if (! $updated) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to update stock opname.',
+                'errors'  => $this->stockOpnameModel->errors(),
+                'status'  => 400,
+            ];
+        }
+
+        if ($this->stockOpnameDetailModel->where('stock_opname_id', $id)->delete() === false) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to replace stock opname details.',
+                'errors'  => $this->stockOpnameDetailModel->errors(),
+                'status'  => 400,
+            ];
+        }
+
+        foreach ($normalizedDetails as $detail) {
+            $detailData = [
+                'stock_opname_id' => $id,
+                'item_id'         => $detail['item_id'],
+                'system_qty'      => number_format((float) $detail['system_qty'], 2, '.', ''),
+                'counted_qty'     => number_format((float) $detail['counted_qty'], 2, '.', ''),
+                'variance_qty'    => number_format((float) $detail['variance_qty'], 2, '.', ''),
+            ];
+
+            if ($this->stockOpnameDetailModel->insert($detailData) === false) {
+                $this->db->transRollback();
+
+                return [
+                    'success' => false,
+                    'message' => 'Failed to replace stock opname details.',
+                    'errors'  => $this->stockOpnameDetailModel->errors(),
+                    'status'  => 400,
+                ];
+            }
+        }
+
+        $updatedHeader = $this->stockOpnameModel->findById($id);
+        $auditLogged   = $this->auditService->log(
+            $userId,
+            'stock_opname_update',
+            'stock_opnames',
+            $id,
+            'Stock opname updated.',
+            $oldValues,
+            [
+                'header'  => $updatedHeader,
+                'details' => $normalizedDetails,
+            ],
+            $ipAddress
+        );
+
+        if (! $auditLogged) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to write audit log.',
+                'errors'  => [],
+                'status'  => 400,
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return [
+                'success' => false,
+                'message' => 'Transaction failed.',
+                'errors'  => [],
+                'status'  => 400,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => 'Stock opname updated successfully.',
+            'data'    => [
+                'id'    => $id,
+                'state' => $updatedHeader['state'] ?? $stockOpname['state'],
             ],
         ];
     }
@@ -720,5 +735,145 @@ class StockOpnameService
         }
 
         return false;
+    }
+
+    private function validateDraftPayload(array $data): array
+    {
+        $unknownTopLevelFields = array_diff(array_keys($data), self::ALLOWED_CREATE_FIELDS);
+        if ($unknownTopLevelFields !== []) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'fields' => 'Unknown field(s): ' . implode(', ', $unknownTopLevelFields),
+                ],
+            ];
+        }
+
+        if (! isset($data['opname_date']) || strtotime((string) $data['opname_date']) === false) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'opname_date' => 'The opname_date field is required and must be a valid date.',
+                ],
+            ];
+        }
+
+        $notes = null;
+        if (array_key_exists('notes', $data) && $data['notes'] !== null) {
+            $notes = trim((string) $data['notes']);
+            if ($notes !== '' && mb_strlen($notes) > 1000) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        'notes' => 'The notes field must not exceed 1000 characters.',
+                    ],
+                ];
+            }
+
+            if ($notes === '') {
+                $notes = null;
+            }
+        }
+
+        if (! isset($data['details']) || ! is_array($data['details']) || $data['details'] === []) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'details' => 'The details field is required and must be a non-empty array.',
+                ],
+            ];
+        }
+
+        $normalizedDetails = [];
+        $itemIds           = [];
+
+        foreach ($data['details'] as $index => $detail) {
+            if (! is_array($detail)) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}" => 'Each detail entry must be an object.',
+                    ],
+                ];
+            }
+
+            $unknownDetailFields = array_diff(array_keys($detail), self::ALLOWED_DETAIL_FIELDS);
+            if ($unknownDetailFields !== []) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}" => 'Unknown field(s): ' . implode(', ', $unknownDetailFields),
+                    ],
+                ];
+            }
+
+            if (! isset($detail['item_id']) || ! is_numeric($detail['item_id'])) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}.item_id" => 'The item_id field is required and must be numeric.',
+                    ],
+                ];
+            }
+
+            if (! array_key_exists('counted_qty', $detail) || ! is_numeric($detail['counted_qty']) || (float) $detail['counted_qty'] < 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}.counted_qty" => 'The counted_qty field is required and must be a non-negative number.',
+                    ],
+                ];
+            }
+
+            $itemId = (int) $detail['item_id'];
+            if (in_array($itemId, $itemIds, true)) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}.item_id" => 'Duplicate item_id found in details.',
+                    ],
+                ];
+            }
+
+            $item = $this->itemModel->find($itemId);
+            if ($item === null) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        "details.{$index}.item_id" => 'The selected item is invalid.',
+                    ],
+                ];
+            }
+
+            $itemIds[] = $itemId;
+
+            $systemQty   = round((float) $item['qty'], 2);
+            $countedQty  = round((float) $detail['counted_qty'], 2);
+            $varianceQty = round($countedQty - $systemQty, 2);
+
+            $normalizedDetails[] = [
+                'item_id'      => $itemId,
+                'system_qty'   => $systemQty,
+                'counted_qty'  => $countedQty,
+                'variance_qty' => $varianceQty,
+            ];
+        }
+
+        return [
+            'success'            => true,
+            'opname_date'        => (string) $data['opname_date'],
+            'notes'              => $notes,
+            'normalized_details' => $normalizedDetails,
+        ];
     }
 }

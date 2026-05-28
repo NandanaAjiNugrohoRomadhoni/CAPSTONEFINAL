@@ -16,7 +16,7 @@ import type {
  *
  * Wraps:    /api/v1/items
  * Contract: api-contract.md §5.4
- * Access:   admin | gudang
+ * Access:   admin | gudang (write); admin | dapur | gudang (read)
  *
  * Manages item master data while leaving stock mutation to stock workflows.
  */
@@ -27,7 +27,7 @@ export class ItemsResource {
    * Lists active items with pagination, filtering, and search.
    *
    * @endpoint GET /api/v1/items
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @param query - Supports `page`, `perPage`, `item_category_id`, `is_active`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted items are excluded.
    * @returns {Promise<ApiListResponse<Item>>}
    * @throws {ValidationApiError} if query validation fails (400)
@@ -47,7 +47,7 @@ export class ItemsResource {
    * Returns one active item.
    *
    * @endpoint GET /api/v1/items/{id}
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @returns {Promise<ApiDataResponse<Item>>}
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)

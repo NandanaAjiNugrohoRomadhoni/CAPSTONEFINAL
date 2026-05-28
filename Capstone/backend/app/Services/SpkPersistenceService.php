@@ -28,6 +28,32 @@ class SpkPersistenceService
     public function createVersionedSpk(array $headerData, array $recommendations): array
     {
         $scopeKey = $this->buildScopeKey($headerData);
+        $existingLatest = $this->spkCalculationModel->getLatestByScopeKey($scopeKey);
+        $shouldRegenerate = (bool) ($headerData['regenerate'] ?? false);
+
+        if ($existingLatest !== null && ! $shouldRegenerate && ! (bool) ($existingLatest['is_finish'] ?? false)) {
+            return [
+                'success'  => false,
+                'message'  => 'SPK generation conflict.',
+                'errors'   => [
+                    'scope' => 'An active SPK already exists for this generation scope. Set regenerate=true to create a new version.',
+                ],
+                'conflict' => [
+                    'spk_id'             => (int) $existingLatest['id'],
+                    'version'            => (int) $existingLatest['version'],
+                    'scope_key'          => (string) $existingLatest['scope_key'],
+                    'is_latest'          => (bool) $existingLatest['is_latest'],
+                    'is_finish'          => (bool) $existingLatest['is_finish'],
+                    'calculation_date'   => $existingLatest['calculation_date'],
+                    'target_date_start'  => $existingLatest['target_date_start'],
+                    'target_date_end'    => $existingLatest['target_date_end'],
+                    'target_month'       => $existingLatest['target_month'],
+                    'regenerate_allowed' => true,
+                ],
+                'status'   => 409,
+            ];
+        }
+
         $nextVersion = $this->spkCalculationModel->getNextVersionForScope($scopeKey);
 
         $this->db->transStart();

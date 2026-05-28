@@ -5,7 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get("/", "Home::index");
+// $routes->get("/", "Home::index");
 $routes->get("api/docs/spec", "DocsController::spec");
 $routes->get("api/docs/specs", "DocsController::spec");
 $routes->get("api/docs", "DocsController::index");
@@ -85,6 +85,14 @@ $routes->group(
         );
         $routes->options(
             "dishes/(:num)",
+            static fn() => service("response")->setStatusCode(204),
+        );
+        $routes->options(
+            "dishes/(:num)/deactivate",
+            static fn() => service("response")->setStatusCode(204),
+        );
+        $routes->options(
+            "dishes/(:num)/reactivate",
             static fn() => service("response")->setStatusCode(204),
         );
         $routes->options(
@@ -345,10 +353,10 @@ $routes->group(
                 },
             );
 
-            // [MODULE: Inventory & Stock Operations] Roles: admin, gudang | Controller: App\Controllers\Api\V1\ItemCategories, ItemUnits, Items, StockTransactions, StockOpnames
+            // [MODULE: Inventory Lookup Read Surface] Roles: admin, dapur, gudang | Controller: App\Controllers\Api\V1\ItemCategories, TransactionTypes, ApprovalStatuses, MealTimes, ItemUnits, Items
             $routes->group(
                 "",
-                ["filter" => "role:admin,gudang"],
+                ["filter" => "role:admin,dapur,gudang"],
                 static function ($routes) {
                     $routes->get("item-categories", "ItemCategories::index");
                     $routes->get(
@@ -366,14 +374,21 @@ $routes->group(
                     $routes->get("meal-times", "MealTimes::index");
                     $routes->get("item-units", "ItemUnits::index");
                     $routes->get("item-units/(:num)", 'ItemUnits::show/$1');
-
                     $routes->get("items", "Items::index");
+                    $routes->get("items/(:num)", 'Items::show/$1');
+                },
+            );
+
+            // [MODULE: Inventory & Stock Operations] Roles: admin, gudang | Controller: App\Controllers\Api\V1\Items, StockTransactions, StockOpnames
+            $routes->group(
+                "",
+                ["filter" => "role:admin,gudang"],
+                static function ($routes) {
                     $routes->options(
                         "items",
                         static fn() => service("response")->setStatusCode(204),
                     );
                     $routes->post("items", "Items::create");
-                    $routes->get("items/(:num)", 'Items::show/$1');
                     $routes->options(
                         "items/(:num)",
                         static fn() => service("response")->setStatusCode(204),
@@ -413,6 +428,10 @@ $routes->group(
                         'StockTransactions::submitRevision/$1',
                     );
                     $routes->post("stock-opnames", "StockOpnames::create");
+                    $routes->put(
+                        "stock-opnames/(:num)",
+                        'StockOpnames::update/$1',
+                    );
                     $routes->get(
                         "stock-opnames/(:num)",
                         'StockOpnames::show/$1',
@@ -435,6 +454,14 @@ $routes->group(
                     // [MODULE: Menu & Nutrition Write Surface] Roles: admin, dapur | Controller: App\Controllers\Api\V1\Dishes, DishCompositions, Menus, MenuSchedules, DailyPatients, SpkBasah, SpkKeringPengemas, SpkStockInPrefill
                     $routes->post("dishes", "Dishes::create");
                     $routes->put("dishes/(:num)", 'Dishes::update/$1');
+                    $routes->patch(
+                        "dishes/(:num)/deactivate",
+                        'Dishes::deactivate/$1',
+                    );
+                    $routes->patch(
+                        "dishes/(:num)/reactivate",
+                        'Dishes::reactivate/$1',
+                    );
                     $routes->delete("dishes/(:num)", 'Dishes::delete/$1');
                     $routes->post(
                         "dish-compositions",
@@ -460,6 +487,10 @@ $routes->group(
                         'MenuSchedules::update/$1',
                     );
                     $routes->post("daily-patients", "DailyPatients::create");
+                    $routes->put(
+                        "daily-patients/(:num)",
+                        'DailyPatients::update/$1',
+                    );
                 },
             );
 
@@ -615,3 +646,24 @@ $routes->group(
         });
     },
 );
+
+// Root
+$routes->get("/", static function () {
+    return response()
+        ->setHeader("Content-Type", "text/html; charset=UTF-8")
+        ->setBody(file_get_contents(FCPATH . "index.html"));
+});
+
+// All other paths
+$routes->get("(:any)", static function (string $path) {
+    $file = FCPATH . rtrim($path, "/") . "/index.html";
+
+    return response()
+        ->setHeader("Content-Type", "text/html; charset=UTF-8")
+        ->setBody(
+            file_get_contents(
+                // Serve matching static page, or fall back to SPA root
+                file_exists($file) ? $file : FCPATH . "index.html",
+            ),
+        );
+});

@@ -331,6 +331,113 @@ class StockOpnamesTest extends CIUnitTestCase
         $this->assertSame($beforeQty, (float) $itemModel->find(1)['qty']);
     }
 
+    public function testGudangCanUpdateDraftAndRejectedStockOpnameButNotSubmitted(): void
+    {
+        $gudangToken = $this->login('gudang');
+        $adminToken  = $this->login('admin');
+        $itemModel   = new ItemModel();
+
+        $draftCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames', [
+                'opname_date' => '2026-06-26',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 10],
+                ],
+            ]);
+        $draftCreate->assertStatus(201);
+        $draftId = (int) json_decode($draftCreate->getJSON(), true)['data']['id'];
+
+        $draftUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->put('api/v1/stock-opnames/' . $draftId, [
+                'opname_date' => '2026-06-27',
+                'notes'       => 'Updated draft count',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 5],
+                    ['item_id' => 2, 'counted_qty' => (float) $itemModel->find(2)['qty'] + 15],
+                ],
+            ]);
+        $draftUpdate->assertStatus(200);
+        $draftUpdate->assertJSONFragment(['message' => 'Stock opname updated successfully.']);
+
+        $draftShow = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->get('api/v1/stock-opnames/' . $draftId);
+        $draftShow->assertStatus(200);
+        $draftShowJson = json_decode($draftShow->getJSON(), true);
+        $this->assertSame('2026-06-27', $draftShowJson['data']['header']['opname_date']);
+        $this->assertSame('Updated draft count', $draftShowJson['data']['header']['notes']);
+        $this->assertCount(2, $draftShowJson['data']['details']);
+
+        $rejectedCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames', [
+                'opname_date' => '2026-06-28',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 20],
+                ],
+            ]);
+        $rejectedCreate->assertStatus(201);
+        $rejectedId = (int) json_decode($rejectedCreate->getJSON(), true)['data']['id'];
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames/' . $rejectedId . '/submit', [])
+            ->assertStatus(200);
+        $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames/' . $rejectedId . '/reject', ['reason' => 'Please recount item 1'])
+            ->assertStatus(200);
+
+        $rejectedUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->put('api/v1/stock-opnames/' . $rejectedId, [
+                'opname_date' => '2026-06-29',
+                'notes'       => 'Recount after rejection',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 7],
+                ],
+            ]);
+        $rejectedUpdate->assertStatus(200);
+
+        $rejectedShow = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->get('api/v1/stock-opnames/' . $rejectedId);
+        $rejectedShow->assertStatus(200);
+        $rejectedShowJson = json_decode($rejectedShow->getJSON(), true);
+        $this->assertSame(StockOpnameModel::STATE_REJECTED, $rejectedShowJson['data']['header']['state']);
+        $this->assertSame('2026-06-29', $rejectedShowJson['data']['header']['opname_date']);
+
+        $submittedCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames', [
+                'opname_date' => '2026-06-30',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 30],
+                ],
+            ]);
+        $submittedCreate->assertStatus(201);
+        $submittedId = (int) json_decode($submittedCreate->getJSON(), true)['data']['id'];
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-opnames/' . $submittedId . '/submit', [])
+            ->assertStatus(200);
+
+        $submittedUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
+            ->withBodyFormat('json')
+            ->put('api/v1/stock-opnames/' . $submittedId, [
+                'opname_date' => '2026-07-01',
+                'details'     => [
+                    ['item_id' => 1, 'counted_qty' => (float) $itemModel->find(1)['qty'] - 11],
+                ],
+            ]);
+
+        $submittedUpdate->assertStatus(400);
+        $submittedJson = json_decode($submittedUpdate->getJSON(), true);
+        $this->assertSame('Validation failed.', $submittedJson['message']);
+        $this->assertStringContainsString('SUBMITTED', $submittedJson['errors']['state']);
+    }
+
     public function testStockOpnamePostConvertsAbsoluteQtyToOpnameAdjustmentLedgerRows(): void
     {
         $gudangToken = $this->login('gudang');

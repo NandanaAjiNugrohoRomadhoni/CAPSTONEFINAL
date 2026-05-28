@@ -65,4 +65,17 @@ class MenuDishModel extends Model
             ->where('dish_id', $dishId)
             ->countAllResults();
     }
+
+    public function deleteByDishId(int $dishId): bool|int
+    {
+        $deleted = $this->builder()
+            ->where('dish_id', $dishId)
+            ->delete();
+
+        if ($deleted === false) {
+            return false;
+        }
+
+        return $this->db->affectedRows();
+    }
 }

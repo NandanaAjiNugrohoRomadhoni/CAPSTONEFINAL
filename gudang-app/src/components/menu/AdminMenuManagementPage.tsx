@@ -29,6 +29,12 @@ type FoodMenu = {
   description: string;
   compositionSummary: string;
   ingredients: IngredientRow[];
+  isActive: boolean;
+};
+
+type LinkedPackageInfo = {
+  slotId: number;
+  packageName: string;
 };
 
 type ModalMode = "create" | "detail" | "edit" | "delete" | null;
@@ -208,6 +214,16 @@ export default function AdminMenuManagementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkedPackages, setLinkedPackages] = useState<LinkedPackageInfo[]>([]);
+  const [loadingLinkedPackages, setLoadingLinkedPackages] = useState(false);
+
+  function sortMenusByStatusAndName(nextMenus: FoodMenu[]) {
+    return [...nextMenus].sort((left, right) => {
+      const activeDiff = Number(right.isActive) - Number(left.isActive);
+      if (activeDiff !== 0) return activeDiff;
+      return left.name.localeCompare(right.name, "id-ID", { sensitivity: "base" });
+    });
+  }
 
   function readMenuDescriptions() {
     if (typeof window === "undefined") {
@@ -250,6 +266,7 @@ export default function AdminMenuManagementPage() {
       const descriptionMap = readMenuDescriptions();
       const nextMenus = (dishesResponse.data ?? []).map((dish) => {
         const dishId = Number(dish.id);
+        const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
 
         return {
           id: dishId,
@@ -257,11 +274,12 @@ export default function AdminMenuManagementPage() {
           description: descriptionMap[String(dishId)] ?? "",
           compositionSummary: "Klik detail untuk melihat komposisi bahan.",
           ingredients: [],
+          isActive,
         };
       });
 
       setItems(availableItems);
-      setMenus(nextMenus);
+      setMenus(sortMenusByStatusAndName(nextMenus));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat menu makanan."));
     } finally {
@@ -286,8 +304,8 @@ export default function AdminMenuManagementPage() {
 
   const filteredMenus = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return menus;
-    return menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    const filtered = !query ? menus : menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    return sortMenusByStatusAndName(filtered);
   }, [menus, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMenus.length / 8));
@@ -369,9 +387,27 @@ export default function AdminMenuManagementPage() {
     setLoading(false);
   }
 
-  function openDeleteModal(menu: FoodMenu) {
+  async function openDeleteModal(menu: FoodMenu) {
     setSelectedMenu(menu);
-    setModalMode("delete");
+    setLinkedPackages([]);
+    setLoadingLinkedPackages(true);
+    try {
+      const slotsResponse = await sdk.menus.slots();
+      const relatedSlots = (slotsResponse.data ?? []).filter((slot) => Number(slot.dish_id) === Number(menu.id));
+      const nextLinkedPackages = relatedSlots
+        .map((slot) => ({
+          slotId: Number(slot.id),
+          packageName: slot.menu?.name?.trim() ?? "",
+        }))
+        .filter((entry) => Number.isFinite(entry.slotId) && entry.slotId > 0 && entry.packageName)
+        .sort((left, right) => left.packageName.localeCompare(right.packageName, "id-ID", { sensitivity: "base" }));
+      setLinkedPackages(nextLinkedPackages);
+    } catch {
+      setLinkedPackages([]);
+    } finally {
+      setLoadingLinkedPackages(false);
+      setModalMode("delete");
+    }
   }
 
   function closeModal() {
@@ -415,6 +451,7 @@ export default function AdminMenuManagementPage() {
             description: menuDescription.trim(),
             compositionSummary: buildCompositionSummary(validRows, itemMap),
             ingredients: validRows,
+            isActive: true,
           },
         ]);
         const createdDish = await sdk.dishes.create({ name: menuName.trim() });
@@ -439,16 +476,18 @@ export default function AdminMenuManagementPage() {
 
       if (modalMode === "edit" && selectedMenu) {
         setMenus((current) =>
-          current.map((menu) =>
-            menu.id === selectedMenu.id
-              ? {
-                  ...menu,
-                  name: menuName.trim(),
-                  description: menuDescription.trim(),
-                  compositionSummary: buildCompositionSummary(validRows, itemMap),
-                  ingredients: validRows,
-                }
-              : menu,
+          sortMenusByStatusAndName(
+            current.map((menu) =>
+              menu.id === selectedMenu.id
+                ? {
+                    ...menu,
+                    name: menuName.trim(),
+                    description: menuDescription.trim(),
+                    compositionSummary: buildCompositionSummary(validRows, itemMap),
+                    ingredients: validRows,
+                  }
+                : menu,
+            ),
           ),
         );
         await sdk.dishes.update(selectedMenu.id, { name: menuName.trim() });
@@ -494,37 +533,42 @@ export default function AdminMenuManagementPage() {
     }
   }
 
-  async function deleteMenu() {
+  async function toggleMenuActive() {
     if (!selectedMenu) return;
 
     setSaving(true);
     setError(null);
     const previousMenus = menus;
-    setMenus((current) => current.filter((menu) => menu.id !== selectedMenu.id));
     try {
-      for (const ingredient of selectedMenu.ingredients) {
-        if (ingredient.compositionId) {
-          await sdk.dishCompositions.delete(ingredient.compositionId);
-        }
+      const nextIsActive = !selectedMenu.isActive;
+      const linkedSlots = linkedPackages;
+
+      if (nextIsActive) {
+        await sdk.client.request({
+          method: "PATCH",
+          path: `/dishes/${selectedMenu.id}/reactivate`,
+        });
+      } else {
+        await sdk.client.request({
+          method: "PATCH",
+          path: `/dishes/${selectedMenu.id}/deactivate`,
+        });
       }
 
-      await sdk.client.request({
-        method: "DELETE",
-        path: `/dishes/${selectedMenu.id}`,
-      });
-      removeMenuDescription(selectedMenu.id);
-
       setSuccessState({
-        headline: "Menu Makanan Berhasil Dihapus",
-        message:
-          `Menu ${selectedMenu.name} dihapus dari sistem.`,
+        headline: nextIsActive ? "Menu Makanan Berhasil Diaktifkan" : "Menu Makanan Berhasil Dinonaktifkan",
+        message: nextIsActive
+          ? `Menu ${selectedMenu.name} kembali aktif di daftar menu.`
+          : linkedSlots.length > 0
+            ? `Menu ${selectedMenu.name} dinonaktifkan dan ${linkedSlots.length} slot paket yang memakai menu ini ikut dinonaktifkan.`
+            : `Menu ${selectedMenu.name} telah dinonaktifkan dari daftar menu.`,
       });
       await loadMenus();
       router.refresh();
       closeModal();
     } catch (deleteError) {
       setMenus(previousMenus);
-      setError(getErrorMessage(deleteError, "Gagal menghapus menu makanan."));
+      setError(getErrorMessage(deleteError, "Gagal memperbarui status menu makanan."));
     } finally {
       setSaving(false);
     }
@@ -594,6 +638,9 @@ export default function AdminMenuManagementPage() {
                         <span className="inline-flex rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
                           Menu
                         </span>
+                        <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${menu.isActive ? "bg-[#ECFDF3] text-[#16A34A]" : "bg-[#F1F5F9] text-[#64748B]"}`}>
+                          {menu.isActive ? "Aktif" : "Nonaktif"}
+                        </span>
                         <h3 className="line-clamp-2 text-xl font-semibold leading-tight text-[#16213E]">
                           {menu.name}
                         </h3>
@@ -603,8 +650,9 @@ export default function AdminMenuManagementPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto flex gap-2 pt-5">
+                    <div className="mt-auto flex flex-wrap items-center gap-3 pt-5 pr-2">
                       <MiniActionButton
+                        className="min-w-[82px] justify-center"
                         onClick={(event) => {
                           event.stopPropagation();
                           openDetailModal(menu);
@@ -613,6 +661,7 @@ export default function AdminMenuManagementPage() {
                         Detail
                       </MiniActionButton>
                       <MiniActionButton
+                        className="min-w-[82px] justify-center"
                         onClick={(event) => {
                           event.stopPropagation();
                           openEditModal(menu);
@@ -621,13 +670,13 @@ export default function AdminMenuManagementPage() {
                         Edit
                       </MiniActionButton>
                       <MiniActionButton
-                        variant="danger"
+                        className="min-w-[120px] justify-center"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openDeleteModal(menu);
+                          void openDeleteModal(menu);
                         }}
                       >
-                        Hapus
+                        {menu.isActive ? "Nonaktifkan" : "Aktifkan"}
                       </MiniActionButton>
                     </div>
                   </article>
@@ -868,12 +917,21 @@ export default function AdminMenuManagementPage() {
 
       <DeleteConfirmModal
         open={modalMode === "delete"}
-        title="Hapus Menu Makanan"
-        headline="Menu makanan akan dihapus"
-        description={`Apakah Anda yakin ingin menghapus menu ${selectedMenu?.name}? Tindakan ini tidak dapat dibatalkan.`}
+        title={selectedMenu?.isActive ? "Nonaktifkan Menu Makanan" : "Aktifkan Menu Makanan"}
+        headline={selectedMenu?.isActive ? "Menu akan dinonaktifkan" : "Menu akan diaktifkan kembali"}
+        description={
+          selectedMenu?.isActive
+            ? loadingLinkedPackages
+              ? `Mengecek paket menu yang memakai ${selectedMenu?.name}...`
+              : linkedPackages.length > 0
+                ? `${selectedMenu?.name} sedang dipakai pada paket menu berikut: ${linkedPackages.map((item) => item.packageName).join(", ")}. Menonaktifkan menu ini akan memutus slot paket yang memakai menu tersebut.`
+                : `Apakah Anda yakin ingin menonaktifkan menu ${selectedMenu?.name}? Menu ini akan tetap ada di sistem dan bisa diaktifkan kembali.`
+            : `Apakah Anda yakin ingin mengaktifkan kembali menu ${selectedMenu?.name}?`
+        }
         onClose={closeModal}
-        onConfirm={deleteMenu}
-        submitting={saving}
+        onConfirm={toggleMenuActive}
+        submitting={saving || loadingLinkedPackages}
+        confirmLabel={selectedMenu?.isActive ? "Nonaktifkan" : "Aktifkan"}
       />
 
       <SuccessModal

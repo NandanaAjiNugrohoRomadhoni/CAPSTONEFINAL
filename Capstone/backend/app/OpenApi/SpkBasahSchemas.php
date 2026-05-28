@@ -254,10 +254,57 @@ use OpenApi\Annotations as OA;
  *     @OA\Property(property="data", ref="#/components/schemas/SpkBasahGenerateResult")
  * )
  * @OA\Schema(
+ *     schema="SpkKeringPengemasGenerateResult",
+ *     type="object",
+ *     required={"id","version","scope_key","target_month"},
+ *     @OA\Property(property="id", type="integer", example=44),
+ *     @OA\Property(property="version", type="integer", example=3),
+ *     @OA\Property(property="scope_key", type="string", example="kering_pengemas|monthly|2026-04|2"),
+ *     @OA\Property(property="target_month", type="string", example="2026-04")
+ * )
+ * @OA\Schema(
+ *     schema="SpkKeringPengemasGenerateResponse",
+ *     type="object",
+ *     required={"message","data"},
+ *     @OA\Property(property="message", type="string", example="SPK kering/pengemas generated successfully."),
+ *     @OA\Property(property="data", ref="#/components/schemas/SpkKeringPengemasGenerateResult")
+ * )
+ * @OA\Schema(
+ *     schema="SpkGenerateConflictData",
+ *     type="object",
+ *     required={"spk_id","version","scope_key","is_latest","is_finish","regenerate_allowed"},
+ *     @OA\Property(property="spk_id", type="integer", example=31),
+ *     @OA\Property(property="version", type="integer", example=2),
+ *     @OA\Property(property="scope_key", type="string", example="basah|combined_window|2026-03-01|2026-03-02|1"),
+ *     @OA\Property(property="is_latest", type="boolean", example=true),
+ *     @OA\Property(property="is_finish", type="boolean", example=false),
+ *     @OA\Property(property="calculation_date", type="string", nullable=true, example="2026-03-01"),
+ *     @OA\Property(property="target_date_start", type="string", nullable=true, example="2026-03-01"),
+ *     @OA\Property(property="target_date_end", type="string", nullable=true, example="2026-03-02"),
+ *     @OA\Property(property="target_month", type="string", nullable=true, example=null),
+ *     @OA\Property(property="regenerate_allowed", type="boolean", example=true)
+ * )
+ * @OA\Schema(
+ *     schema="SpkGenerateConflictResponse",
+ *     type="object",
+ *     required={"message","errors","conflict"},
+ *     @OA\Property(property="message", type="string", example="SPK generation conflict."),
+ *     @OA\Property(property="errors", ref="#/components/schemas/ValidationError"),
+ *     @OA\Property(property="conflict", ref="#/components/schemas/SpkGenerateConflictData")
+ * )
+ * @OA\Schema(
  *     schema="SpkBasahGenerateRequest",
  *     type="object",
  *     required={"service_date"},
- *     @OA\Property(property="service_date", type="string", example="2026-03-01")
+ *     @OA\Property(property="service_date", type="string", example="2026-03-01"),
+ *     @OA\Property(property="regenerate", type="boolean", example=false, description="When true, runtime creates a new version even if an active SPK already exists for the same scope.")
+ * )
+ * @OA\Schema(
+ *     schema="SpkKeringPengemasGenerateRequest",
+ *     type="object",
+ *     required={"target_month"},
+ *     @OA\Property(property="target_month", type="string", example="2026-04"),
+ *     @OA\Property(property="regenerate", type="boolean", example=false, description="When true, runtime creates a new version even if an active SPK already exists for the same scope.")
  * )
  * @OA\Schema(
  *     schema="SpkBasahPostStockResult",

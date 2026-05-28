@@ -25,9 +25,10 @@ use OpenApi\Annotations as OA;
  * @OA\Schema(
  *     schema="Dish",
  *     type="object",
- *     required={"id","name","created_at","updated_at"},
+ *     required={"id","name","is_active","created_at","updated_at"},
  *     @OA\Property(property="id", type="integer", example=1),
  *     @OA\Property(property="name", type="string", example="Bubur Ayam"),
+ *     @OA\Property(property="is_active", type="boolean", example=true),
  *     @OA\Property(property="created_at", type="string", example="2026-05-07 10:00:00"),
  *     @OA\Property(property="updated_at", type="string", example="2026-05-07 10:00:00")
  * )

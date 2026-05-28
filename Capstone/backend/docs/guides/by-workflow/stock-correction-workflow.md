@@ -80,15 +80,18 @@ When submitting a direct correction, if the live stock no longer matches your `e
   }
   ```
 
-### Pending Revision Conflict
-Attempting to submit a revision while another sibling revision in the same lineage is still pending review.
+### Repeated Pending Revision Submission
+Submitting a revision again while another sibling revision in the same lineage is still pending review does not create a second pending sibling. Instead, the backend updates the existing pending revision row with the latest header and detail payload.
 
-- **Response (400 Bad Request)**:
+- **Response (201 Created)**:
   ```json
   {
-    "message": "Validation failed.",
-    "errors": {
-      "id": "Another revision for this transaction is still pending review."
+    "message": "Revision submitted successfully.",
+    "data": {
+      "id": 11,
+      "parent_transaction_id": 10,
+      "approval_status_id": 2,
+      "is_revision": true
     }
   }
   ```
@@ -97,7 +100,7 @@ Attempting to submit a revision while another sibling revision in the same linea
 
 - Revisions remain sibling rows (`is_revision = true`) that all point to the same original parent (`parent_transaction_id = <root id>`).
 - Revision-on-revision submission is still blocked.
-- Only one `PENDING` sibling is allowed at a time.
+- Only one `PENDING` sibling exists at a time, and repeated submissions reuse that same pending sibling.
 - Successive approvals are allowed over time.
 - Approval baseline is deterministic:
   1. latest approved sibling in the same lineage (highest revision id), or

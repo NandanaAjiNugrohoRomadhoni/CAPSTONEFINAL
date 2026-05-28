@@ -289,8 +289,8 @@ await sdk.auth.login({
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.itemCategories.list(query?)` | `GET /api/v1/item-categories` | `admin`, `gudang` |
-| `sdk.itemCategories.get(id)` | `GET /api/v1/item-categories/{id}` | `admin`, `gudang` |
+| `sdk.itemCategories.list(query?)` | `GET /api/v1/item-categories` | `admin`, `dapur`, `gudang` |
+| `sdk.itemCategories.get(id)` | `GET /api/v1/item-categories/{id}` | `admin`, `dapur`, `gudang` |
 | `sdk.itemCategories.create(payload)` | `POST /api/v1/item-categories` | `admin` only |
 | `sdk.itemCategories.update(id, payload)` | `PUT /api/v1/item-categories/{id}` | `admin` only |
 | `sdk.itemCategories.delete(id)` | `DELETE /api/v1/item-categories/{id}` | `admin` only |
@@ -307,8 +307,8 @@ await sdk.auth.login({
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.itemUnits.list(query?)` | `GET /api/v1/item-units` | `admin`, `gudang` |
-| `sdk.itemUnits.get(id)` | `GET /api/v1/item-units/{id}` | `admin`, `gudang` |
+| `sdk.itemUnits.list(query?)` | `GET /api/v1/item-units` | `admin`, `dapur`, `gudang` |
+| `sdk.itemUnits.get(id)` | `GET /api/v1/item-units/{id}` | `admin`, `dapur`, `gudang` |
 | `sdk.itemUnits.create(payload)` | `POST /api/v1/item-units` | `admin` only |
 | `sdk.itemUnits.update(id, payload)` | `PUT /api/v1/item-units/{id}` | `admin` only |
 | `sdk.itemUnits.delete(id)` | `DELETE /api/v1/item-units/{id}` | `admin` only |
@@ -325,26 +325,26 @@ await sdk.auth.login({
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.transactionTypes.list(query?)` | `GET /api/v1/transaction-types` | `admin`, `gudang` |
+| `sdk.transactionTypes.list(query?)` | `GET /api/v1/transaction-types` | `admin`, `dapur`, `gudang` |
 
 ### `approvalStatuses`
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.approvalStatuses.list(query?)` | `GET /api/v1/approval-statuses` | `admin`, `gudang` |
+| `sdk.approvalStatuses.list(query?)` | `GET /api/v1/approval-statuses` | `admin`, `dapur`, `gudang` |
 
 ### `mealTimes`
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.mealTimes.list(query?)` | `GET /api/v1/meal-times` | `admin`, `gudang` |
+| `sdk.mealTimes.list(query?)` | `GET /api/v1/meal-times` | `admin`, `dapur`, `gudang` |
 
 ### `items`
 
 | SDK method | HTTP endpoint | Access |
 |---|---|---|
-| `sdk.items.list(query?)` | `GET /api/v1/items` | `admin`, `gudang` |
-| `sdk.items.get(id)` | `GET /api/v1/items/{id}` | `admin`, `gudang` |
+| `sdk.items.list(query?)` | `GET /api/v1/items` | `admin`, `dapur`, `gudang` |
+| `sdk.items.get(id)` | `GET /api/v1/items/{id}` | `admin`, `dapur`, `gudang` |
 | `sdk.items.create(payload)` | `POST /api/v1/items` | `admin`, `gudang` |
 | `sdk.items.update(id, payload)` | `PUT /api/v1/items/{id}` | `admin`, `gudang` |
 | `sdk.items.delete(id)` | `DELETE /api/v1/items/{id}` | `admin` only |
@@ -411,8 +411,8 @@ await sdk.auth.login({
 - create supports `type_id` or `type_name`
 - direct correction is admin-only and requires `item_id`, `expected_current_qty`, `target_qty`, and `reason`
 - direct correction is stored as a normal stock transaction (not a revision), with the server deriving whether the adjustment is `IN` or `OUT`
-- submit revision only creates a pending child revision; it does not change stock immediately
-- only one pending revision is allowed at a time for the same original transaction lineage; after a revision is approved or rejected, a new sibling revision can be submitted against the same original transaction
+- submit revision creates a pending child revision on first submit, then reuses and replaces that same pending child revision if the same parent is resubmitted before admin review; it does not change stock immediately
+- only one pending revision is allowed at a time for the same original transaction lineage; repeated submits update that same pending sibling, and after a revision is approved or rejected, a new sibling revision can be submitted against the same original transaction
 - approve revision applies the revision as a **net correction** against the latest approved revision in the lineage (or the original parent when no approved sibling exists), not as a second additive stock movement
 - `sdk.stockTransactions.details(id)` returns normalized detail rows with item metadata, including `satuan` as the base-unit label for `qty`; use `input_qty` + `input_unit` for the original entered quantity mode
 - detail rows still use `item_id`; there is no item-name write shortcut in transaction details
@@ -485,9 +485,34 @@ These resources provide management for nutrition standards and calendar scheduli
 |---|---|---|---|
 | `menus` | `list` | None (Fixed) | `admin`, `dapur`, `gudang` |
 | `menus` (slots) | `slots`, `assignSlot`, `updateSlot`, `deleteSlot` | `admin`, `dapur` | `admin`, `dapur`, `gudang` |
-| `dishes` | `list`, `get`, `create`, `update`, `delete` | `admin`, `dapur` | `admin`, `dapur`, `gudang` |
+| `dishes` | `list`, `get`, `create`, `update`, `deactivate`, `reactivate`, `delete` | `admin`, `dapur` | `admin`, `dapur`, `gudang` |
 | `dishCompositions` | `list`, `get`, `create`, `update`, `delete` | `admin`, `dapur` | `admin`, `dapur`, `gudang` |
 | `menuSchedules` | `list`, `get`, `create`, `update`, `calendarProjection` | `admin`, `dapur` | `admin`, `dapur`, `gudang` |
+
+#### Important dish lifecycle behavior
+
+- `Dish` responses now include `is_active`
+- `sdk.dishes.list({ paginate, is_active })` forwards the supported list controls to `GET /api/v1/dishes`; `paginate=false` keeps the same `data/meta/links` envelope and sets `meta.paginated=false`
+- `sdk.dishes.deactivate(id)` calls `PATCH /api/v1/dishes/{id}/deactivate`, keeps the dish row and compositions, and removes linked menu slot assignments
+- `sdk.dishes.reactivate(id)` calls `PATCH /api/v1/dishes/{id}/reactivate` and only restores availability for future slot writes
+- `sdk.dishes.delete(id)` is only valid after the dish is inactive and detached from menu slots; final delete removes compositions by DB cascade
+
+#### Important dish composition list behavior
+
+- `sdk.dishCompositions.list({ paginate, dish_id, item_id })` forwards the supported list controls to `GET /api/v1/dish-compositions`; `paginate=false` keeps the same `data/meta/links` envelope and sets `meta.paginated=false`
+
+#### Important menu slot write behavior
+
+- `sdk.menus.assignSlot()` and `sdk.menus.updateSlot()` reject inactive dishes with the validation message `The selected dish is inactive.`
+
+#### Example dish lifecycle flow
+
+```ts
+const dishes = await sdk.dishes.list({ paginate: false, is_active: false, sortBy: "updated_at", sortDir: "DESC" });
+
+await sdk.dishes.deactivate(9);
+await sdk.dishes.reactivate(9);
+```
 
 ### `notifications`
 

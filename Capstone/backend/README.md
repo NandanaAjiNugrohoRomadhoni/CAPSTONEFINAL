@@ -109,6 +109,8 @@ The project currently provides these seeders:
 - `StockOpnameSeeder`
 - `SpkPersistenceSeeder`
 - `TestSeeder`
+- `RuntimeCurrentMonthSpkScenarioSeeder`
+- `RuntimeCurrentMonthSeeder`
 
 To seed the full development baseline in the correct order, run:
 
@@ -135,6 +137,20 @@ php spark db:seed TestSeeder
 15. `StockTransactionSeeder`
 16. `StockOpnameSeeder`
 17. `SpkPersistenceSeeder`
+
+To seed a separate runtime-relative current-month SPK scenario without changing the deterministic baseline path, run:
+
+```bash
+php spark db:seed RuntimeCurrentMonthSeeder
+```
+
+`RuntimeCurrentMonthSeeder`:
+
+1. reuses the same lookup and menu/item prerequisites needed by SPK generation
+2. seeds current-month `daily_patients` rows every 2 days for basah generation
+3. seeds previous-month approved non-revision `OUT` demand history for `KERING`/`PENGEMAS`
+4. generates current-month basah SPKs every 2 days and one monthly kering/pengemas SPK
+5. leaves generated SPKs unposted (`is_finish = false`) and does not call stock posting
 
 ## 6. Run the backend server
 
@@ -170,10 +186,10 @@ password123
 Seeded lookup/master baseline also includes:
 
 - item categories: `BASAH`, `KERING`, `PENGEMAS`
-- transaction types: `IN`, `OUT`, `RETURN_IN`
+- transaction types: `IN`, `OUT`, `RETURN_IN`, `OPNAME_ADJUSTMENT`
 - approval statuses: `APPROVED`, `PENDING`, `REJECTED`
 - meal times: `SIANG`, `SORE`, `PAGI`
-- item units: `gram`, `kg`, `ml`, `liter`, `butir`, `pack`
+- item units: `gram`, `kg`, `ml`, `liter`, `butir`, `btr`, `pack`, `pcs`, `roll`, `bks`, `ssr`, `ons`, `ikt`, `sachet`, `dus`, `kotak`, `kaleng`, `bungkus`, `jurigen`, `botol`, `pace`
 - items: `Beras`, `Ayam`, `Minyak Goreng`, `Telur`
 - menus: `Paket 1` through `Paket 11`
 - dishes: 33 named dishes covering all 11 menus × 3 meal-time slots

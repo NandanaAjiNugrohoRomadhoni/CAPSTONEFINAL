@@ -191,6 +191,20 @@ class StockTransactionModel extends Model
         return $transaction ?: null;
     }
 
+    public function findPendingRevisionByParentId(int $parentId, int $pendingStatusId): ?array
+    {
+        $builder = $this->builder();
+        $builder->where('parent_transaction_id', $parentId);
+        $builder->where('is_revision', true);
+        $builder->where('approval_status_id', $pendingStatusId);
+        $builder->where('deleted_at', null);
+        $builder->orderBy('id', 'DESC');
+
+        $transaction = $builder->get()->getRowArray();
+
+        return $transaction ?: null;
+    }
+
     public function hasPendingRevision(int $parentId, int $pendingStatusId, ?int $excludeId = null): bool
     {
         $builder = $this->builder();

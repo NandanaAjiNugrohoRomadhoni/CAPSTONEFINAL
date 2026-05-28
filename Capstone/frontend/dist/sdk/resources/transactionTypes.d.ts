@@ -5,7 +5,7 @@ import type { ApiListResponse, LookupListQuery, TransactionType } from "../types
  *
  * Wraps:    /api/v1/transaction-types
  * Contract: api-contract.md §5.2.2
- * Access:   admin | gudang
+ * Access:   admin | dapur | gudang
  *
  * Lists stock transaction type lookup rows.
  */
@@ -16,7 +16,7 @@ export declare class TransactionTypesResource {
      * Lists transaction types with pagination, filtering, and optional full lookup reads.
      *
      * @endpoint GET /api/v1/transaction-types
-     * @access   admin | gudang
+     * @access   admin | dapur | gudang
      *
      * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
      * @returns {Promise<ApiListResponse<TransactionType>>}

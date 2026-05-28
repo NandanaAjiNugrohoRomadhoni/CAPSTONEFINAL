@@ -194,14 +194,19 @@ class ItemsTest extends CIUnitTestCase
         $this->get('api/v1/items')->assertStatus(401);
     }
 
-    public function testListItemsAsDapurIsForbidden(): void
+    public function testListItemsAsDapurReturnsPaginatedEnvelope(): void
     {
         $token = $this->login('dapur');
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/items');
 
-        $result->assertStatus(403);
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertArrayHasKey('meta', $json);
+        $this->assertArrayHasKey('links', $json);
     }
 
     public function testListItemsAsGudangReturnsPaginatedEnvelope(): void
@@ -285,6 +290,20 @@ class ItemsTest extends CIUnitTestCase
         $this->assertArrayHasKey('item_unit_convert', $json['data']);
         $this->assertSame('gram', $json['data']['item_unit_base']['name']);
         $this->assertSame('kg', $json['data']['item_unit_convert']['name']);
+    }
+
+    public function testShowItemAsDapur(): void
+    {
+        $token = $this->login('dapur');
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/items/1');
+
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertSame('Beras', $json['data']['name']);
     }
 
     public function testShowMissingItemReturnsNotFound(): void
@@ -401,6 +420,37 @@ class ItemsTest extends CIUnitTestCase
 
         $result->assertStatus(400);
         $result->assertJSONFragment(['message' => 'Validation failed.']);
+    }
+
+    public function testCreateItemAsDapurIsForbidden(): void
+    {
+        $token         = $this->login('dapur');
+        $categoryModel = new ItemCategoryModel();
+        $category      = $categoryModel->where('name', 'PENGEMAS')->first();
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/items', [
+                'name'             => 'Dapur Minyak',
+                'item_category_id' => $category['id'],
+                'unit_base'        => 'ml',
+                'unit_convert'     => 'liter',
+                'conversion_base'  => 1000,
+                'is_active'        => true,
+            ])
+            ->assertStatus(403);
+    }
+
+    public function testUpdateItemAsDapurIsForbidden(): void
+    {
+        $token = $this->login('dapur');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->put('api/v1/items/1', [
+                'name' => 'Dapur Edited Item',
+            ])
+            ->assertStatus(403);
     }
 
     public function testDeleteItemAsGudangIsForbidden(): void

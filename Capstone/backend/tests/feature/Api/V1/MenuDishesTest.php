@@ -135,6 +135,20 @@ class MenuDishesTest extends CIUnitTestCase
         return $json['data'];
     }
 
+    protected function deactivateDish(string $token, int $dishId): void
+    {
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/' . $dishId . '/deactivate')
+            ->assertStatus(200);
+    }
+
+    protected function reactivateDish(string $token, int $dishId): void
+    {
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/' . $dishId . '/reactivate')
+            ->assertStatus(200);
+    }
+
     public function testSlotAssignmentHappyPathForPagiSiangSore(): void
     {
         $writeToken = $this->login('dapur');
@@ -229,6 +243,61 @@ class MenuDishesTest extends CIUnitTestCase
             'The menu_id and meal_time_id combination has already been taken.',
             $json['errors']['menu_id,meal_time_id'],
         );
+    }
+
+    public function testInactiveDishCannotBeAssignedViaSlotCreate(): void
+    {
+        $token = $this->login('admin');
+
+        $this->deactivateDish($token, 1);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/menu-dishes', [
+                'menu_id'      => 7,
+                'meal_time_id' => 1,
+                'dish_id'      => 1,
+            ]);
+
+        $result->assertStatus(400);
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('Validation failed.', $json['message']);
+        $this->assertArrayHasKey('dish_id', $json['errors']);
+        $this->assertSame('The selected dish is inactive.', $json['errors']['dish_id']);
+    }
+
+    public function testInactiveDishCannotBeSwitchedIntoSlotViaUpdate(): void
+    {
+        $token = $this->login('admin');
+        $slot = $this->assignSlot($token, 8, 1, 2);
+
+        $this->deactivateDish($token, 1);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->put('api/v1/menu-dishes/' . $slot['id'], [
+                'dish_id' => 1,
+            ]);
+
+        $result->assertStatus(400);
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('Validation failed.', $json['message']);
+        $this->assertArrayHasKey('dish_id', $json['errors']);
+        $this->assertSame('The selected dish is inactive.', $json['errors']['dish_id']);
+    }
+
+    public function testReactivatedDishCanBeAssignedAgainThroughNormalSlotFlow(): void
+    {
+        $token = $this->login('admin');
+
+        $this->deactivateDish($token, 1);
+        $this->reactivateDish($token, 1);
+
+        $slot = $this->assignSlot($token, 9, 1, 1);
+
+        $this->assertSame(9, $slot['menu_id']);
+        $this->assertSame(1, $slot['meal_time_id']);
+        $this->assertSame(1, $slot['dish_id']);
     }
 
     public function testDeleteExistingSlotReturns200(): void

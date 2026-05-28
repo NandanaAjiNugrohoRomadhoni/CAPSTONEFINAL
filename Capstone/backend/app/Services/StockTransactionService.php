@@ -1167,15 +1167,7 @@ class StockTransactionService
             ];
         }
 
-        if ($this->transactionModel->hasPendingRevision($parentTransactionId, $pendingStatusId)) {
-            $this->db->transRollback();
-
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => ['id' => 'Another revision for this transaction is still pending review.'],
-            ];
-        }
+        $existingPendingRevision = $this->transactionModel->findPendingRevisionByParentId($parentTransactionId, $pendingStatusId);
 
         $revisionData = [
             'type_id'               => $parent['type_id'],
@@ -1188,44 +1180,53 @@ class StockTransactionService
             'spk_id'                => isset($data['spk_id']) && is_numeric($data['spk_id']) ? (int) $data['spk_id'] : null,
         ];
 
-        $revisionId = $this->transactionModel->insert($revisionData, true);
+        $isResubmission = $existingPendingRevision !== null;
 
-        if ($revisionId === false) {
-            $this->db->transRollback();
+        $existingPendingDetails = [];
 
-            return [
-                'success' => false,
-                'message' => 'Failed to create revision transaction.',
-                'errors'  => $this->transactionModel->errors(),
-            ];
-        }
+        if ($isResubmission) {
+            $revisionId = (int) $existingPendingRevision['id'];
+            $existingPendingDetails = $this->detailModel->getDetailsByTransactionId($revisionId);
 
-        // Insert detail rows
-        foreach ($data['details'] as $detail) {
-            $inputUnit     = $detail['input_unit'] ?? 'base';
-            $inputQty      = (float) $detail['qty'];
-            $item          = $this->itemModel->find((int) $detail['item_id']);
-            $normalizedQty = $inputUnit === 'convert'
-                ? $inputQty * (float) $item['conversion_base']
-                : $inputQty;
-
-            $detailData = [
-                'transaction_id' => $revisionId,
-                'item_id'        => (int) $detail['item_id'],
-                'qty'            => $normalizedQty,
-                'input_qty'      => $inputQty,
-                'input_unit'     => $inputUnit,
-            ];
-
-            if ($this->detailModel->insert($detailData) === false) {
+            $updated = $this->transactionModel->update($revisionId, $revisionData);
+            if (! $updated) {
                 $this->db->transRollback();
 
                 return [
                     'success' => false,
-                    'message' => 'Failed to create revision details.',
+                    'message' => 'Failed to update revision transaction.',
+                    'errors'  => $this->transactionModel->errors(),
+                ];
+            }
+
+            if ($this->detailModel->where('transaction_id', $revisionId)->delete() === false) {
+                $this->db->transRollback();
+
+                return [
+                    'success' => false,
+                    'message' => 'Failed to replace revision details.',
                     'errors'  => $this->detailModel->errors(),
                 ];
             }
+        } else {
+            $revisionId = $this->transactionModel->insert($revisionData, true);
+
+            if ($revisionId === false) {
+                $this->db->transRollback();
+
+                return [
+                    'success' => false,
+                    'message' => 'Failed to create revision transaction.',
+                    'errors'  => $this->transactionModel->errors(),
+                ];
+            }
+        }
+
+        $detailWriteResult = $this->replaceRevisionDetails((int) $revisionId, $data['details']);
+        if (! $detailWriteResult['success']) {
+            $this->db->transRollback();
+
+            return $detailWriteResult;
         }
 
         // Write audit log
@@ -1234,9 +1235,17 @@ class StockTransactionService
             'stock_transaction_revision_submit',
             'stock_transactions',
             (int) $revisionId,
-            'Stock transaction revision submitted.',
-            null,
-            $revisionData,
+            $isResubmission ? 'Stock transaction pending revision updated.' : 'Stock transaction revision submitted.',
+            $isResubmission ? [
+                'header'  => $existingPendingRevision,
+                'details' => $existingPendingDetails,
+            ] : null,
+            $isResubmission
+                ? [
+                    'header'  => array_merge($revisionData, ['id' => (int) $revisionId]),
+                    'details' => $detailWriteResult['details'],
+                ]
+                : array_merge($revisionData, ['id' => (int) $revisionId]),
             $ipAddress
         );
 
@@ -1260,13 +1269,15 @@ class StockTransactionService
             ];
         }
 
-        $this->notificationService->sendToRole(
-            'Admin',
-            'Pengajuan Revisi Transaksi Stok',
-            'Revisi transaksi stok telah diajukan. Silakan lakukan verifikasi.',
-            'STOCK_REVISION',
-            $revisionId
-        );
+        if (! $isResubmission) {
+            $this->notificationService->sendToRole(
+                'Admin',
+                'Pengajuan Revisi Transaksi Stok',
+                'Revisi transaksi stok telah diajukan. Silakan lakukan verifikasi.',
+                'STOCK_REVISION',
+                $revisionId
+            );
+        }
 
         return [
             'success' => true,
@@ -1277,6 +1288,47 @@ class StockTransactionService
                 'is_revision'           => true,
                 'parent_transaction_id' => $parentTransactionId,
             ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @return array{success:bool,message?:string,errors?:array<string, mixed>,details?:array<int, array<string, int|float|string>>}
+     */
+    private function replaceRevisionDetails(int $revisionId, array $details): array
+    {
+        $writtenDetails = [];
+
+        foreach ($details as $detail) {
+            $inputUnit     = $detail['input_unit'] ?? 'base';
+            $inputQty      = (float) $detail['qty'];
+            $item          = $this->itemModel->find((int) $detail['item_id']);
+            $normalizedQty = $inputUnit === 'convert'
+                ? $inputQty * (float) $item['conversion_base']
+                : $inputQty;
+
+            $detailData = [
+                'transaction_id' => $revisionId,
+                'item_id'        => (int) $detail['item_id'],
+                'qty'            => $normalizedQty,
+                'input_qty'      => $inputQty,
+                'input_unit'     => $inputUnit,
+            ];
+
+            if ($this->detailModel->insert($detailData) === false) {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to replace revision details.',
+                    'errors'  => $this->detailModel->errors(),
+                ];
+            }
+
+            $writtenDetails[] = $detailData;
+        }
+
+        return [
+            'success' => true,
+            'details' => $writtenDetails,
         ];
     }
 

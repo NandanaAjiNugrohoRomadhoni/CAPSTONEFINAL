@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage, toIsoMonth } from "@/lib/admin-utils";
+import { getSpkConflictId } from "@/lib/spk-conflicts";
+import { findExistingKeringSpk } from "@/lib/spk-recommendations";
 import {
   AdminPageHeading,
   ExportButton,
@@ -10,8 +12,13 @@ import {
   SurfaceCard,
 } from "@/components/admin/ui";
 import GenerateSpkConfirmModal from "@/components/spk/GenerateSpkConfirmModal";
+import {
+  buildKeringRecommendationSpreadsheet,
+  downloadRecommendationSpreadsheet,
+} from "@/components/spk/recommendation-export";
 
 type RecommendationRow = Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>["data"]["items"][number];
+type RecommendationDetail = Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>["data"];
 
 function getItemCategory(row: RecommendationRow) {
   const flexibleRow = row as RecommendationRow & {
@@ -23,26 +30,113 @@ function getItemCategory(row: RecommendationRow) {
   return flexibleRow.item_category_name ?? flexibleRow.category_name ?? flexibleRow.item_category?.name ?? "-";
 }
 
+function formatTargetMonthLabel(value: string) {
+  const date = new Date(`${value}-01T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(date);
+}
+
 export default function Page() {
   const [rows, setRows] = useState<RecommendationRow[]>([]);
+  const [detailData, setDetailData] = useState<RecommendationDetail | null>(null);
+  const [hasLoadedRecommendation, setHasLoadedRecommendation] = useState(false);
   const [targetMonth] = useState(toIsoMonth(new Date()));
   const [generating, setGenerating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLatestRecommendation() {
+      setError(null);
+      try {
+        const history = await sdk.spk.listKeringPengemas();
+        if (cancelled) return;
+        const matchingSpk = findExistingKeringSpk(history.data ?? [], targetMonth);
+        const latestSpk = matchingSpk ?? getLatestSpk(history.data ?? []);
+        if (!latestSpk) return;
+
+        const detail = await sdk.spk.getKeringPengemas(latestSpk.id);
+        if (cancelled) return;
+        setDetailData(detail.data);
+        setRows(aggregateRecommendationRows(detail.data.items ?? []));
+        setHasLoadedRecommendation(true);
+      } catch {
+        // Riwayat SPK boleh kosong; halaman tetap bisa generate rekomendasi baru.
+      }
+    }
+
+    void loadLatestRecommendation();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function handleGenerate() {
     setGenerating(true);
     setError(null);
     try {
-      const generated = await sdk.spk.generateKeringPengemas({ target_month: targetMonth });
-      const detail = await sdk.spk.getKeringPengemas(generated.data.id);
-      setRows(detail.data.items ?? []);
+      let detail: Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>;
+      try {
+        const generated = await sdk.spk.generateKeringPengemas({ target_month: targetMonth });
+        detail = await sdk.spk.getKeringPengemas(generated.data.id);
+      } catch (generateError) {
+        const conflictSpkId = getSpkConflictId(generateError);
+        if (!conflictSpkId) throw generateError;
+        detail = await sdk.spk.getKeringPengemas(conflictSpkId);
+      }
+      setDetailData(detail.data);
+      setRows(aggregateRecommendationRows(detail.data.items ?? []));
+      setHasLoadedRecommendation(true);
       setConfirmOpen(false);
     } catch (generateError) {
       setError(getErrorMessage(generateError, "Gagal generate SPK kering & pengemas."));
     } finally {
       setGenerating(false);
     }
+  }
+
+  function handleExport() {
+    if (typeof window === "undefined" || rows.length === 0) {
+      setError("Belum ada hasil rekomendasi yang bisa diexport.");
+      return;
+    }
+    const html = buildKeringRecommendationSpreadsheet(
+      {
+        spkId: detailData?.id ?? null,
+        generatedBy: detailData?.user?.name ?? detailData?.user?.username ?? "Admin User",
+        calculationDate: detailData?.calculation_date
+          ? new Intl.DateTimeFormat("id-ID", {
+              timeZone: "Asia/Jakarta",
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(new Date(detailData.calculation_date))
+          : "-",
+        targetLabel: formatTargetMonthLabel(targetMonth),
+        itemCountLabel: `${rows.length} Produk`,
+        formulaTitle: "Rumus KERING & PENGEMAS",
+        formulaDescription: "Total Pengeluaran Bulan Lalu x 10% - Sisa Stok Saat Ini",
+      },
+      rows.map((row) => ({
+        itemName: row.item_name ?? "-",
+        categoryName: getItemCategory(row),
+        currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
+        requiredQty: formatQuantity(row.required_qty, row.item_unit_base),
+        recommendedQty: formatQuantity(row.final_recommended_qty, row.item_unit_base),
+        numericRecommendedQty: Number(row.final_recommended_qty ?? 0),
+      })),
+    );
+
+    downloadRecommendationSpreadsheet({
+      filename: `SPS-Rekomendasi-Belanja-SPK-${detailData?.id ? String(detailData.id).padStart(3, "0") : targetMonth}.xls`,
+      html,
+    });
   }
 
   return (
@@ -65,7 +159,7 @@ export default function Page() {
       <SurfaceCard className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-6 py-5">
           <h3 className="text-lg font-bold text-[#16213E]">Hasil Rekomendasi</h3>
-          <ExportButton>Export Rekomendasi</ExportButton>
+          <ExportButton onClick={handleExport}>Export Rekomendasi</ExportButton>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-base">
@@ -91,7 +185,9 @@ export default function Page() {
               {rows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={5}>
-                    Klik Generate untuk mengambil rekomendasi SPK kering & pengemas.
+                    {hasLoadedRecommendation
+                      ? "Tidak ada data rekomendasi dari backend untuk bulan ini."
+                      : "Klik Generate untuk mengambil rekomendasi SPK kering & pengemas."}
                   </td>
                 </tr>
               ) : null}
@@ -109,4 +205,39 @@ export default function Page() {
       />
     </div>
   );
+}
+
+function getLatestSpk<T extends { id: number; created_at?: string | null; calculation_date?: string | null }>(rows: T[]) {
+  return [...rows].sort((left, right) => {
+    const rightTime = new Date(right.created_at ?? right.calculation_date ?? "").getTime();
+    const leftTime = new Date(left.created_at ?? left.calculation_date ?? "").getTime();
+    if (Number.isFinite(rightTime) && Number.isFinite(leftTime) && rightTime !== leftTime) {
+      return rightTime - leftTime;
+    }
+    return Number(right.id) - Number(left.id);
+  })[0];
+}
+
+function aggregateRecommendationRows<T extends RecommendationRow>(rows: T[]) {
+  const byItem = new Map<string, T>();
+
+  for (const row of rows) {
+    const recommendation = Number(row.final_recommended_qty ?? 0);
+    if (!Number.isFinite(recommendation)) continue;
+
+    const key = String(row.item_id ?? row.item_name ?? row.id);
+    const current = byItem.get(key);
+    if (current) {
+      byItem.set(key, {
+        ...current,
+        required_qty: Number(current.required_qty ?? 0) + Number(row.required_qty ?? 0),
+        final_recommended_qty: Number(current.final_recommended_qty ?? 0) + recommendation,
+      });
+      continue;
+    }
+
+    byItem.set(key, { ...row, final_recommended_qty: recommendation });
+  }
+
+  return Array.from(byItem.values());
 }

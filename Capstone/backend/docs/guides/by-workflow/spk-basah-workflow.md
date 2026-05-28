@@ -35,10 +35,12 @@ Generate fresh recommendations for a given target date and estimated number of p
 - **Payload**:
   ```json
   {
-    "target_date": "2026-04-16",
-    "estimated_patients": 100
+    "service_date": "2026-04-16",
+    "regenerate": false
   }
   ```
+
+If an unfinished SPK already exists for the same scope, the API returns a conflict response and includes the existing SPK metadata. Send `regenerate=true` to intentionally create a new version.
 
 ### 3. Override Recommendations (Optional)
 Modify specific item quantities if manual adjustment is needed.

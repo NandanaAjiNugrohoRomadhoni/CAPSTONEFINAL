@@ -71,4 +71,45 @@ describe("StockOpnames SDK Contract", () => {
     expect(requestedMethod).toBe("POST");
     expect(response.data.state).toBe("SUBMITTED");
   });
+
+  it("update sends correct request", async () => {
+    let requestedUrl = "";
+    let requestedMethod = "";
+    let requestedBody = "";
+
+    const fetchMock = async (url: RequestInfo | URL, init?: RequestInit) => {
+      requestedUrl = url.toString();
+      requestedMethod = init?.method ?? "GET";
+      requestedBody = String(init?.body);
+
+      return new Response(JSON.stringify({
+        message: "Stock opname updated successfully.",
+        data: {
+          id: 1,
+          state: "REJECTED"
+        }
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    const sdk = createCapstoneSdk({
+      baseUrl: "http://127.0.0.1:8080",
+      fetchImplementation: fetchMock as typeof fetch
+    });
+
+    const payload = {
+      opname_date: "2026-06-21",
+      notes: "Recount after rejection",
+      details: [{ item_id: 1, counted_qty: 95 }]
+    };
+
+    const response = await sdk.stockOpnames.update(1, payload);
+
+    expect(requestedUrl).toBe("http://127.0.0.1:8080/api/v1/stock-opnames/1");
+    expect(requestedMethod).toBe("PUT");
+    expect(JSON.parse(requestedBody)).toEqual(payload);
+    expect(response.data.state).toBe("REJECTED");
+  });
 });

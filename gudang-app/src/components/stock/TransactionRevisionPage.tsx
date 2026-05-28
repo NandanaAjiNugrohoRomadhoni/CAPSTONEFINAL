@@ -7,6 +7,7 @@ import {
   ExportButton,
   Pagination,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import { formatDate, getErrorMessage, resolveDetailItemName, resolveDetailUnit } from "@/lib/admin-utils";
 import { X } from "lucide-react";
@@ -447,18 +448,18 @@ function handleExport() {
             onChange={(event) => setSelectedDate(event.target.value)}
             className="h-12 min-w-[180px] rounded-xl border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
           />
-          <select
+          <ThemedSelect
+            className="min-w-[210px]"
             value={selectedStatus}
-            onChange={(event) => setSelectedStatus(event.target.value)}
-            className="h-12 min-w-[210px] rounded-xl border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
-          >
-            <option value="">Semua Status</option>
-            {statuses.map((status) => (
-              <option key={status.id} value={String(status.id)}>
-                {localizeStatusLabel(status.name)}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedStatus}
+            options={[
+              { value: "", label: "Semua Status" },
+              ...statuses.map((status) => ({
+                value: String(status.id),
+                label: localizeStatusLabel(status.name),
+              })),
+            ]}
+          />
           <div className="ml-auto">
             <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
           </div>
@@ -758,7 +759,10 @@ function handleExport() {
       {rejectReasonOpen && confirmRevision && role === "admin" ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px]" onClick={() => setRejectReasonOpen(false)} />
-          <div className="relative w-full max-w-[540px] overflow-hidden rounded-[24px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+          <div
+            className="relative w-full max-w-[540px] overflow-hidden rounded-[24px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between border-b border-[#E2E8F0] px-6 py-5">
               <div>
                 <h2 className="text-[24px] font-bold text-[#0F172A]">Alasan Penolakan</h2>
@@ -807,7 +811,7 @@ function handleExport() {
                 className="rounded-xl bg-[#DC2626] px-6 py-2.5 text-base font-semibold text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => void confirmRevisionRejection()}
                 type="button"
-                disabled={rejectingRevision || rejectReason.trim().length === 0}
+                disabled={rejectingRevision}
               >
                 {rejectingRevision ? "Mengirim..." : "Kirim Penolakan"}
               </button>

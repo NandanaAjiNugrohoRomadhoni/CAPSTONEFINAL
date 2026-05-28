@@ -297,6 +297,32 @@ class DashboardTest extends CIUnitTestCase
         return json_decode($result->getJSON(), true)['access_token'];
     }
 
+    protected function seedTodayMenuSchedule(int $menuId): void
+    {
+        $db = \Config\Database::connect();
+
+        $db->table('menu_schedules')->insert([
+            'day_of_month' => (int) date('j'),
+            'menu_id'      => $menuId,
+        ]);
+    }
+
+    protected function fetchDashboard(string $token)
+    {
+        return $this->withHeaders(['Authorization' => 'Bearer ' . $token])->get('api/v1/dashboard');
+    }
+
+    protected function findCompositionByDishId(array $composition, int $dishId): ?array
+    {
+        foreach ($composition as $row) {
+            if ((int) ($row['dish_id'] ?? 0) === $dishId) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
     public function testDashboardRequiresAuthentication(): void
     {
         $result = $this->get('api/v1/dashboard');
@@ -382,6 +408,37 @@ class DashboardTest extends CIUnitTestCase
             ],
             $json['data']['aggregates']['current_menu_cycle']
         );
+    }
+
+    public function testDeactivatedDishIsRemovedFromDapurCurrentMenuComposition(): void
+    {
+        $readToken = $this->login('dapur');
+        $writeToken = $this->login('admin');
+        $this->seedTodayMenuSchedule(1);
+
+        $baseline = $this->fetchDashboard($readToken);
+        $baseline->assertStatus(200);
+
+        $baselineJson = json_decode($baseline->getJSON(), true);
+        $this->assertSame('dapur', $baselineJson['data']['role']);
+        $this->assertSame(1, (int) ($baselineJson['data']['aggregates']['current_menu_cycle']['menu_id'] ?? 0));
+        $this->assertSame('Paket 1', $baselineJson['data']['aggregates']['current_menu_cycle']['menu_name'] ?? null);
+        $this->assertCount(3, $baselineJson['data']['aggregates']['current_menu_composition']);
+        $this->assertNotNull($this->findCompositionByDishId($baselineJson['data']['aggregates']['current_menu_composition'], 1));
+
+        $deactivate = $this->withHeaders(['Authorization' => 'Bearer ' . $writeToken])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $deactivate->assertStatus(200);
+        $deactivate->assertJSONFragment(['message' => 'Dish deactivated successfully.']);
+
+        $after = $this->fetchDashboard($readToken);
+        $after->assertStatus(200);
+
+        $afterJson = json_decode($after->getJSON(), true);
+        $this->assertSame(1, (int) ($afterJson['data']['aggregates']['current_menu_cycle']['menu_id'] ?? 0));
+        $this->assertCount(2, $afterJson['data']['aggregates']['current_menu_composition']);
+        $this->assertNull($this->findCompositionByDishId($afterJson['data']['aggregates']['current_menu_composition'], 1));
     }
 
     public function testDashboardReturns403ForInactiveAccount(): void

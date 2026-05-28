@@ -31,7 +31,7 @@ export default function GudangLatestBasahPage() {
         const detail = await sdk.spk.getBasah(latest.id);
         if (cancelled) return;
 
-        setRows(detail.data.items ?? []);
+        setRows(aggregateRecommendationRows(detail.data.items ?? []) as RecommendationRow[]);
         setMeta({
           targetDates: detail.data.print_ready.target_dates ?? [],
           estimatedPatients: detail.data.estimated_patients,
@@ -130,4 +130,41 @@ export default function GudangLatestBasahPage() {
       </SurfaceCard>
     </div>
   );
+}
+
+function aggregateRecommendationRows<T extends {
+  item_id?: number | null;
+  item_name?: string | null;
+  current_stock_qty?: unknown;
+  required_qty?: unknown;
+  final_recommended_qty?: unknown;
+  item_unit_base?: string | null;
+}>(rows: T[]) {
+  const grouped = new Map<string, T & {
+    current_stock_qty: number;
+    required_qty: number;
+    final_recommended_qty: number;
+  }>();
+
+  rows.forEach((row) => {
+    const recommendedQty = Number(row.final_recommended_qty ?? 0);
+    if (!Number.isFinite(recommendedQty) || recommendedQty <= 0) return;
+
+    const key = String(row.item_id ?? row.item_name ?? grouped.size);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.required_qty = (Number(existing.required_qty ?? 0) || 0) + (Number(row.required_qty ?? 0) || 0);
+      existing.final_recommended_qty = (Number(existing.final_recommended_qty ?? 0) || 0) + recommendedQty;
+      return;
+    }
+
+    grouped.set(key, {
+      ...row,
+      current_stock_qty: Number(row.current_stock_qty ?? 0) || 0,
+      required_qty: Number(row.required_qty ?? 0) || 0,
+      final_recommended_qty: recommendedQty,
+    });
+  });
+
+  return [...grouped.values()];
 }

@@ -71,12 +71,14 @@ class DailyPatientService
             ];
         }
 
-        if ($this->dailyPatientModel->findByServiceDate($data['service_date']) !== null) {
+        $existing = $this->dailyPatientModel->findByServiceDate($data['service_date']);
+        if ($existing !== null) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
                 'errors'  => [
-                    'service_date' => 'A daily patient input for this service_date already exists.',
+                    'service_date' => 'A daily patient input for this service_date already exists. Use PUT /api/v1/daily-patients/{id} to update the existing row.',
+                    'existing_id'  => (string) $existing['id'],
                 ],
             ];
         }
@@ -98,6 +100,80 @@ class DailyPatientService
         return [
             'success'      => true,
             'daily_patient' => $this->getDailyPatientById((int) $created),
+        ];
+    }
+
+    public function updateDailyPatient(int $id, array $data): array
+    {
+        $existingRow = $this->dailyPatientModel->find($id);
+        if ($existingRow === null) {
+            return [
+                'success' => false,
+                'message' => 'Daily patient not found.',
+                'errors'  => [],
+            ];
+        }
+
+        $validation = service('validation');
+        if (! $validation->setRules([
+            'service_date'   => 'permit_empty|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
+            'total_patients' => 'permit_empty|is_natural',
+            'notes'          => 'permit_empty|string',
+        ])->run($data)) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => $validation->getErrors(),
+            ];
+        }
+
+        $serviceDate = array_key_exists('service_date', $data)
+            ? (string) $data['service_date']
+            : (string) $existingRow['service_date'];
+
+        if (! $this->isValidDate($serviceDate)) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'service_date' => 'The service_date field must be a valid date in Y-m-d format.',
+                ],
+            ];
+        }
+
+        $duplicate = $this->dailyPatientModel->findByServiceDate($serviceDate, $id);
+        if ($duplicate !== null) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'service_date' => 'A daily patient input for this service_date already exists.',
+                    'existing_id'  => (string) $duplicate['id'],
+                ],
+            ];
+        }
+
+        $payload = [
+            'service_date'   => $serviceDate,
+            'total_patients' => array_key_exists('total_patients', $data)
+                ? (int) $data['total_patients']
+                : (int) $existingRow['total_patients'],
+            'notes'          => array_key_exists('notes', $data)
+                ? $data['notes']
+                : $existingRow['notes'],
+        ];
+
+        if (! $this->dailyPatientModel->update($id, $payload)) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update daily patient.',
+                'errors'  => $this->dailyPatientModel->errors(),
+            ];
+        }
+
+        return [
+            'success'       => true,
+            'daily_patient' => $this->getDailyPatientById($id),
         ];
     }
 

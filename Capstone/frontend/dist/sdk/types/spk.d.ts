@@ -136,12 +136,24 @@ export interface SpkKeringPengemasDetail {
     print_ready: SpkKeringPengemasPrintReady;
 }
 export interface GenerateSpkBasahRequest {
-    daily_patient_id: number;
     service_date: string;
-    category_id: number;
+    regenerate?: boolean;
 }
 export interface GenerateSpkKeringPengemasRequest {
     target_month: string;
+    regenerate?: boolean;
+}
+export interface SpkGenerateConflictData {
+    spk_id: number;
+    version: number;
+    scope_key: string;
+    is_latest: boolean;
+    is_finish: boolean;
+    calculation_date: string | null;
+    target_date_start: string | null;
+    target_date_end: string | null;
+    target_month: string | null;
+    regenerate_allowed: boolean;
 }
 export interface SpkBasahGenerateResult {
     id: number;

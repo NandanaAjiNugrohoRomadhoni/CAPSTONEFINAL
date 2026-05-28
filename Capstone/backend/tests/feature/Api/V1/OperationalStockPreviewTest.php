@@ -129,6 +129,56 @@ class OperationalStockPreviewTest extends CIUnitTestCase
         $this->assertSame('2026-03-01', $json['data']['service_date']);
     }
 
+    public function testDeactivatedDishNoLongerAffectsOperationalStockPreview(): void
+    {
+        $token = $this->login('admin');
+
+        $before = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/operational-stock-preview', [
+                'service_date'   => '2026-03-01',
+                'meal_time'      => 'SIANG',
+                'total_patients' => 100,
+            ]);
+
+        $before->assertStatus(200);
+
+        $beforeJson = json_decode($before->getJSON(), true);
+        $this->assertIsArray($beforeJson);
+        $this->assertArrayHasKey('data', $beforeJson);
+        $this->assertCount(1, $beforeJson['data']['items']);
+
+        $beforeItemIds = array_column($beforeJson['data']['items'], 'item_id');
+        $this->assertContains(1, $beforeItemIds);
+
+        $detachedPreview = $this->findPreviewItem($beforeJson['data']['items'], 1);
+        $this->assertNotNull($detachedPreview);
+        $this->assertSame(200.0, (float) $detachedPreview['required_qty']);
+
+        $deactivate = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $deactivate->assertStatus(200);
+        $deactivate->assertJSONFragment(['message' => 'Dish deactivated successfully.']);
+
+        $after = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/operational-stock-preview', [
+                'service_date'   => '2026-03-01',
+                'meal_time'      => 'SIANG',
+                'total_patients' => 100,
+            ]);
+
+        $after->assertStatus(400);
+
+        $afterJson = json_decode($after->getJSON(), true);
+        $this->assertIsArray($afterJson);
+        $this->assertSame('Validation failed.', $afterJson['message']);
+        $this->assertArrayHasKey('errors', $afterJson);
+        $this->assertArrayHasKey('menu_mapping', $afterJson['errors']);
+        $this->assertStringContainsString('has no dish mapping', $afterJson['errors']['menu_mapping']);
+    }
+
     protected function seedRoles(): void
     {
         $roleModel = new RoleModel();
@@ -244,6 +294,17 @@ class OperationalStockPreviewTest extends CIUnitTestCase
             'meal_time_id' => 2,
             'dish_id'      => 1,
         ]);
+    }
+
+    protected function findPreviewItem(array $items, int $itemId): ?array
+    {
+        foreach ($items as $item) {
+            if ((int) ($item['item_id'] ?? 0) === $itemId) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 
     protected function login(string $username): string

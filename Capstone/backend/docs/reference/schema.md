@@ -352,7 +352,7 @@ Catatan desain:
 - Mutasi stok dari revisi hanya diterapkan ketika status revisi berubah menjadi `APPROVED`.
 - Saat revisi di-approve, aplikasi menerapkan **selisih bersih** antara detail revisi pending dan **baseline efektif** per item (latest approved sibling dalam lineage, atau parent original jika belum ada approved sibling).
 - Semua revisi pada satu lineage tetap sibling ke parent original (tidak ada revision chaining).
-- Dalam satu lineage, maksimal hanya satu sibling berstatus `PENDING` pada waktu yang sama.
+- Dalam satu lineage, maksimal hanya satu sibling berstatus `PENDING` pada waktu yang sama; repeated submit memperbarui sibling `PENDING` yang sama, bukan membuat sibling pending baru.
 
 Index lineage revisi:
 
@@ -434,12 +434,20 @@ Fungsi: Menyimpan daftar dish/hidangan.
 |---|---|---|---|
 | `id` | bigint | PK, increment | ID dish |
 | `name` | varchar(100) | not null | Nama dish |
+| `is_active` | boolean | default true | Status aktif dish |
 | `created_at` | timestamp | nullable | Waktu dibuat |
 | `updated_at` | timestamp | nullable | Waktu diperbarui |
 
+**Dish Lifecycle Behavior:**
+
+- **Deactivate**: Deactivating a dish (`is_active = false`) removes all its assignments in `menu_dishes`. This unlinking is performed by the service layer rather than a database cascade.
+- **Reactivate**: Reactivation only restores `is_active = true`. It does not recreate prior menu slot assignments.
+- **Assignment**: Only active dishes can be assigned to menu slots in `menu_dishes`.
+- **Delete**: Deleting a dish is only permitted if it is inactive and has no remaining assignments in `menu_dishes`. Associated compositions in `dish_compositions` are removed via database FK cascade on final delete.
+
 ### 5.5 `menu_dishes`
 
-Fungsi: Menghubungkan menu (Paket) dengan dish pada waktu makan tertentu.
+Fungsi: Menghubungkan menu (Paket) dengan dish pada waktu makan tertentu. Menulis ke tabel ini menolak dish yang berstatus `is_active = false`.
 
 | Column | Type | Constraint | Description |
 |---|---|---|---|
@@ -447,9 +455,6 @@ Fungsi: Menghubungkan menu (Paket) dengan dish pada waktu makan tertentu.
 | `menu_id` | tinyint | not null, FK | Relasi ke `menus.id` |
 | `meal_time_id` | tinyint | not null, FK | Relasi ke `meal_times.id` (Pagi, Siang, Sore) |
 | `dish_id` | bigint | not null, FK | Relasi ke `dishes.id` |
-
-Constraint utama:
-- unique `(menu_id, meal_time_id)` untuk mencegah slot ganda pada satu paket menu.
 
 ### 5.6 `dish_compositions`
 

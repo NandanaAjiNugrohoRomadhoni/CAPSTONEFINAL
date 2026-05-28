@@ -4,7 +4,7 @@ import { CapstoneSdk } from "..";
 import type { StockTransactionDetail } from "../types";
 
 describe("StockTransactionsResource", () => {
-  it("posts revision payloads to the submit-revision workflow endpoint", async () => {
+  it("posts revision payloads to the stable submit-revision workflow endpoint", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({

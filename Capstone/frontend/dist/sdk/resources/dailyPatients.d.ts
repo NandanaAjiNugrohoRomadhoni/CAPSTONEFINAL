@@ -1,5 +1,5 @@
 import type { ApiClient } from "../client";
-import type { CreateDailyPatientRequest, DailyPatientCreateResponse, DailyPatientResponse, DailyPatientsListResponse } from "../types";
+import type { CreateDailyPatientRequest, DailyPatientCreateResponse, DailyPatientResponse, DailyPatientsListResponse, DailyPatientUpdateResponse, UpdateDailyPatientRequest } from "../types";
 /**
  * DailyPatients SDK Resource
  *
@@ -46,7 +46,20 @@ export declare class DailyPatientsResource {
      * @throws {ValidationApiError} if validation fails or the service date already exists (400)
      * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
      * @throws {AuthorizationApiError} if the caller lacks the required role (403)
-     * @sideeffect Creates a new immutable audit row; no update/delete endpoint exists.
+     * @sideeffect Creates a new daily patient row used by SPK generation.
      */
     create(payload: CreateDailyPatientRequest): Promise<DailyPatientCreateResponse>;
+    /**
+     * Updates a daily patient row by id.
+     *
+     * @endpoint PUT /api/v1/daily-patients/{id}
+     * @access   admin | dapur
+     * @returns {Promise<DailyPatientUpdateResponse>}
+     * @throws {ValidationApiError} if validation fails or the service date collides with another row (400)
+     * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+     * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+     * @throws {NotFoundApiError} if the row does not exist (404)
+     * @sideeffect Updates the existing daily patient input row without changing the list/detail envelope shapes.
+     */
+    update(id: number, payload: UpdateDailyPatientRequest): Promise<DailyPatientUpdateResponse>;
 }

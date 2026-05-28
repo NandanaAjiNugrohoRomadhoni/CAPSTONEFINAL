@@ -9,14 +9,16 @@ The Stock Opname process follows a strict state transition flow:
 1.  **DRAFT**: Initial state when a stock opname is created.
 2.  **SUBMITTED**: The opname has been finalized by the creator and is awaiting approval.
 3.  **APPROVED**: The opname has been verified and approved by an administrator.
-4.  **REJECTED**: The opname was rejected by an administrator (can be re-submitted from DRAFT).
+4.  **REJECTED**: The opname was rejected by an administrator and can be edited before re-submission.
 5.  **POSTED**: The final state where variances are applied to the actual item stock.
 
 ### Valid Transitions
 - `DRAFT` → `SUBMITTED`
+- `DRAFT` → `DRAFT` (update/edit)
 - `SUBMITTED` → `APPROVED`
 - `SUBMITTED` → `REJECTED`
 - `APPROVED` → `POSTED`
+- `REJECTED` → `REJECTED` (update/edit)
 - `REJECTED` → `SUBMITTED` (after corrections)
 
 ## Step-by-step Endpoints
@@ -45,6 +47,13 @@ Transition the opname from `DRAFT` to `SUBMITTED`.
 
 - **Endpoint**: `POST /api/v1/stock-opnames/{id}/submit`
 - **Role**: `admin`, `gudang`
+
+### 1b. Update Draft or Rejected Opname
+Revise an existing opname before it is submitted again.
+
+- **Endpoint**: `PUT /api/v1/stock-opnames/{id}`
+- **Role**: `admin`, `gudang`
+- **Allowed States**: `DRAFT`, `REJECTED`
 
 ### 3. Review (Approve or Reject)
 Administrator reviews the submitted opname.

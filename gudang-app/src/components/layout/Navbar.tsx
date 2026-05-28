@@ -172,6 +172,35 @@ export default function Navbar({
   }, [loadNotifications, pathname]);
 
   useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const handleWindowFocus = () => {
+      void loadNotifications(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadNotifications(true);
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void loadNotifications(true);
+    }, 20000);
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentUserId, loadNotifications]);
+
+  useEffect(() => {
     if (!openNotif) {
       return;
     }
@@ -184,6 +213,16 @@ export default function Navbar({
       window.clearTimeout(timeoutId);
     };
   }, [loadNotifications, openNotif]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNotificationNow(Date.now());
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -214,7 +253,7 @@ export default function Navbar({
   }, [openNotif, openProfileMenu]);
 
   function formatNotificationTime(value: string) {
-    const targetDate = new Date(value);
+    const targetDate = parseBackendNotificationDate(value);
     const diffMinutes = Math.max(0, Math.floor((notificationNow - targetDate.getTime()) / 60000));
 
     if (diffMinutes < 1) return "Baru saja";
@@ -485,4 +524,11 @@ export default function Navbar({
       </div>
     </div>
   );
+}
+
+function parseBackendNotificationDate(value: string) {
+  const hasTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+  const normalizedValue = hasTimezone ? value : `${value.replace(" ", "T")}Z`;
+  const parsed = new Date(normalizedValue);
+  return Number.isNaN(parsed.getTime()) ? new Date(value) : parsed;
 }

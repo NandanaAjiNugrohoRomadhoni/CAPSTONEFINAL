@@ -7,7 +7,7 @@ import type { ApiListResponse, ApprovalStatus, LookupListQuery } from "../types"
  *
  * Wraps:    /api/v1/approval-statuses
  * Contract: api-contract.md §5.2.3
- * Access:   admin | gudang
+ * Access:   admin | dapur | gudang
  *
  * Lists approval status lookup rows used by stock and workflow modules.
  */
@@ -18,7 +18,7 @@ export class ApprovalStatusesResource {
    * Lists approval statuses with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/approval-statuses
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    *
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<ApprovalStatus>>}

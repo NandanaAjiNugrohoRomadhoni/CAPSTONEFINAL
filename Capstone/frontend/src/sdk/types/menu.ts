@@ -10,6 +10,7 @@ export interface Menu {
 export interface Dish {
   id: number;
   name: string;
+  is_active: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -102,8 +103,10 @@ export type MenuCalendarResponse = MenuCalendarDateResponse | MenuCalendarMonthR
 
 /** Query params for `GET /api/v1/dishes`. */
 export interface ListDishesQuery {
+  paginate?: boolean;
   page?: number;
   perPage?: number;
+  is_active?: boolean;
   q?: string;
   search?: string;
   sortBy?: "id" | "name" | "created_at" | "updated_at";
@@ -116,6 +119,7 @@ export interface ListDishesQuery {
 
 /** Query params for `GET /api/v1/dish-compositions`. */
 export interface ListDishCompositionsQuery {
+  paginate?: boolean;
   page?: number;
   perPage?: number;
   dish_id?: number;

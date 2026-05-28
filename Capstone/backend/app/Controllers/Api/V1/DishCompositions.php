@@ -113,7 +113,7 @@ class DishCompositions extends BaseController
      *     operationId="createDishComposition",
      *     tags={"Dish Compositions"},
      *     summary="Create dish composition",
-     *     description="Creates a dish composition row linking one active dish to one active item with a per-patient quantity. Accessible to admin and dapur users. Duplicate dish_id + item_id pairs return HTTP 400 with the composite validation key dish_id,item_id.",
+     *     description="Creates a dish composition row linking one dish to one active item with a per-patient quantity. Accessible to admin and dapur users. Compositions can be created for both active and inactive dishes, and they persist even if a dish is later deactivated. Duplicate dish_id + item_id pairs return HTTP 400 with the composite validation key dish_id,item_id.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
@@ -159,7 +159,7 @@ class DishCompositions extends BaseController
      *     operationId="updateDishComposition",
      *     tags={"Dish Compositions"},
      *     summary="Update dish composition",
-     *     description="Updates an existing dish composition. Accessible to admin and dapur users. The route behaves like a partial update: omitted fields keep their existing values, and an empty payload returns the current composition unchanged. Duplicate dish_id + item_id pairs return HTTP 400 with the composite validation key dish_id,item_id.",
+     *     description="Updates an existing dish composition. Accessible to admin and dapur users. Compositions persist and remain editable even while a dish is inactive. The route behaves like a partial update: omitted fields keep their existing values, and an empty payload returns the current composition unchanged. Duplicate dish_id + item_id pairs return HTTP 400 with the composite validation key dish_id,item_id.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, description="Dish composition identifier.", @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\RequestBody(

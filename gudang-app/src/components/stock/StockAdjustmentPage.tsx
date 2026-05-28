@@ -20,6 +20,7 @@ import {
   refreshStockAdjustmentNotifications,
   type NotificationRole,
 } from "@/lib/stock-adjustment-notifications";
+import SearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 
 const ITEM_METADATA_CACHE_KEY = "capstone-stock-item-metadata-cache";
 const INVALID_STOCK_OPNAME_IDS_CACHE_KEY = "capstone-invalid-stock-opname-ids";
@@ -272,6 +273,14 @@ function writeCachedUserRoles(
   window.localStorage.setItem(USER_ROLE_CACHE_KEY, JSON.stringify(next));
 }
 
+async function fetchStockOpnamesByIds(ids: number[]) {
+  const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isFinite(id) && id > 0);
+  if (uniqueIds.length === 0) return [] as OpnameData[];
+
+  const responses = await Promise.allSettled(uniqueIds.slice(0, 25).map((id) => sdk.stockOpnames.get(id)));
+  return responses.flatMap((response) => (response.status === "fulfilled" && response.value.data ? [response.value.data] : []));
+}
+
 function sortOpnames(opnames: OpnameData[]) {
   return [...opnames].sort((left, right) => {
     const leftTime = new Date(left.header.opname_date).getTime();
@@ -314,6 +323,10 @@ function getApiStatus(error: unknown) {
   }
 
   return null;
+}
+
+function normalizeFilterValue(value: string) {
+  return value.trim().toUpperCase();
 }
 
 function getOpnameStateClasses(state: OpnameData["header"]["state"]) {
@@ -407,8 +420,10 @@ export default function StockAdjustmentPage({
   const [error, setError] = useState<string | null>(null);
   const [successConfig, setSuccessConfig] = useState<{ headline: string; message: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Semua Jenis");
+  const [statusFilter, setStatusFilter] = useState("Semua Status");
   const [currentPage, setCurrentPage] = useState(1);
   const additionalHistoryStorageSignature = useMemo(
     () => additionalHistoryStorageKeys.join("|"),
@@ -462,16 +477,28 @@ export default function StockAdjustmentPage({
           }
         }
 
-        const uniqueIds = Array.from(new Set(mergedIds));
+        const fallbackNotificationIds = mergedIds.length > 0
+          ? []
+          : (
+              await sdk.notifications.list({
+                paginate: false,
+                sortBy: "created_at",
+                sortDir: "DESC",
+              }).catch(() => ({ data: [] as Array<{ type?: string; related_id?: number | string | null }> }))
+            ).data
+              .filter((notification) => String(notification.type ?? "").toUpperCase() === "STOCK_OPNAME")
+              .map((notification) => Number(notification.related_id ?? 0))
+              .filter((id) => Number.isFinite(id) && id > 0);
+        const uniqueIds = Array.from(new Set([...mergedIds, ...fallbackNotificationIds]));
         writeHistoryIds(historyStorageKey, uniqueIds);
-        const cachedOpnames = readCachedOpnames(historyStorageKey);
-        const successOpnames = uniqueIds
-          .map((id) => cachedOpnames[id])
-          .filter((opname): opname is OpnameData => Boolean(opname));
+        const successOpnames = await fetchStockOpnamesByIds(uniqueIds);
 
         if (!cancelled) {
           setUsers(nextUsers);
           setOpnames(sortOpnames(successOpnames));
+          if (successOpnames.length > 0) {
+            writeCachedOpnames(historyStorageKey, successOpnames);
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -559,33 +586,15 @@ export default function StockAdjustmentPage({
         ...readHistoryIds(historyStorageKey),
         ...stableAdditionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
       ].filter((id) => !invalidIds.includes(id));
-      const cachedOpnamesById = {
-        ...readCachedOpnames(historyStorageKey),
-        ...Object.assign(
-          {},
-          ...stableAdditionalHistoryStorageKeys.map((storageKey) => readCachedOpnames(storageKey)),
-        ),
-      };
-      const uniqueIds = Array.from(new Set(mergedIds)).filter((id) => Boolean(cachedOpnamesById[id]));
+      const uniqueIds = Array.from(new Set(mergedIds));
       if (uniqueIds.length === 0) return;
 
-      // Always refresh latest IDs from backend to avoid stale state from local cache
-      const batch = uniqueIds.slice(0, 25);
       try {
-        const responses = await Promise.allSettled(batch.map((id) => sdk.stockOpnames.get(id)));
+        const freshOpnames = await fetchStockOpnamesByIds(uniqueIds);
         if (cancelled) return;
 
-        const freshOpnames: OpnameData[] = [];
-        const missingIds: number[] = [];
-        responses.forEach((res, index) => {
-          if (res.status === "fulfilled" && res.value.data) {
-            freshOpnames.push(res.value.data);
-            return;
-          }
-          if (res.status === "rejected" && getApiStatus(res.reason) === 404) {
-            missingIds.push(batch[index]);
-          }
-        });
+        const returnedIds = new Set(freshOpnames.map((opname) => opname.header.id));
+        const missingIds = uniqueIds.filter((id) => !returnedIds.has(id));
 
         if (missingIds.length > 0) {
           rememberInvalidStockOpnameIds(missingIds);
@@ -621,6 +630,16 @@ export default function StockAdjustmentPage({
   const selectedItem = useMemo(
     () => activeItems.find((item) => Number(item.id) === Number(selectedItemId)) ?? null,
     [activeItems, selectedItemId],
+  );
+
+  const activeItemOptions = useMemo(
+    () =>
+      activeItems.map((item) => ({
+        id: Number(item.id),
+        label: item.name,
+        unit: item.unit_base ?? "-",
+      })),
+    [activeItems],
   );
 
   const stockRowMap = useMemo(() => new Map(stockRows.map((row) => [Number(row.item_id), row])), [stockRows]);
@@ -709,17 +728,40 @@ export default function StockAdjustmentPage({
     ).sort((left, right) => left.localeCompare(right, "id-ID"));
   }, [tableRows]);
 
+  const statusOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        tableRows
+          .map((row) => row.stateLabel)
+          .filter((value): value is string => typeof value === "string" && value.trim() !== ""),
+      ),
+    ).sort((left, right) => left.localeCompare(right, "id-ID"));
+  }, [tableRows]);
+
   const filteredRows = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedCategoryFilter = normalizeFilterValue(categoryFilter);
+    const normalizedStatusFilter = normalizeFilterValue(statusFilter);
+
     return tableRows.filter((row) => {
       const matchesSearch =
-        row.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        `PS-${String(row.headerId).padStart(4, "0")}`.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDate = !dateFilter || row.opnameDate === dateFilter;
-      const matchesCategory = categoryFilter === "Semua Jenis" || row.categoryName === categoryFilter;
+        !normalizedSearch ||
+        row.itemName.toLowerCase().includes(normalizedSearch) ||
+        row.createdByLabel.toLowerCase().includes(normalizedSearch) ||
+        row.categoryName.toLowerCase().includes(normalizedSearch) ||
+        `PS-${String(row.headerId).padStart(4, "0")}`.toLowerCase().includes(normalizedSearch);
+      const matchesDateFrom = !dateFromFilter || row.opnameDate >= dateFromFilter;
+      const matchesDateTo = !dateToFilter || row.opnameDate <= dateToFilter;
+      const matchesCategory =
+        normalizedCategoryFilter === normalizeFilterValue("Semua Jenis") ||
+        normalizeFilterValue(row.categoryName) === normalizedCategoryFilter;
+      const matchesStatus =
+        normalizedStatusFilter === normalizeFilterValue("Semua Status") ||
+        normalizeFilterValue(row.stateLabel) === normalizedStatusFilter;
 
-      return matchesSearch && matchesDate && matchesCategory;
+      return matchesSearch && matchesDateFrom && matchesDateTo && matchesCategory && matchesStatus;
     });
-  }, [categoryFilter, dateFilter, searchTerm, tableRows]);
+  }, [categoryFilter, dateFromFilter, dateToFilter, searchTerm, statusFilter, tableRows]);
 
   const userOwnedDraftHeaders = useMemo(() => {
     const currentUserId = Number(user?.id ?? 0);
@@ -734,7 +776,7 @@ export default function StockAdjustmentPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFilter, categoryFilter]);
+  }, [searchTerm, dateFromFilter, dateToFilter, categoryFilter, statusFilter]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -1080,22 +1122,34 @@ export default function StockAdjustmentPage({
         ) : null}
 
         <SurfaceCard className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4">
-            <div className="flex items-center gap-3">
+          <div className="border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4">
+            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1.4fr)_170px_170px_190px_210px_auto] xl:items-center">
               <input
                 onChange={(event) => setSearchTerm(event.target.value)}
                 value={searchTerm}
                 placeholder="Cari Bahan"
-                className="h-12 w-[280px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8] lg:w-[380px]"
+                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
               />
               <input
+                aria-label="Tanggal awal"
                 type="date"
-                value={dateFilter}
-                onChange={(event) => setDateFilter(event.target.value)}
-                className="h-12 w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
+                value={dateFromFilter}
+                onChange={(event) => setDateFromFilter(event.target.value)}
+                onKeyDown={(event) => event.preventDefault()}
+                onPaste={(event) => event.preventDefault()}
+                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
+              />
+              <input
+                aria-label="Tanggal akhir"
+                type="date"
+                value={dateToFilter}
+                onChange={(event) => setDateToFilter(event.target.value)}
+                onKeyDown={(event) => event.preventDefault()}
+                onPaste={(event) => event.preventDefault()}
+                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
               />
               <ThemedSelect
-                className="w-[190px]"
+                className="w-full"
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 options={[
@@ -1103,26 +1157,40 @@ export default function StockAdjustmentPage({
                   ...categoryOptions.map((category) => ({ value: category, label: category })),
                 ]}
               />
-            </div>
-              <div className="ml-auto flex flex-wrap items-center gap-3">
+              <ThemedSelect
+                className="w-full"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: "Semua Status", label: "Semua Status" },
+                  ...statusOptions.map((status) => ({ value: status, label: status })),
+                ]}
+              />
+              <div className="flex justify-start xl:justify-end">
                 {useDraftSubmissionChecklist ? (
-                  <PrimaryAction
-                    onClick={() => {
-                      setSelectedDraftIds(userOwnedDraftHeaders.map((opname) => opname.header.id));
-                      setDraftChecklistOpen(true);
-                      setError(null);
-                    }}
-                    disabled={userOwnedDraftHeaders.length === 0}
-                  >
-                    Ajukan Draft
-                  </PrimaryAction>
-                ) : null}
-                <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+                  <div className="flex flex-wrap gap-3 xl:ml-auto">
+                    <PrimaryAction
+                      onClick={() => {
+                        setSelectedDraftIds(userOwnedDraftHeaders.map((opname) => opname.header.id));
+                        setDraftChecklistOpen(true);
+                        setError(null);
+                      }}
+                      disabled={userOwnedDraftHeaders.length === 0}
+                      className="w-full sm:w-auto"
+                    >
+                      Ajukan Draft
+                    </PrimaryAction>
+                    <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+                  </div>
+                ) : (
+                  <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+                )}
               </div>
             </div>
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
               <thead className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
                 <tr>
                   <th className="px-6 py-3">ID Penyesuaian Stok</th>
@@ -1130,13 +1198,13 @@ export default function StockAdjustmentPage({
                   <th className="px-6 py-3">User</th>
                   <th className="px-6 py-3">Nama Bahan</th>
                   <th className="px-6 py-3">Jenis Bahan</th>
-                  <th className="px-6 py-3">Stok Sistem</th>
-                  <th className="px-6 py-3">Stok Fisik</th>
+                  <th className="px-6 py-3">Stok Awal</th>
                   <th className="px-6 py-3">Selisih</th>
-                    <th className="px-6 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white text-base text-[#334155]">
+                  <th className="px-6 py-3">Stok Akhir</th>
+                  <th className="px-6 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white text-base text-[#334155]">
                 {paginatedRows.map((row) => (
                   <tr key={row.key} className="border-t border-[#E2E8F0] transition hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-semibold text-[#16213E]">
@@ -1147,11 +1215,11 @@ export default function StockAdjustmentPage({
                     <td className="px-6 py-4 font-semibold text-[#16213E]">{row.itemName}</td>
                     <td className="px-6 py-4 text-[#475569]">{row.categoryName}</td>
                     <td className="px-6 py-4 text-[#475569]">{row.systemQtyLabel}</td>
-                    <td className="px-6 py-4 text-[#475569]">{row.countedQtyLabel}</td>
                     <td className={`px-6 py-4 font-semibold ${row.variance > 0 ? "text-[#10B981]" : row.variance < 0 ? "text-[#EF4444]" : "text-[#475569]"}`}>
                       {row.variance > 0 ? "+" : ""}
                       {row.varianceLabel}
                     </td>
+                    <td className="px-6 py-4 text-[#475569]">{row.countedQtyLabel}</td>
                       <td className="px-6 py-4">
                         {allowVerificationAction && row.state === "SUBMITTED" ? (
                           <button
@@ -1219,19 +1287,13 @@ export default function StockAdjustmentPage({
                 <label className="text-sm font-semibold text-[#475569]">
                   Nama Barang <span className="text-red-500">*</span>
                 </label>
-                  <select
-                    value={selectedItemId ?? ""}
-                    onChange={(event) => setSelectedItemId(event.target.value ? Number(event.target.value) : null)}
-                    className="h-12 w-full rounded-xl border border-[#D7E0EE] px-4 text-base text-[#334155] outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#DBEAFE] disabled:bg-[#F8FAFC]"
-                    disabled={metadataLoading}
-                  >
-                    <option value="">{metadataLoading ? "Memuat data bahan..." : "Pilih Nama Bahan"}</option>
-                    {activeItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
+                <SearchableItemSelect
+                  disabled={metadataLoading}
+                  options={activeItemOptions}
+                  placeholder={metadataLoading ? "Memuat data bahan..." : "Pilih Nama Bahan"}
+                  value={selectedItemId}
+                  onChange={(itemId) => setSelectedItemId(itemId)}
+                />
               </div>
 
               <div className="space-y-2">

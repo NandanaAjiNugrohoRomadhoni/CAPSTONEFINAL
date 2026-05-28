@@ -1106,7 +1106,7 @@ function aggregatePreviewItems(items: PreviewItem[], itemMap: Map<number, ItemRo
       unit,
       qty_spk: qty,
       qty_actual: String(qty),
-      locked: true,
+      locked: false,
     });
   }
 

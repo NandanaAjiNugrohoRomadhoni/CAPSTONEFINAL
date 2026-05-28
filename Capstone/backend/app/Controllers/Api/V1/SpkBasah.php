@@ -131,6 +131,7 @@ class SpkBasah extends BaseController
      *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateRequest")),
      *     @OA\Response(response=201, description="SPK basah generated successfully. Response contains versioning and target-date metadata, not stock-posting artifacts.", @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateResponse")),
      *     @OA\Response(response=400, description="Validation failed for invalid service dates, missing daily-patient input, missing BASAH category, unresolved menu schedule, or missing dish/item recipe mapping.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=409, description="An active SPK already exists for the same generation scope and regenerate was not enabled.", @OA\JsonContent(ref="#/components/schemas/SpkGenerateConflictResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
      *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
      * )
@@ -153,10 +154,11 @@ class SpkBasah extends BaseController
 
         if (! $result['success']) {
             return $this->response
-                ->setStatusCode(400)
+                ->setStatusCode($result['status'] ?? 400)
                 ->setJSON([
                     'message' => $result['message'],
                     'errors'  => $result['errors'] ?? [],
+                    ...((isset($result['conflict']) && is_array($result['conflict'])) ? ['conflict' => $result['conflict']] : []),
                 ]);
         }
 

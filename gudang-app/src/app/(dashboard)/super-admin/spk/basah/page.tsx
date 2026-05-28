@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import { getSpkConflictId } from "@/lib/spk-conflicts";
+import { addDaysIsoDate, findExistingBasahSpk } from "@/lib/spk-recommendations";
 import {
   AdminPageHeading,
   ExportButton,
@@ -10,9 +12,20 @@ import {
   SurfaceCard,
 } from "@/components/admin/ui";
 import GenerateSpkConfirmModal from "@/components/spk/GenerateSpkConfirmModal";
+import {
+  buildBasahRecommendationSpreadsheet,
+  downloadRecommendationSpreadsheet,
+} from "@/components/spk/recommendation-export";
 
 type RecommendationRow = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"]["items"][number];
 type LatestPatient = { id: number; date: string; total: number };
+type RecommendationDetail = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"];
+type StockReportRow = Awaited<ReturnType<typeof sdk.reports.getStocks>>["data"]["rows"][number];
+
+const ALL_STOCK_REPORT_PERIOD = {
+  period_start: "2000-01-01",
+  period_end: "2099-12-31",
+} as const;
 
 function formatSpkDate(value?: string | null) {
   if (!value) return "-";
@@ -51,11 +64,49 @@ function formatSpkDateRange(dates: string[]) {
   return `${first.getDate()}-${last.getDate()} ${monthYear}`;
 }
 
+function getBasahTargetDates(serviceDate?: string | null) {
+  if (!serviceDate) return [];
+  const date = serviceDate.slice(0, 10);
+  return [addDaysIsoDate(date, 1), addDaysIsoDate(date, 2)];
+}
+
+function overlayBasahRowsWithCurrentStock(rows: RecommendationRow[], stockRows: StockReportRow[]) {
+  const stockMap = new Map<number, number>();
+
+  for (const row of stockRows) {
+    const itemId = Number(row.item_id ?? 0);
+    const qty = Number(row.qty ?? row.current_stock ?? row.stock ?? row.stock_qty ?? 0);
+    if (Number.isFinite(itemId) && itemId > 0 && Number.isFinite(qty)) {
+      stockMap.set(itemId, qty);
+    }
+  }
+
+  return rows.map((row) => {
+    const latestStock = stockMap.get(Number(row.item_id));
+    if (!Number.isFinite(latestStock)) {
+      return row;
+    }
+
+    const resolvedLatestStock = Number(latestStock);
+    const requiredQty = Number(row.required_qty ?? 0);
+    const nextRecommendedQty = Math.max(requiredQty - resolvedLatestStock, 0);
+
+    return {
+      ...row,
+      current_stock_qty: resolvedLatestStock,
+      system_recommended_qty: nextRecommendedQty,
+      final_recommended_qty: nextRecommendedQty,
+    };
+  });
+}
+
 export default function Page() {
   const [latestPatient, setLatestPatient] = useState<LatestPatient | null>(null);
   const [basahCategoryId, setBasahCategoryId] = useState<number | null>(null);
   const [rows, setRows] = useState<RecommendationRow[]>([]);
+  const [detailData, setDetailData] = useState<RecommendationDetail | null>(null);
   const [spkMeta, setSpkMeta] = useState<{ targetDates: string[]; estimatedPatients: number } | null>(null);
+  const [hasLoadedRecommendation, setHasLoadedRecommendation] = useState(false);
   const [, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -67,9 +118,10 @@ export default function Page() {
     async function loadInitial() {
       setLoading(true);
       try {
-        const [patientsResponse, categoriesResponse] = await Promise.all([
+        const [patientsResponse, categoriesResponse, stockResponse] = await Promise.all([
           sdk.dailyPatients.list(),
           sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
+          sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } })),
         ]);
         if (cancelled) return;
         const latest = [...(patientsResponse.data ?? [])].sort((a, b) => b.service_date.localeCompare(a.service_date))[0];
@@ -80,6 +132,33 @@ export default function Page() {
           category.name.toUpperCase().includes("BASAH")
         );
         setBasahCategoryId(basahCategory?.id ?? null);
+
+        try {
+          const history = await sdk.spk.listBasah();
+          if (cancelled) return;
+          const matchingSpk =
+            latest && basahCategory?.id
+              ? findExistingBasahSpk(history.data ?? [], latest.service_date, basahCategory.id)
+              : null;
+          const latestSpk = matchingSpk ?? getLatestSpk(history.data ?? []);
+          if (latestSpk) {
+            const detail = await sdk.spk.getBasah(latestSpk.id);
+            if (cancelled) return;
+            const hydratedRows = overlayBasahRowsWithCurrentStock(
+              detail.data.items ?? [],
+              (stockResponse.data.rows as StockReportRow[]) ?? [],
+            );
+            setDetailData(detail.data);
+            setRows(aggregateRecommendationRows(hydratedRows));
+            setHasLoadedRecommendation(true);
+            setSpkMeta({
+              targetDates: detail.data.print_ready.target_dates ?? [],
+              estimatedPatients: detail.data.estimated_patients,
+            });
+          }
+        } catch {
+          // Riwayat SPK boleh kosong; halaman tetap bisa generate rekomendasi baru.
+        }
       } catch (loadError) {
         if (!cancelled) setError(getErrorMessage(loadError, "Gagal memuat pasien harian."));
       } finally {
@@ -98,6 +177,11 @@ export default function Page() {
     return Math.round(latestPatient.total * 1.05);
   }, [latestPatient]);
 
+  const displayedTargetDates = useMemo(() => {
+    if (latestPatient) return getBasahTargetDates(latestPatient.date);
+    return spkMeta?.targetDates ?? [];
+  }, [latestPatient, spkMeta]);
+
   async function handleGenerate() {
     setGenerating(true);
     setError(null);
@@ -108,13 +192,27 @@ export default function Page() {
       if (!basahCategoryId) {
         throw new Error("Kategori bahan BASAH belum tersedia untuk generate SPK basah.");
       }
-      const generated = await sdk.spk.generateBasah({
-        daily_patient_id: latestPatient.id,
-        service_date: latestPatient.date ?? toIsoDate(new Date()),
-        category_id: basahCategoryId,
-      });
-      const detail = await sdk.spk.getBasah(generated.data.id);
-      setRows(detail.data.items ?? []);
+      let detail: Awaited<ReturnType<typeof sdk.spk.getBasah>>;
+      const stockResponse = await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } }));
+      try {
+        const generated = await sdk.spk.generateBasah({
+          daily_patient_id: latestPatient.id,
+          service_date: latestPatient.date ?? toIsoDate(new Date()),
+          category_id: basahCategoryId,
+        });
+        detail = await sdk.spk.getBasah(generated.data.id);
+      } catch (generateError) {
+        const conflictSpkId = getSpkConflictId(generateError);
+        if (!conflictSpkId) throw generateError;
+        detail = await sdk.spk.getBasah(conflictSpkId);
+      }
+      const hydratedRows = overlayBasahRowsWithCurrentStock(
+        detail.data.items ?? [],
+        (stockResponse.data.rows as StockReportRow[]) ?? [],
+      );
+      setDetailData(detail.data);
+      setRows(aggregateRecommendationRows(hydratedRows));
+      setHasLoadedRecommendation(true);
       setSpkMeta({
         targetDates: detail.data.print_ready.target_dates ?? [],
         estimatedPatients: detail.data.estimated_patients,
@@ -125,6 +223,50 @@ export default function Page() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  function handleExport() {
+    if (typeof window === "undefined" || rows.length === 0) {
+      setError("Belum ada hasil rekomendasi yang bisa diexport.");
+      return;
+    }
+
+    const dateLabel =
+      displayedTargetDates.length > 0
+        ? `${displayedTargetDates[0]}${displayedTargetDates.length > 1 ? `_sd_${displayedTargetDates[displayedTargetDates.length - 1]}` : ""}`
+        : toIsoDate(new Date());
+
+    const html = buildBasahRecommendationSpreadsheet(
+      {
+        spkId: detailData?.id ?? null,
+        generatedBy: detailData?.user?.name ?? detailData?.user?.username ?? "Admin User",
+        calculationDate: detailData?.calculation_date
+          ? new Intl.DateTimeFormat("id-ID", {
+              timeZone: "Asia/Jakarta",
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(new Date(detailData.calculation_date))
+          : "-",
+        targetLabel: formatSpkDateRange(displayedTargetDates),
+        itemCountLabel: `${rows.length} Produk`,
+        formulaTitle: "Rumus BAHAN BASAH",
+        formulaDescription: "(Jumlah Pasien Terakhir x 5%) x Komposisi per Paket Menu - Sisa Stok",
+      },
+      rows.map((row) => ({
+        itemName: row.item_name ?? "-",
+        categoryName: detailData?.category?.name ?? "BASAH",
+        currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
+        requiredQty: formatQuantity(row.required_qty, row.item_unit_base),
+        recommendedQty: formatQuantity(row.final_recommended_qty, row.item_unit_base),
+        numericRecommendedQty: Number(row.final_recommended_qty ?? 0),
+      })),
+    );
+
+    downloadRecommendationSpreadsheet({
+      filename: `SPS-Rekomendasi-Belanja-SPK-${detailData?.id ? String(detailData.id).padStart(3, "0") : dateLabel}.xls`,
+      html,
+    });
   }
 
   return (
@@ -144,7 +286,7 @@ export default function Page() {
           <div>
             <p className="text-base font-medium">Tanggal Belanja</p>
             <p className="mt-1 font-mono text-xl font-bold leading-none">
-              {spkMeta?.targetDates.length ? formatSpkDateRange(spkMeta.targetDates) : latestPatient ? formatSpkDate(latestPatient.date) : "-"}
+              {formatSpkDateRange(displayedTargetDates)}
             </p>
           </div>
           <div>
@@ -170,7 +312,7 @@ export default function Page() {
       <SurfaceCard className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-6 py-5">
           <h3 className="text-lg font-bold text-[#16213E]">Hasil Rekomendasi</h3>
-          <ExportButton>Export Rekomendasi</ExportButton>
+          <ExportButton onClick={handleExport}>Export Rekomendasi</ExportButton>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-base">
@@ -194,7 +336,9 @@ export default function Page() {
               {rows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={4}>
-                    Klik Generate untuk mengambil rekomendasi SPK basah.
+                    {hasLoadedRecommendation
+                      ? "Tidak ada rekomendasi belanja karena kebutuhan bahan sudah tercukupi oleh stok saat ini."
+                      : "Klik Generate untuk mengambil rekomendasi SPK basah."}
                   </td>
                 </tr>
               ) : null}
@@ -212,4 +356,39 @@ export default function Page() {
       />
     </div>
   );
+}
+
+function getLatestSpk<T extends { id: number; created_at?: string | null; calculation_date?: string | null }>(rows: T[]) {
+  return [...rows].sort((left, right) => {
+    const rightTime = new Date(right.created_at ?? right.calculation_date ?? "").getTime();
+    const leftTime = new Date(left.created_at ?? left.calculation_date ?? "").getTime();
+    if (Number.isFinite(rightTime) && Number.isFinite(leftTime) && rightTime !== leftTime) {
+      return rightTime - leftTime;
+    }
+    return Number(right.id) - Number(left.id);
+  })[0];
+}
+
+function aggregateRecommendationRows<T extends RecommendationRow>(rows: T[]) {
+  const byItem = new Map<string, T>();
+
+  for (const row of rows) {
+    const recommendation = Number(row.final_recommended_qty ?? 0);
+    if (!Number.isFinite(recommendation)) continue;
+
+    const key = String(row.item_id ?? row.item_name ?? row.id);
+    const current = byItem.get(key);
+    if (current) {
+      byItem.set(key, {
+        ...current,
+        required_qty: Number(current.required_qty ?? 0) + Number(row.required_qty ?? 0),
+        final_recommended_qty: Number(current.final_recommended_qty ?? 0) + recommendation,
+      });
+      continue;
+    }
+
+    byItem.set(key, { ...row, final_recommended_qty: recommendation });
+  }
+
+  return Array.from(byItem.values());
 }

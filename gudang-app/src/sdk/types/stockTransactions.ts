@@ -79,7 +79,9 @@ export type CreateStockTransactionRequest = TransactionTypeIdentifier & {
   details: StockTransactionDetailInput[];
 };
 
-/** Request payload for `POST /api/v1/stock-transactions/{id}/submit-revision`. */
+/** Request payload for `POST /api/v1/stock-transactions/{id}/submit-revision`.
+ * Re-submitting before admin review replaces the existing pending revision for the same parent.
+ */
 export interface SubmitRevisionRequest {
   transaction_date: string;
   spk_id?: number | null;

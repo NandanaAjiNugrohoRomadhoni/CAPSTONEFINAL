@@ -12,7 +12,7 @@ use OpenApi\Annotations as OA;
  *
  * Module   : Items
  * Route    : /api/v1/items
- * Access   : admin, gudang (list/show/create/update); admin (delete/restore)
+ * Access   : admin, gudang (list/show/create/update); dapur (list/show); admin (delete/restore)
  * Canonical: backend/docs/reference/api-contract.md §5.4
  *
  * Manages item master records while keeping qty mutations confined to stock workflows.
@@ -30,7 +30,7 @@ class Items extends BaseController
      * Returns the item collection with canonical filtering and pagination rules.
      *
      * HTTP     : GET /api/v1/items
-     * Access   : admin, gudang
+     * Access   : admin, dapur, gudang
      * Service  : ItemManagementService::getAllItems()
      * Contract : api-contract.md §5.4.2
      *
@@ -50,7 +50,7 @@ class Items extends BaseController
      *     operationId="listItems",
      *     tags={"Items"},
      *     summary="List items",
-     *     description="Returns the active item collection in the standard data/meta/links envelope. Accessible to admin and gudang users. Runtime accepts page, perPage, item_category_id, is_active, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, and updated_at_to. The older controller comment mentioning paginate=false is legacy only: the current runtime rejects paginate as an unsupported query parameter with HTTP 400.",
+     *     description="Returns the active item collection in the standard data/meta/links envelope. Accessible to admin, dapur, and gudang users. Runtime accepts page, perPage, item_category_id, is_active, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, and updated_at_to. The older controller comment mentioning paginate=false is legacy only: the current runtime rejects paginate as an unsupported query parameter with HTTP 400.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
      *         name="page",
@@ -149,7 +149,7 @@ class Items extends BaseController
      *     ),
      *     @OA\Response(
      *         response=403,
-     *         description="Authenticated user lacks the admin or gudang role required for this operation.",
+     *         description="Authenticated user lacks the admin, dapur, or gudang role required for this operation.",
      *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
      *     )
      * )
@@ -180,7 +180,7 @@ class Items extends BaseController
      * Returns one active item by identifier.
      *
      * HTTP     : GET /api/v1/items/{id}
-     * Access   : admin, gudang
+     * Access   : admin, dapur, gudang
      * Service  : ItemManagementService::getItemById()
      * Contract : api-contract.md §5.4.4
      *
@@ -197,7 +197,7 @@ class Items extends BaseController
      *     operationId="showItem",
      *     tags={"Items"},
      *     summary="Show one item",
-     *     description="Returns one active item resource. Accessible to admin and gudang users. Soft-deleted items are treated as not found.",
+     *     description="Returns one active item resource. Accessible to admin, dapur, and gudang users. Soft-deleted items are treated as not found.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
      *         name="id",
@@ -218,7 +218,7 @@ class Items extends BaseController
      *     ),
      *     @OA\Response(
      *         response=403,
-     *         description="Authenticated user lacks the admin or gudang role required for this operation.",
+     *         description="Authenticated user lacks the admin, dapur, or gudang role required for this operation.",
      *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
      *     ),
      *     @OA\Response(

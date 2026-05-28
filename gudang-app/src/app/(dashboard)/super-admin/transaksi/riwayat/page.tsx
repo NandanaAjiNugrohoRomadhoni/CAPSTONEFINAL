@@ -9,6 +9,7 @@ import {
   MiniActionButton,
   Pagination,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import SearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
@@ -84,7 +85,30 @@ function pickLatestTransactionByParent(rows: TransactionRow[], statusMap: Map<nu
   return Array.from(byParent.values());
 }
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
+
+async function loadAllTransactions(query: Omit<StockTransactionListQuery, "page" | "perPage">) {
+  const allRows: TransactionRow[] = [];
+  let page = 1;
+
+  while (page <= 20) {
+    const response = await sdk.stockTransactions.list({
+      ...query,
+      page,
+      perPage: 100,
+    });
+    const chunk = response.data ?? [];
+    allRows.push(...chunk);
+
+    if (chunk.length < 100) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return allRows;
+}
 
 async function loadAllItemsSortedByName(): Promise<ItemRow[]> {
   const allItems: ItemRow[] = [];
@@ -171,9 +195,7 @@ export default function Page() {
       setError(null);
 
       try {
-        const params: StockTransactionListQuery = {
-          page: currentPage,
-          perPage: PAGE_SIZE,
+        const params: Omit<StockTransactionListQuery, "page" | "perPage"> = {
           sortBy: "transaction_date",
           sortDir: "DESC",
         };
@@ -186,14 +208,27 @@ export default function Page() {
         if (selectedType) params.type_id = Number(selectedType);
         if (selectedStatus) params.status_id = Number(selectedStatus);
 
-        const response = await sdk.stockTransactions.list(params);
+        const response = await loadAllTransactions(params);
 
         if (cancelled) return;
 
         const normalizedRows = pickLatestTransactionByParent(
-          response.data ?? [],
+          response,
           new Map(statuses.map((status) => [status.id, status.name])),
-        );
+        ).sort((left, right) => {
+          const rightTime = new Date(right.updated_at || right.created_at || right.transaction_date).getTime();
+          const leftTime = new Date(left.updated_at || left.created_at || left.transaction_date).getTime();
+          if (rightTime !== leftTime) {
+            return rightTime - leftTime;
+          }
+
+          const rightParentId =
+            normalizeTransactionId(right.parent_transaction_id) || normalizeTransactionId(right.id);
+          const leftParentId =
+            normalizeTransactionId(left.parent_transaction_id) || normalizeTransactionId(left.id);
+
+          return rightParentId - leftParentId;
+        });
         setTransactions(normalizedRows);
         setTotalRecords(normalizedRows.length);
       } catch (loadError) {
@@ -209,7 +244,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, search, selectedDate, selectedType, selectedStatus, statuses]);
+  }, [search, selectedDate, selectedType, selectedStatus, statuses]);
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
@@ -218,7 +253,7 @@ export default function Page() {
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.name])), [users]);
 
   const derivedRows = useMemo<DerivedRow[]>(() => {
-    return transactions.map((transaction) => {
+    return transactions.flatMap((transaction) => {
       const details = detailMap[transaction.id] ?? [];
       const categoryLabel =
         Array.from(
@@ -230,15 +265,16 @@ export default function Page() {
         ).join(", ") || "-";
       const statusLabel = statusMap.get(transaction.approval_status_id) ?? "Menunggu";
       const userLabel = getUserLabel(transaction.user_id, userMap, currentUser?.id, currentUser?.name);
-      const transactionLabel = normaliseTransactionLabel(typeMap.get(transaction.type_id));
+      const transactionLabel = getStockMovementTypeLabel(typeMap.get(transaction.type_id));
+      if (!transactionLabel) return [];
 
-      return {
+      return [{
         transaction,
         transactionLabel,
         categoryLabel,
         userLabel,
         statusLabel,
-      };
+      }];
     });
   }, [transactions, detailMap, itemMap, statusMap, userMap, currentUser?.id, currentUser?.name, typeMap]);
 
@@ -481,18 +517,19 @@ export default function Page() {
               onChange={(event) => setSelectedDate(event.target.value)}
               className="h-10 min-w-[150px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
             />
-            <select
+            <ThemedSelect
+              className="h-10 min-w-[150px] text-sm"
               value={selectedType}
-              onChange={(event) => setSelectedType(event.target.value)}
-              className="h-10 min-w-[140px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
-            >
-              <option value="">Semua Jenis</option>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedType}
+              options={[
+                { value: "", label: "Semua Jenis" },
+                ...types
+                  .flatMap((type) => {
+                    const label = getStockMovementTypeLabel(type.name);
+                    return label ? [{ value: String(type.id), label }] : [];
+                  }),
+              ]}
+            />
             <div className="ml-auto">
               <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
             </div>
@@ -702,6 +739,29 @@ function TransactionRevisionModal({
   saving: boolean;
 }) {
   const typeLabel = typeMap.get(transaction.type_id) ?? "Transaksi";
+  const allowedCategoryMode = useMemo(() => {
+    const sourceCategories = rows
+      .map((row) => row.category_name.toUpperCase())
+      .filter(Boolean);
+    const hasBasah = sourceCategories.some((category) => category.includes("BASAH"));
+    const hasDry = sourceCategories.some((category) => category.includes("KERING") || category.includes("PENGEMAS"));
+
+    if (hasBasah && !hasDry) return "BASAH";
+    if (hasDry && !hasBasah) return "DRY";
+    return "ALL";
+  }, [rows]);
+  const selectableItems = useMemo(() => {
+    if (allowedCategoryMode === "BASAH") {
+      return items.filter((item) => (item.category?.name ?? "").toUpperCase().includes("BASAH"));
+    }
+    if (allowedCategoryMode === "DRY") {
+      return items.filter((item) => {
+        const category = (item.category?.name ?? "").toUpperCase();
+        return category.includes("KERING") || category.includes("PENGEMAS");
+      });
+    }
+    return items;
+  }, [allowedCategoryMode, items]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-4">
@@ -751,7 +811,7 @@ function TransactionRevisionModal({
                   >
                     <div className="col-span-5">
                       <SearchableItemSelect
-                        options={items.map((it) => ({
+                        options={selectableItems.map((it) => ({
                           id: it.id,
                           label: it.name,
                           unit:
@@ -771,7 +831,7 @@ function TransactionRevisionModal({
                             (existingRow) => existingRow.id !== row.id && existingRow.item_id === itemId,
                           );
                           if (duplicateExists) return;
-                          const item = items.find((it) => it.id === itemId);
+                          const item = selectableItems.find((it) => it.id === itemId) ?? items.find((it) => it.id === itemId);
                           updateRevisionRow(row.id, {
                             item_id: itemId || 0,
                             item_name: item?.name || "",
@@ -881,8 +941,14 @@ function getUserLabel(
 }
 
 function normaliseTransactionLabel(value?: string | null) {
-  const upper = (value ?? "").toUpperCase();
-  if (upper.includes("IN") || upper.includes("MASUK")) return "Masuk";
-  if (upper.includes("OUT") || upper.includes("KELUAR")) return "Keluar";
+  const movementLabel = getStockMovementTypeLabel(value);
+  if (movementLabel) return movementLabel;
   return value ?? "-";
+}
+
+function getStockMovementTypeLabel(value?: string | null): "Masuk" | "Keluar" | null {
+  const upper = (value ?? "").trim().toUpperCase();
+  if (upper === "IN" || upper === "MASUK") return "Masuk";
+  if (upper === "OUT" || upper === "KELUAR") return "Keluar";
+  return null;
 }

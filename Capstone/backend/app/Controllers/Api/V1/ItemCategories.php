@@ -46,7 +46,7 @@ class ItemCategories extends BaseController
      *     operationId="listItemCategories",
      *     tags={"Item Categories"},
      *     summary="List item categories",
-     *     description="Returns active item categories in the standard lookup collection envelope. Accessible to admin and gudang users from the inventory route group. Runtime supports page, perPage, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, updated_at_to, and paginate=false for dropdown-style reads; unknown query parameters or invalid values return HTTP 400.",
+     *     description="Returns active item categories in the standard lookup collection envelope. Accessible to admin, dapur, and gudang users from the inventory route group. Runtime supports page, perPage, q, search, sortBy, sortDir, created_at_from, created_at_to, updated_at_from, updated_at_to, and paginate=false for dropdown-style reads; unknown query parameters or invalid values return HTTP 400.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="page", in="query", @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\Parameter(name="perPage", in="query", @OA\Schema(type="integer", minimum=1, maximum=100, example=10)),
@@ -62,7 +62,7 @@ class ItemCategories extends BaseController
      *     @OA\Response(response=200, description="Active item category collection.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryCollectionResponse")),
      *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
-     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
      * )
      */
     public function index(): ResponseInterface
@@ -139,12 +139,12 @@ class ItemCategories extends BaseController
      *     operationId="showItemCategory",
      *     tags={"Item Categories"},
      *     summary="Show one item category",
-     *     description="Returns one active item category. Accessible to admin and gudang users. Soft-deleted rows are treated as not found.",
+     *     description="Returns one active item category. Accessible to admin, dapur, and gudang users. Soft-deleted rows are treated as not found.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\Response(response=200, description="Active item category resource.", @OA\JsonContent(ref="#/components/schemas/ItemCategoryResource")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
-     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=404, description="Item category not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
      * )
      */

@@ -132,12 +132,33 @@ class ItemUnitsTest extends CIUnitTestCase
         $this->get('api/v1/item-units')->assertStatus(401);
     }
 
-    public function testListItemUnitsAsDapurIsForbidden(): void
+    public function testListItemUnitsAsDapurSucceeds(): void
     {
         $token = $this->login('dapur');
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/item-units')
+            ->assertStatus(200);
+    }
+
+    public function testShowItemUnitAsDapurSucceeds(): void
+    {
+        $token         = $this->login('dapur');
+        $itemUnitModel = new ItemUnitModel();
+        $gramId        = $itemUnitModel->getIdByName('gram');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/item-units/' . $gramId)
+            ->assertStatus(200);
+    }
+
+    public function testDapurCannotCreateItemUnit(): void
+    {
+        $token = $this->login('dapur');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/item-units', ['name' => 'box'])
             ->assertStatus(403);
     }
 

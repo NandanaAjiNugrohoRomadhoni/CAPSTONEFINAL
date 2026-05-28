@@ -87,6 +87,7 @@ class SpkBasahGenerationService
             'category_id'        => $basahCategoryId,
             'estimated_patients' => $adjustedPatients,
             'is_finish'          => false,
+            'regenerate'         => (bool) ($data['regenerate'] ?? false),
         ], $recommendations);
 
         if (! $persisted['success']) {
@@ -107,6 +108,16 @@ class SpkBasahGenerationService
 
     private function validateGeneratePayload(array $data): array
     {
+        if (array_key_exists('regenerate', $data) && ! is_bool($data['regenerate'])) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'regenerate' => 'The regenerate field must be boolean.',
+                ],
+            ];
+        }
+
         $rules = [
             'service_date' => 'required|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
         ];

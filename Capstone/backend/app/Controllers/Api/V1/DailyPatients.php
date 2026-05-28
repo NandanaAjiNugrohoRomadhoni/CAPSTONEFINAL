@@ -144,6 +144,52 @@ class DailyPatients extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/daily-patients/{id}",
+     *     operationId="updateDailyPatient",
+     *     tags={"Daily Patients"},
+     *     summary="Update daily patient row",
+     *     description="Updates an existing daily patient row by identifier. Accessible to admin and dapur users. Runtime prevents duplicate service_date values and keeps the row addressed by numeric id for mutation while read-by-date remains available through GET /daily-patients/{service_date}.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="Daily patient identifier.", @OA\Schema(type="integer", minimum=1, example=3)),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/DailyPatientUpdateRequest")),
+     *     @OA\Response(response=200, description="Daily patient updated successfully.", @OA\JsonContent(ref="#/components/schemas/DailyPatientMutationResponse")),
+     *     @OA\Response(response=400, description="Validation failed for invalid dates, invalid patient counts, or duplicate service_date values.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks one of the admin or dapur roles required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=404, description="Daily patient not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=422, description="Persistence failed while updating the daily patient row.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse"))
+     * )
+     */
+    public function update(int $id): ResponseInterface
+    {
+        $data = $this->request->getJSON(true) ?? [];
+        $result = $this->dailyPatientService->updateDailyPatient($id, $data);
+
+        if (! $result['success']) {
+            $statusCode = match ($result['message']) {
+                'Daily patient not found.' => 404,
+                'Failed to update daily patient.' => 422,
+                default => 400,
+            };
+
+            return $this->response
+                ->setStatusCode($statusCode)
+                ->setJSON([
+                    'message' => $result['message'],
+                    'errors'  => $result['errors'] ?? [],
+                ]);
+        }
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setJSON([
+                'message' => 'Daily patient updated successfully.',
+                'data'    => $result['daily_patient'],
+            ]);
+    }
+
     private function buildStaticLinks(): array
     {
         $self = current_url();

@@ -81,6 +81,7 @@ class SpkKeringPengemasGenerationService
             'category_id'         => (int) $categoryRows[ItemCategoryModel::NAME_KERING],
             'estimated_patients'  => 0,
             'is_finish'           => false,
+            'regenerate'          => (bool) ($data['regenerate'] ?? false),
         ], $recommendations);
 
         if (! $persisted['success']) {
@@ -100,6 +101,16 @@ class SpkKeringPengemasGenerationService
 
     private function validateGeneratePayload(array $data): array
     {
+        if (array_key_exists('regenerate', $data) && ! is_bool($data['regenerate'])) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'regenerate' => 'The regenerate field must be boolean.',
+                ],
+            ];
+        }
+
         $rules = [
             'target_month' => 'required|regex_match[/^\d{4}-\d{2}$/]',
         ];

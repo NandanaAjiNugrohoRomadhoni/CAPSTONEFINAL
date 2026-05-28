@@ -6,7 +6,7 @@ import sdk from "@/lib";
 import { getErrorMessage, toIsoDate } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
 import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
-import { PrimaryAction } from "@/components/admin/ui";
+import { PrimaryAction, ThemedSelect } from "@/components/admin/ui";
 import CommonSearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
@@ -57,7 +57,7 @@ function normalizePrefillDetails(source: unknown): PrefillDetail[] {
 
   if (!Array.isArray(candidates)) return [];
 
-  return candidates
+  const normalizedDetails = candidates
     .map((candidate) => {
       const row = candidate as {
         item_id?: unknown;
@@ -80,6 +80,19 @@ function normalizePrefillDetails(source: unknown): PrefillDetail[] {
       return { item_id: itemId, qty };
     })
     .filter((detail) => Number.isFinite(detail.item_id) && detail.item_id > 0 && Number.isFinite(detail.qty));
+
+  return Array.from(
+    normalizedDetails
+      .reduce((map, detail) => {
+        const existing = map.get(detail.item_id);
+        map.set(detail.item_id, {
+          item_id: detail.item_id,
+          qty: (existing?.qty ?? 0) + detail.qty,
+        });
+        return map;
+      }, new Map<number, PrefillDetail>())
+      .values(),
+  );
 }
 
 export default function BarangMasukPage() {
@@ -744,18 +757,15 @@ function SelectSpkModal({
 
           <div>
             <label className="block text-sm font-semibold text-slate-700">ID SPK</label>
-            <select
-              value={selectedSpkId ?? ""}
-              onChange={(event) => onChangeSelectedSpkId(Number(event.target.value) || null)}
-              className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-700 outline-none"
-            >
-              <option value="">Pilih ID SPK</option>
-              {options.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <ThemedSelect
+              className="mt-2 h-11 text-sm"
+              value={selectedSpkId ? String(selectedSpkId) : ""}
+              onChange={(value) => onChangeSelectedSpkId(Number(value) || null)}
+              options={[
+                { value: "", label: "Pilih ID SPK" },
+                ...options.map((option) => ({ value: String(option.id), label: option.label })),
+              ]}
+            />
           </div>
         </div>
 

@@ -1,23 +1,32 @@
 export type StockOpnameState = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "POSTED";
 export interface StockOpnameDetail {
     id: number;
-    opname_id: number;
+    stock_opname_id: number;
     item_id: number;
     system_qty: number;
     counted_qty: number;
     variance_qty: number;
-    notes: string | null;
-    created_at: string;
-    updated_at: string;
 }
 export interface StockOpnameHeader {
     id: number;
     opname_date: string;
     state: StockOpnameState;
     created_by: number;
+    submitted_by: number | null;
     approved_by: number | null;
+    rejected_by: number | null;
+    posted_by: number | null;
+    submitted_at: string | null;
+    approved_at: string | null;
+    rejected_at: string | null;
+    posted_at: string | null;
     rejection_reason: string | null;
     notes: string | null;
+    created_by_name?: string | null;
+    submitted_by_name?: string | null;
+    approved_by_name?: string | null;
+    rejected_by_name?: string | null;
+    posted_by_name?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -42,6 +51,9 @@ export interface StockOpnameResponse {
     data: StockOpname;
 }
 export interface StockOpnameActionResponse {
-    message?: string;
-    data: StockOpnameHeader;
+    message: string;
+    data: {
+        id: number;
+        state: StockOpnameState;
+    };
 }

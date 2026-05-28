@@ -13,6 +13,7 @@ import {
   PrimaryAction,
   StatusPill,
   SurfaceCard,
+  ThemedSelect,
 } from "@/components/admin/ui";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
@@ -55,6 +56,10 @@ const statCards = [
   },
 ] as const;
 
+function normalizeFilterValue(value: string) {
+  return value.trim().toUpperCase();
+}
+
 export default function Page() {
   const [items, setItems] = useState<ItemRecord[]>([]);
   const [categories, setCategories] = useState<ItemCategoryRecord[]>([]);
@@ -76,26 +81,31 @@ export default function Page() {
   const [statusFilter, setStatusFilter] = useState("Semua Status");
 
   const loadPageData = useCallback(async () => {
-    const params: ItemListQuery = {
-      perPage: 10,
-      page: currentPage,
+    const baseParams: ItemListQuery = {
+      perPage: 100,
       sortBy: "id",
       sortDir: "ASC",
     };
 
-    if (searchTerm.trim()) params.q = searchTerm.trim();
+    if (searchTerm.trim()) baseParams.q = searchTerm.trim();
     if (categoryFilter !== "Semua Jenis") {
       const cat = categories.find(c => c.name === categoryFilter);
-      if (cat) params.item_category_id = cat.id;
-    }
-    if (statusFilter !== "Semua Status") {
-      params.is_active = statusFilter === "Aktif";
+      if (cat) baseParams.item_category_id = cat.id;
     }
 
-    const itemResponse = await sdk.items.list(params);
-    setItems(itemResponse.data ?? []);
-    setTotalRecords(itemResponse.meta?.total ?? itemResponse.data?.length ?? 0);
-  }, [currentPage, searchTerm, categoryFilter, statusFilter, categories]);
+    const allItems: ItemRecord[] = [];
+    let page = 1;
+    while (page <= 20) {
+      const itemResponse = await sdk.items.list({ ...baseParams, page });
+      const chunk = itemResponse.data ?? [];
+      allItems.push(...chunk);
+      if (chunk.length < 100) break;
+      page += 1;
+    }
+
+    setItems(allItems);
+    setTotalRecords(allItems.length);
+  }, [searchTerm, categoryFilter, categories]);
 
   async function ensureAuxiliaryData() {
     if (categories.length > 0 && itemUnits.length > 0) return;
@@ -119,7 +129,7 @@ export default function Page() {
       setError(null);
 
       try {
-        await loadPageData();
+        await Promise.all([ensureAuxiliaryData(), loadPageData()]);
       } catch (loadError) {
         if (!cancelled) {
           setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
@@ -331,13 +341,25 @@ export default function Page() {
     });
   }, [items]);
 
+  const filteredItems = useMemo(() => {
+    const normalizedStatus = normalizeFilterValue(statusFilter);
+    if (normalizedStatus === normalizeFilterValue("Semua Status")) return itemRows;
+    return itemRows.filter((item) => normalizeFilterValue(item.label) === normalizedStatus);
+  }, [itemRows, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(totalRecords / 10));
-  const visibleItems = itemRows;
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / 10));
+  const visibleItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * 10;
+    return filteredItems.slice(startIndex, startIndex + 10);
+  }, [currentPage, filteredItems]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const counts = useMemo(() => {
     return itemRows.reduce(
@@ -397,29 +419,27 @@ export default function Page() {
                 value={searchTerm}
               />
             </div>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              onChange={(event) => setCategoryFilter(event.target.value)}
+            <ThemedSelect
+              className="min-w-[180px]"
               value={categoryFilter}
-            >
-              <option>Semua Jenis</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-12 min-w-[180px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={setCategoryFilter}
+              options={[
+                { value: "Semua Jenis", label: "Semua Jenis" },
+                ...categoryOptions.map((category) => ({ value: category.name, label: category.name })),
+              ]}
+            />
+            <ThemedSelect
+              className="min-w-[180px]"
               value={statusFilter}
-            >
-              <option>Semua Status</option>
-              <option>Aman</option>
-              <option>Menipis</option>
-              <option>Kritis</option>
-              <option>Habis</option>
-            </select>
+              onChange={setStatusFilter}
+              options={[
+                { value: "Semua Status", label: "Semua Status" },
+                { value: "Aman", label: "Aman" },
+                { value: "Menipis", label: "Menipis" },
+                { value: "Kritis", label: "Kritis" },
+                { value: "Habis", label: "Habis" },
+              ]}
+            />
           </div>
           <div className="ml-auto">
             <ExportButton />
@@ -478,10 +498,10 @@ export default function Page() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          totalLabel={`${totalRecords === 0 ? 0 : (currentPage - 1) * 10 + 1}-${Math.min(
+          totalLabel={`${filteredItems.length === 0 ? 0 : (currentPage - 1) * 10 + 1}-${Math.min(
             currentPage * 10,
-            totalRecords,
-          )} dari ${totalRecords} item`}
+            filteredItems.length,
+          )} dari ${filteredItems.length} item`}
         />
       </SurfaceCard>
 

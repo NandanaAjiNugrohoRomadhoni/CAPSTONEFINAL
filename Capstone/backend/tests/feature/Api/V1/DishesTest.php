@@ -141,6 +141,35 @@ class DishesTest extends CIUnitTestCase
         ]);
     }
 
+    protected function seedMenuDishesForDish(int $dishId): void
+    {
+        $db = Database::connect();
+
+        $db->table('menu_dishes')->insertBatch([
+            [
+                'menu_id'      => 1,
+                'meal_time_id' => 1,
+                'dish_id'      => $dishId,
+            ],
+            [
+                'menu_id'      => 2,
+                'meal_time_id' => 1,
+                'dish_id'      => $dishId,
+            ],
+        ]);
+    }
+
+    protected function seedDishCompositionForDish(int $dishId): void
+    {
+        $db = Database::connect();
+
+        $db->table('dish_compositions')->insert([
+            'dish_id'         => $dishId,
+            'item_id'         => 1,
+            'qty_per_patient' => '100.00',
+        ]);
+    }
+
     protected function login(string $username): string
     {
         $result = $this->withBodyFormat('json')
@@ -176,6 +205,7 @@ class DishesTest extends CIUnitTestCase
         $this->assertSame(2, $json['meta']['perPage']);
         $this->assertNotEmpty($json['data']);
         $this->assertContains('Nasi Tim', array_column($json['data'], 'name'));
+        $this->assertIsBool($json['data'][0]['is_active']);
     }
 
     public function testDapurCanCreateDish(): void
@@ -188,6 +218,10 @@ class DishesTest extends CIUnitTestCase
 
         $result->assertStatus(201);
         $result->assertJSONFragment(['message' => 'Dish created successfully.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertIsBool($json['data']['is_active']);
+        $this->assertTrue($json['data']['is_active']);
     }
 
     public function testGudangCannotCreateDish(): void
@@ -223,6 +257,8 @@ class DishesTest extends CIUnitTestCase
 
         $json = json_decode($result->getJSON(), true);
         $this->assertSame('Bubur Ayam', $json['data']['name']);
+        $this->assertIsBool($json['data']['is_active']);
+        $this->assertTrue($json['data']['is_active']);
     }
 
     public function testUpdateDishAsAdmin(): void
@@ -235,6 +271,10 @@ class DishesTest extends CIUnitTestCase
 
         $result->assertStatus(200);
         $result->assertJSONFragment(['message' => 'Dish updated successfully.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertIsBool($json['data']['is_active']);
+        $this->assertTrue($json['data']['is_active']);
     }
 
     public function testGudangCannotUpdateDish(): void
@@ -261,16 +301,52 @@ class DishesTest extends CIUnitTestCase
         $this->assertArrayHasKey('name', $json['errors']);
     }
 
-    public function testAdminCannotDeleteDishThatIsStillReferenced(): void
+    public function testDeactivateDishRemovesMenuDishesButKeepsCompositions(): void
     {
         $token = $this->login('admin');
         $db    = Database::connect();
 
-        $db->table('menu_dishes')->insert([
-            'menu_id'      => 1,
-            'meal_time_id' => 1,
-            'dish_id'      => 1,
-        ]);
+        $this->seedMenuDishesForDish(1);
+        $this->seedDishCompositionForDish(1);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $result->assertStatus(200);
+        $result->assertJSONFragment(['message' => 'Dish deactivated successfully.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertFalse($json['data']['is_active']);
+        $this->assertSame(0, $db->table('menu_dishes')->where('dish_id', 1)->countAllResults());
+        $this->assertSame(1, $db->table('dish_compositions')->where('dish_id', 1)->countAllResults());
+    }
+
+    public function testReactivateDishSetsActiveAndDoesNotRestoreMenuDishes(): void
+    {
+        $token = $this->login('admin');
+        $db    = Database::connect();
+
+        $this->seedMenuDishesForDish(1);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $this->assertSame(0, $db->table('menu_dishes')->where('dish_id', 1)->countAllResults());
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/1/reactivate');
+
+        $result->assertStatus(200);
+        $result->assertJSONFragment(['message' => 'Dish reactivated successfully.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertTrue($json['data']['is_active']);
+        $this->assertSame(0, $db->table('menu_dishes')->where('dish_id', 1)->countAllResults());
+    }
+
+    public function testActiveDishDeleteIsRejected(): void
+    {
+        $token = $this->login('admin');
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->delete('api/v1/dishes/1');
@@ -278,37 +354,29 @@ class DishesTest extends CIUnitTestCase
         $result->assertStatus(400);
         $json = json_decode($result->getJSON(), true);
         $this->assertSame('Validation failed.', $json['message']);
-        $this->assertSame('The dish is still referenced by menu compositions or menu slots.', $json['errors']['dish_id']);
+        $this->assertArrayHasKey('dish_id', $json['errors']);
     }
 
-    public function testAdminCanDeleteUnreferencedDish(): void
+    public function testInactiveDishDeleteSucceedsAndCascadesCompositions(): void
     {
         $token = $this->login('admin');
+        $db    = Database::connect();
+
+        $this->seedMenuDishesForDish(1);
+        $this->seedDishCompositionForDish(1);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $this->assertSame(0, $db->table('menu_dishes')->where('dish_id', 1)->countAllResults());
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
-            ->delete('api/v1/dishes/3');
+            ->delete('api/v1/dishes/1');
 
         $result->assertStatus(200);
         $result->assertJSONFragment(['message' => 'Dish deleted successfully.']);
-    }
 
-    public function testAdminCannotDeleteDishThatIsStillReferencedByComposition(): void
-    {
-        $token = $this->login('admin');
-        $db    = Database::connect();
-
-        $db->table('dish_compositions')->insert([
-            'dish_id'         => 1,
-            'item_id'         => 1,
-            'qty_per_patient' => '100.00',
-        ]);
-
-        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
-            ->delete('api/v1/dishes/1');
-
-        $result->assertStatus(400);
-        $json = json_decode($result->getJSON(), true);
-        $this->assertSame('Validation failed.', $json['message']);
-        $this->assertSame('The dish is still referenced by menu compositions or menu slots.', $json['errors']['dish_id']);
+        $this->assertSame(0, $db->table('dishes')->where('id', 1)->countAllResults());
+        $this->assertSame(0, $db->table('dish_compositions')->where('dish_id', 1)->countAllResults());
     }
 }

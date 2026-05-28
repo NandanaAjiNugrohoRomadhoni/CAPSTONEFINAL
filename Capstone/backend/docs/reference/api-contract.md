@@ -188,7 +188,7 @@ Authenticated users can change their own password. This endpoint requires the us
 
 ### 5.2 Inventory Lookup Endpoints
 
-These endpoints provide reference data for creating and filtering inventory operations. All lookup list endpoints are restricted to users with `admin` or `gudang` roles. Write operations on `item-units` and `item-categories` are restricted to `admin` only.
+These endpoints provide reference data for creating and filtering inventory operations. All inventory lookup GET endpoints are accessible to users with `admin`, `dapur`, or `gudang` roles. Write operations on `item-units` and `item-categories` remain restricted to `admin` only.
 
 All lookup list endpoints support pagination by default and return the standard `data/meta/links` envelope. Soft-deleted rows are excluded from all list and show responses.
 
@@ -225,7 +225,7 @@ Supported query parameters for all lookup list endpoints:
 
 #### 5.2.1 Item Categories
 
-**Access:** `admin`, `gudang`
+**Access:** GET/list-show for `admin`, `dapur`, `gudang`; write routes are `admin` only.
 
 ##### Response
 
@@ -299,7 +299,7 @@ Supported query parameters for all lookup list endpoints:
 
 #### 5.2.2 Transaction Types
 
-**Access:** `admin`, `gudang`
+**Access:** `admin`, `dapur`, `gudang`
 
 ##### Response
 
@@ -344,7 +344,7 @@ Supported query parameters for all lookup list endpoints:
 
 #### 5.2.3 Approval Statuses
 
-**Access:** `admin`, `gudang`
+**Access:** `admin`, `dapur`, `gudang`
 
 ##### Response
 
@@ -388,7 +388,7 @@ Supported query parameters for all lookup list endpoints:
 
 #### 5.2.4 Item Units
 
-**List / Show access:** `admin`, `gudang`
+**List / Show access:** `admin`, `dapur`, `gudang`
 **Create / Update / Delete access:** `admin` only
 
 `item_units` is a soft-deletable lookup table used as FK backing for item units. Soft-deleted item units are excluded from list and show responses, cannot be assigned to items, and delete is blocked while active items still reference the unit.
@@ -731,8 +731,8 @@ Phase 1 item management covers item master CRUD only. `qty` is read-only in this
 #### 5.4.1 Access Rules
 
 - `admin` and `gudang` can list, create, view, and update items.
+- `dapur` can list and view items only.
 - `admin` only can soft delete or restore items.
-- `dapur` has no access to item master management.
 
 #### 5.4.2 List Items
 
@@ -1377,6 +1377,7 @@ Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone
 | POST | `/api/v1/stock-transactions/{id}/approve` | Approve revision transaction |
 | POST | `/api/v1/stock-transactions/{id}/reject` | Reject revision transaction (optional body: `reason`) |
 | POST | `/api/v1/stock-opnames` | Create dedicated stock opname draft |
+| PUT | `/api/v1/stock-opnames/{id}` | Update stock opname draft or rejected revision |
 | GET | `/api/v1/stock-opnames/{id}` | Get stock opname header and details |
 | POST | `/api/v1/stock-opnames/{id}/submit` | Submit stock opname draft for approval |
 | POST | `/api/v1/stock-opnames/{id}/approve` | Approve submitted stock opname |
@@ -1387,14 +1388,14 @@ Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone
 
 - submit revision dapat dilakukan oleh `admin` dan `gudang`;
 - approve/reject revision hanya dapat dilakukan oleh `admin`;
-- submit revision membuat child transaction dengan `is_revision = true` dan `approval_status_id = PENDING`;
-- submit revision menolak request baru jika masih ada sibling revision berstatus `PENDING` pada lineage yang sama;
+- submit revision membuat child transaction dengan `is_revision = true` dan `approval_status_id = PENDING`, atau memperbarui child revision `PENDING` yang sudah ada untuk parent yang sama;
+- submit revision tidak membuat multiple sibling revision berstatus `PENDING` secara bersamaan; repeated submit sebelum admin action akan mereuse revision `PENDING` yang sama;
 - submit revision **tidak** mengubah `items.qty`;
 - `items.qty` baru berubah ketika revision di-approve;
 - saat approve, sistem **tidak** memperlakukan qty revision sebagai mutasi baru yang ditambahkan di atas parent;
 - saat approve, sistem menghitung **selisih bersih (net difference)** antara detail revision pending dan baseline efektif per item;
 - baseline efektif saat approve = latest approved sibling dalam lineage yang sama, jika ada; jika tidak ada maka baseline = parent original;
-- successive approved sibling revisions diperbolehkan sepanjang alur tetap sequential (satu pending per lineage);
+- successive approved sibling revisions diperbolehkan sepanjang alur tetap sequential (maksimal satu pending sibling yang direuse per lineage);
 - revision-on-revision tetap ditolak;
 - reject revision tidak mengubah `items.qty`;
 - reject revision menerima body JSON opsional `{ "reason": "..." }` untuk catatan penolakan admin;
@@ -1408,6 +1409,7 @@ The `/api/v1/stock-opnames/*` routes are preserved as a compatibility facade. Wh
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/v1/stock-opnames` | Create dedicated stock opname draft |
+| PUT | `/api/v1/stock-opnames/{id}` | Update stock opname draft or rejected revision |
 | GET | `/api/v1/stock-opnames/{id}` | Get stock opname header and details |
 | POST | `/api/v1/stock-opnames/{id}/submit` | Submit stock opname draft for approval |
 | POST | `/api/v1/stock-opnames/{id}/approve` | Approve submitted stock opname |
@@ -1438,11 +1440,28 @@ These endpoints manage meal planning, including dishes, compositions, and cyclic
 | DELETE | `/api/v1/menu-dishes/{id}` | Delete a slot assignment |
 | GET | `/api/v1/dishes` | List dishes |
 | GET | `/api/v1/dishes/{id}` | Get dish detail |
+
+All `dishes` collection endpoints support the standard filtering and pagination parameters. Specifically:
+- `is_active` — filter by active status (`true` / `false` / `1` / `0`)
+
+| Method | Endpoint | Description |
+|---|---|---|
 | POST | `/api/v1/dishes` | Create a dish |
 | PUT | `/api/v1/dishes/{id}` | Update a dish |
 | DELETE | `/api/v1/dishes/{id}` | Delete a dish |
+| PATCH | `/api/v1/dishes/{id}/deactivate` | Deactivate a dish (unlinks from menus) |
+| PATCH | `/api/v1/dishes/{id}/reactivate` | Reactivate a dish |
 
-#### 5.6.3 Dish Compositions
+#### 5.6.3 Dish Lifecycle Semantics
+
+- **Deactivate**: Sets `is_active = false`. This action preserves the dish row and its compositions but **removes all associated menu slot assignments** (`menu_dishes`).
+- **Reactivate**: Sets `is_active = true`. This allows the dish to be assigned to menu slots again. It does **not** restore prior menu slot assignments.
+- **Delete**: 
+  - Deletion is blocked if the dish is currently `is_active = true` OR still referenced by any menu slots.
+  - Only inactive, detached dishes can be deleted.
+  - Associated `dish_compositions` are removed by database cascade on final delete.
+
+#### 5.6.4 Dish Compositions
 
 Compositions define the items and quantities required for each dish per patient.
 
@@ -1549,9 +1568,10 @@ Bagian ini membekukan kontrak route, boundary, dan lifecycle untuk fondasi imple
 |---|---|---|
 | GET | `/api/v1/daily-patients` | List daily patient rows (standard `data/meta/links`) |
 | POST | `/api/v1/daily-patients` | Create daily patient row |
+| PUT | `/api/v1/daily-patients/{id}` | Update daily patient row by numeric id |
 | GET | `/api/v1/daily-patients/{service_date}` | Get daily patient detail by service date (`Y-m-d`) |
 
-Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` daily-patients tersedia untuk `admin` dan `dapur`.
+Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` dan `PUT` daily-patients tersedia untuk `admin` dan `dapur`.
 
 Collection response contract mengikuti envelope standar (`data`, `meta`, `links`).
 
@@ -1573,6 +1593,8 @@ Example create response:
 }
 ```
 
+Duplicate create requests now return `400` with an actionable error that includes `existing_id` and directs clients to use `PUT /api/v1/daily-patients/{id}`.
+
 #### 5.7.2 SPK Basah Route Family
 
 SPK basah dipisahkan menjadi tiga surface yang berbeda: menu projection, generation/history, dan stock posting.
@@ -1581,7 +1603,7 @@ SPK basah dipisahkan menjadi tiga surface yang berbeda: menu projection, generat
 |---|---|---|
 | GET | `/api/v1/spk/basah/menu-calendar` | Projection-only resolver untuk menu calendar context |
 | POST | `/api/v1/spk/basah/operational-stock-preview` | Preview sisa stok untuk tanggal yang sama |
-| POST | `/api/v1/spk/basah/generate` | Generate SPK basah (membuat versi histori baru) |
+| POST | `/api/v1/spk/basah/generate` | Generate SPK basah (membuat versi histori baru; duplicate active scope returns 409 unless `regenerate=true`) |
 | GET | `/api/v1/spk/basah/history` | List histori SPK basah |
 | GET | `/api/v1/spk/basah/history/{id}` | Detail histori SPK basah (termasuk rekomendasi item) |
 | POST | `/api/v1/spk/basah/history/{id}/override` | Override rekomendasi qty per item |
@@ -1594,7 +1616,7 @@ SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/v1/spk/kering-pengemas/menu-calendar` | Projection-only resolver |
-| POST | `/api/v1/spk/kering-pengemas/generate` | Generate SPK kering/pengemas (monthly basis) |
+| POST | `/api/v1/spk/kering-pengemas/generate` | Generate SPK kering/pengemas (monthly basis; duplicate active scope returns 409 unless `regenerate=true`) |
 | GET | `/api/v1/spk/kering-pengemas/history` | List histori |
 | GET | `/api/v1/spk/kering-pengemas/history/{id}` | Detail histori |
 | POST | `/api/v1/spk/kering-pengemas/history/{id}/override` | Override rekomendasi qty per item |
@@ -1627,6 +1649,7 @@ Regeneration SPK dibekukan dengan semantics berikut:
 2. Histori versi sebelumnya tidak boleh di-overwrite.
 3. Endpoint history list/detail harus memungkinkan pelacakan versi.
 4. Stock posting adalah langkah terpisah setelah versi dipilih, bukan side effect dari generate.
+5. Jika masih ada SPK aktif (`is_finish=false`) untuk scope yang sama, generate mengembalikan `409 Conflict` beserta metadata SPK existing. Klien harus mengirim `regenerate=true` untuk membuat versi baru secara eksplisit.
 
 Contoh response envelope generate:
 
@@ -2120,7 +2143,7 @@ Request dengan konversi satuan:
 }
 ```
 
-Submit revision hanya membuat child revision pending dan tidak langsung mengubah stok.
+Submit revision hanya membuat atau memperbarui child revision pending dan tidak langsung mengubah stok. Jika parent yang sama sudah memiliki revision `PENDING`, payload terbaru akan menggantikan header/detail revision pending tersebut tanpa membuat sibling pending baru.
 
 ### 7.4 Approve Revision
 

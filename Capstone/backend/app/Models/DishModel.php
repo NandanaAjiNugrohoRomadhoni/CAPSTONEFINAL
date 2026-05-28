@@ -8,9 +8,10 @@ class DishModel extends Model
 {
     protected $table         = 'dishes';
     protected $primaryKey    = 'id';
-    protected $allowedFields = ['name'];
+    protected $allowedFields = ['name', 'is_active'];
     protected $useTimestamps = true;
     protected $returnType    = 'array';
+    protected $afterFind     = ['castIsActiveAfterFind'];
 
     public const SORTABLE_COLUMNS = ['id', 'name', 'created_at', 'updated_at'];
 
@@ -25,8 +26,13 @@ class DishModel extends Model
         ?string $createdAtTo = null,
         ?string $updatedAtFrom = null,
         ?string $updatedAtTo = null,
+        ?bool $isActive = null,
     ): array {
         $builder = $this->builder();
+
+        if ($isActive !== null) {
+            $builder->where('dishes.is_active', $isActive);
+        }
 
         if ($search !== '') {
             $builder->like('dishes.name', $search);
@@ -74,6 +80,8 @@ class DishModel extends Model
             $totalPages = $total > 0 ? 1 : 0;
         }
 
+        $dishes = array_map(fn (array $dish): array => $this->normalizeDishRow($dish), $dishes);
+
         return [
             'dishes'     => $dishes,
             'total'      => $total,
@@ -99,5 +107,36 @@ class DishModel extends Model
         }
 
         return $builder->first() !== null;
+    }
+
+    protected function castIsActiveAfterFind(array $data): array
+    {
+        if (! array_key_exists('data', $data) || $data['data'] === null) {
+            return $data;
+        }
+
+        if (array_is_list($data['data'])) {
+            $data['data'] = array_map(
+                fn (mixed $dish): mixed => is_array($dish) ? $this->normalizeDishRow($dish) : $dish,
+                $data['data']
+            );
+
+            return $data;
+        }
+
+        if (is_array($data['data'])) {
+            $data['data'] = $this->normalizeDishRow($data['data']);
+        }
+
+        return $data;
+    }
+
+    private function normalizeDishRow(array $dish): array
+    {
+        if (array_key_exists('is_active', $dish)) {
+            $dish['is_active'] = (bool) $dish['is_active'];
+        }
+
+        return $dish;
     }
 }

@@ -38,6 +38,13 @@ use OpenApi\Annotations as OA;
  *     @OA\Property(property="notes", type="string", nullable=true, example="Morning shift")
  * )
  * @OA\Schema(
+ *     schema="DailyPatientUpdateRequest",
+ *     type="object",
+ *     @OA\Property(property="service_date", type="string", example="2026-05-02", description="Updated service date in Y-m-d format. Must stay unique."),
+ *     @OA\Property(property="total_patients", type="integer", minimum=0, example=140),
+ *     @OA\Property(property="notes", type="string", nullable=true, example="Adjusted after final census")
+ * )
+ * @OA\Schema(
  *     schema="DailyPatientMutationResponse",
  *     type="object",
  *     required={"message","data"},

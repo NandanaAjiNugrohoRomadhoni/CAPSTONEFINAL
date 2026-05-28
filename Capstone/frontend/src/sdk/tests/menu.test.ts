@@ -26,8 +26,20 @@ describe("Menu domain resources", () => {
         )
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ message: "Dish created successfully.", data: { id: 1, name: "Bubur" } }), {
+        new Response(JSON.stringify({ message: "Dish created successfully.", data: { id: 1, name: "Bubur", is_active: true } }), {
           status: 201,
+          headers: { "content-type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Dish deactivated successfully.", data: { id: 9, name: "Bubur", is_active: false } }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Dish reactivated successfully.", data: { id: 9, name: "Bubur", is_active: true } }), {
+          status: 200,
           headers: { "content-type": "application/json" }
         })
       )
@@ -40,25 +52,52 @@ describe("Menu domain resources", () => {
 
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
 
-    await sdk.dishes.list({ page: 2, perPage: 20, q: "bubur", sortBy: "updated_at", sortDir: "DESC" });
+    await sdk.dishes.list({ paginate: false, page: 2, perPage: 20, is_active: false, q: "bubur", sortBy: "updated_at", sortDir: "DESC" });
     await sdk.dishes.create({ name: "Bubur" });
+    await sdk.dishes.deactivate(9);
+    await sdk.dishes.reactivate(9);
     await sdk.dishes.delete(9);
 
     const [listUrl] = fetchMock.mock.calls[0] ?? [];
     const [, createInit] = fetchMock.mock.calls[1] ?? [];
-    const [deleteUrl, deleteInit] = fetchMock.mock.calls[2] ?? [];
+    const [deactivateUrl, deactivateInit] = fetchMock.mock.calls[2] ?? [];
+    const [reactivateUrl, reactivateInit] = fetchMock.mock.calls[3] ?? [];
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[4] ?? [];
 
     expect(listUrl).toBe(
-      "http://127.0.0.1:8080/api/v1/dishes?page=2&perPage=20&q=bubur&sortBy=updated_at&sortDir=DESC"
+      "http://127.0.0.1:8080/api/v1/dishes?paginate=false&page=2&perPage=20&is_active=false&q=bubur&sortBy=updated_at&sortDir=DESC"
     );
     expect(createInit?.method).toBe("POST");
     expect(createInit?.body).toBe(JSON.stringify({ name: "Bubur" }));
+    expect(deactivateUrl).toBe("http://127.0.0.1:8080/api/v1/dishes/9/deactivate");
+    expect(deactivateInit?.method).toBe("PATCH");
+    expect(reactivateUrl).toBe("http://127.0.0.1:8080/api/v1/dishes/9/reactivate");
+    expect(reactivateInit?.method).toBe("PATCH");
     expect(deleteUrl).toBe("http://127.0.0.1:8080/api/v1/dishes/9");
     expect(deleteInit?.method).toBe("DELETE");
   });
 
   it("preserves dish composition envelopes and validation-friendly payload shapes", async () => {
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [],
+            meta: { page: 1, perPage: 2, total: 2, totalPages: 1, paginated: false },
+            links: {
+              self: "/api/v1/dish-compositions?paginate=false&dish_id=1",
+              first: "/api/v1/dish-compositions?paginate=false&dish_id=1",
+              last: "/api/v1/dish-compositions?paginate=false&dish_id=1",
+              next: null,
+              previous: null
+            }
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        )
+      )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ message: "Dish composition created successfully.", data: { id: 1 } }), {
           status: 201,
@@ -74,12 +113,15 @@ describe("Menu domain resources", () => {
 
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
 
+    await sdk.dishCompositions.list({ paginate: false, dish_id: 1 });
     await sdk.dishCompositions.create({ dish_id: 1, item_id: 2, qty_per_patient: "125.50" });
     await sdk.dishCompositions.delete(4);
 
-    const [, createInit] = fetchMock.mock.calls[0] ?? [];
-    const [deleteUrl, deleteInit] = fetchMock.mock.calls[1] ?? [];
+    const [listUrl] = fetchMock.mock.calls[0] ?? [];
+    const [, createInit] = fetchMock.mock.calls[1] ?? [];
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[2] ?? [];
 
+    expect(listUrl).toBe("http://127.0.0.1:8080/api/v1/dish-compositions?paginate=false&dish_id=1");
     expect(JSON.parse(createInit?.body as string).qty_per_patient).toBe("125.50");
     expect(deleteUrl).toBe("http://127.0.0.1:8080/api/v1/dish-compositions/4");
     expect(deleteInit?.method).toBe("DELETE");
@@ -178,6 +220,81 @@ describe("Menu domain resources", () => {
     expect(menuDeleteUrl).toBe("http://127.0.0.1:8080/api/v1/menu-dishes/8");
     expect(menuDeleteInit?.method).toBe("DELETE");
     expect(calendarUrl).toBe("http://127.0.0.1:8080/api/v1/menu-calendar?date=2024-02-29");
+  });
+
+  it("keeps dish lifecycle and slot-write inactive-dish contract documented in SDK-facing usage", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Dish deactivated successfully.", data: { id: 3, name: "Sup", is_active: false } }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Dish reactivated successfully.", data: { id: 3, name: "Sup", is_active: true } }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Validation failed.",
+            errors: {
+              dish_id: "The selected dish is inactive."
+            }
+          }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" }
+          }
+        )
+      );
+
+    const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
+
+    const deactivated = await sdk.dishes.deactivate(3);
+    const reactivated = await sdk.dishes.reactivate(3);
+
+    await expect(sdk.menus.assignSlot({ menu_id: 1, meal_time_id: 2, dish_id: 3 })).rejects.toMatchObject({
+      message: "Validation failed.",
+      errors: {
+        dish_id: "The selected dish is inactive."
+      }
+    });
+
+    expect(deactivated.data.is_active).toBe(false);
+    expect(reactivated.data.is_active).toBe(true);
+  });
+
+  it("forwards paginate=false on dishes list queries", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: [],
+          meta: { page: 1, perPage: 3, total: 3, totalPages: 1, paginated: false },
+          links: {
+            self: "/api/v1/dishes?paginate=false&is_active=true",
+            first: "/api/v1/dishes?paginate=false&is_active=true",
+            last: "/api/v1/dishes?paginate=false&is_active=true",
+            next: null,
+            previous: null
+          }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+
+    const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
+
+    await sdk.dishes.list({ paginate: false, is_active: true });
+
+    const [listUrl] = fetchMock.mock.calls[0] ?? [];
+
+    expect(listUrl).toBe("http://127.0.0.1:8080/api/v1/dishes?paginate=false&is_active=true");
   });
 
   it("keeps the menu-calendar response envelope typed for date and range projections", () => {

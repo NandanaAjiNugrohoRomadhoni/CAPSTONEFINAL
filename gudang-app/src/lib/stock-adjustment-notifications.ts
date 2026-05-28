@@ -48,6 +48,45 @@ function normalizeNotificationRole(role?: string | null): NotificationRole | nul
   }
 }
 
+function getNotificationActorLabel(role?: NotificationRole | null) {
+  switch (role) {
+    case "admin":
+      return "Admin";
+    case "gudang":
+      return "Petugas Gudang";
+    case "dapur":
+      return "Petugas Dapur";
+    default:
+      return "Petugas";
+  }
+}
+
+function rewriteNotificationMessage(
+  notification: BackendNotification,
+  currentRole?: NotificationRole | null,
+) {
+  const actorLabel = getNotificationActorLabel(currentRole);
+  const originalMessage = notification.message ?? "";
+
+  if (notification.type === "STOCK_OPNAME") {
+    const isSubmissionMessage =
+      originalMessage.toLowerCase().includes("diajukan") ||
+      originalMessage.toLowerCase().includes("pengajuan") ||
+      originalMessage.toLowerCase().includes("verifikasi");
+
+    if (!isSubmissionMessage) {
+      return originalMessage;
+    }
+
+    return originalMessage
+      .replace(/oleh\s+Petugas Gudang/gi, `oleh ${actorLabel}`)
+      .replace(/oleh\s+Admin/gi, `oleh ${actorLabel}`)
+      .replace(/oleh\s+Petugas Dapur/gi, `oleh ${actorLabel}`);
+  }
+
+  return originalMessage;
+}
+
 function inferNotificationKind(notification: BackendNotification): NotificationKind {
   const haystack = `${notification.title} ${notification.message}`.toLowerCase();
 
@@ -147,7 +186,7 @@ function mapBackendNotification(
     id: String(notification.id),
     kind: inferNotificationKind(notification),
     title: notification.title,
-    message: notification.message,
+    message: rewriteNotificationMessage(notification, currentRole),
     createdAt: notification.created_at,
     relatedId: Number(notification.related_id ?? 0),
     read: Boolean(notification.is_read),

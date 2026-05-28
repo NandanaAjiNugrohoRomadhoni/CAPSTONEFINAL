@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
+import { listAllItems } from "@/lib/items";
 import {
   formatNumber,
   formatQuantity,
-  getCurrentMonthPeriod,
   getErrorMessage,
   getStockTone,
 } from "@/lib/admin-utils";
@@ -66,26 +66,10 @@ const statCards = [
   },
 ] as const;
 
-async function loadAllStockItems() {
-  const allItems: ItemRecord[] = [];
-  let page = 1;
-
-  while (page <= 20) {
-    const response = await sdk.items.list({
-      page,
-      perPage: 100,
-      sortBy: "id",
-      sortDir: "ASC",
-    });
-    const chunk = response.data ?? [];
-    allItems.push(...chunk);
-
-    if (chunk.length < 100) break;
-    page += 1;
-  }
-
-  return allItems;
-}
+const ALL_STOCK_REPORT_PERIOD = {
+  period_start: "2000-01-01",
+  period_end: "2099-12-31",
+} as const;
 
 function firstString(row: StockReportRow, keys: string[], fallback = "-") {
   for (const key of keys) {
@@ -102,6 +86,10 @@ function firstNumber(row: StockReportRow, keys: string[], fallback = 0) {
     if (Number.isFinite(value)) return value;
   }
   return fallback;
+}
+
+function normalizeFilterValue(value: string) {
+  return value.trim().toUpperCase();
 }
 
 export default function StocksReportPage() {
@@ -122,20 +110,39 @@ export default function StocksReportPage() {
       setError(null);
 
       try {
-        const response = await loadAllStockItems();
+        const [itemsResponse, reportResponse] = await Promise.allSettled([
+          listAllItems({
+            perPage: 100,
+            sortBy: "id",
+            sortDir: "ASC",
+          }),
+          sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
+        ]);
+
         if (cancelled) return;
-        setItems(response);
-        setReportRows([]);
-      } catch (loadError) {
-        try {
-          const reportResponse = await sdk.reports.getStocks(getCurrentMonthPeriod());
-          if (cancelled) return;
-          setItems([]);
-          setReportRows(reportResponse.data.rows ?? []);
-        } catch (reportError) {
-          if (!cancelled) {
-            setError(getErrorMessage(reportError, getErrorMessage(loadError, "Gagal memuat stok bahan.")));
+
+        const nextItems = itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
+        const nextReportRows =
+          reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
+
+        setItems(nextItems);
+        setReportRows(nextReportRows);
+
+        if (nextItems.length === 0 && nextReportRows.length === 0) {
+          const loadError =
+            itemsResponse.status === "rejected"
+              ? itemsResponse.reason
+              : reportResponse.status === "rejected"
+                ? reportResponse.reason
+                : null;
+
+          if (loadError) {
+            setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
           }
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
         }
       } finally {
         if (!cancelled) {
@@ -152,9 +159,23 @@ export default function StocksReportPage() {
   }, []);
 
   const tableRows = useMemo<StockTableRow[]>(() => {
+    const reportRowMap = new Map(
+      reportRows.map((row, index) => [
+        firstNumber(row, ["item_id", "id"], index + 1),
+        row,
+      ]),
+    );
+
     if (items.length > 0) {
-      return items.map((item) => {
-        const qty = Number(item.qty ?? 0);
+      const rowsFromItems = items.map((item) => {
+        const matchingReportRow = reportRowMap.get(item.id);
+        const qty = matchingReportRow
+          ? firstNumber(
+              matchingReportRow,
+              ["qty", "current_stock", "stock", "stock_qty", "quantity"],
+              Number(item.qty ?? 0),
+            )
+          : Number(item.qty ?? 0);
         const minimumQty = Number(item.conversion_base ?? 0) || 1;
         const stock = getStockTone(qty, minimumQty);
         const categoryName = item.category?.name ?? "-";
@@ -174,6 +195,37 @@ export default function StocksReportPage() {
           label: stock.label,
         };
       });
+
+      const missingReportRows = reportRows
+        .filter(
+          (row, index) =>
+            !items.some(
+              (item) => item.id === firstNumber(row, ["item_id", "id"], index + 1),
+            ),
+        )
+        .map((row, index) => {
+          const itemId = firstNumber(row, ["item_id", "id"], index + 1);
+          const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
+          const minimumQty =
+            firstNumber(row, ["minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1) || 1;
+          const unit = firstString(row, ["unit", "satuan", "unit_base"], "");
+          const stock = getStockTone(qty, minimumQty);
+
+          return {
+            idLabel: `BR-${String(itemId).padStart(4, "0")}`,
+            itemId,
+            itemName: firstString(row, ["item_name", "name", "nama_bahan"], `Item ${itemId}`),
+            categoryName: firstString(row, ["category_name", "jenis_bahan", "kategori_bahan"]),
+            qty,
+            qtyLabel: formatQuantity(qty, unit),
+            minimumQty,
+            minimumLabel: formatQuantity(minimumQty, unit),
+            tone: stock.tone,
+            label: stock.label,
+          };
+        });
+
+      return [...rowsFromItems, ...missingReportRows].sort((left, right) => left.itemId - right.itemId);
     }
 
     return reportRows.map((row, index) => {
@@ -211,6 +263,9 @@ export default function StocksReportPage() {
   );
 
   const filteredRows = useMemo(() => {
+    const normalizedCategoryFilter = normalizeFilterValue(categoryFilter);
+    const normalizedStatusFilter = normalizeFilterValue(statusFilter);
+
     return tableRows.filter((row) => {
       const normalizedSearch = searchTerm.trim().toLowerCase();
       const matchesSearch =
@@ -218,8 +273,12 @@ export default function StocksReportPage() {
         row.itemName.toLowerCase().includes(normalizedSearch) ||
         row.idLabel.toLowerCase().includes(normalizedSearch) ||
         row.categoryName.toLowerCase().includes(normalizedSearch);
-      const matchesCategory = categoryFilter === "Semua Jenis" || row.categoryName === categoryFilter;
-      const matchesStatus = statusFilter === "Semua Status" || row.label === statusFilter;
+      const matchesCategory =
+        normalizedCategoryFilter === normalizeFilterValue("Semua Jenis") ||
+        normalizeFilterValue(row.categoryName) === normalizedCategoryFilter;
+      const matchesStatus =
+        normalizedStatusFilter === normalizeFilterValue("Semua Status") ||
+        normalizeFilterValue(row.label) === normalizedStatusFilter;
 
       return matchesSearch && matchesCategory && matchesStatus;
     });
@@ -230,14 +289,14 @@ export default function StocksReportPage() {
   }, [searchTerm, categoryFilter, statusFilter]);
 
   const counts = useMemo(() => {
-    return filteredRows.reduce(
+    return tableRows.reduce(
       (acc, row) => {
         acc[row.tone] += 1;
         return acc;
       },
       { warning: 0, critical: 0, danger: 0, safe: 0 } as Record<"warning" | "critical" | "danger" | "safe", number>,
     );
-  }, [filteredRows]);
+  }, [tableRows]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));

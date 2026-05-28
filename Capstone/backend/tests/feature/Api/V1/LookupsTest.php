@@ -166,8 +166,24 @@ class LookupsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/item-categories');
 
-        $result->assertStatus(403);
-        $result->assertJSONFragment(['message' => 'Insufficient permissions.']);
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertCount(3, $json['data']);
+    }
+
+    public function testItemCategoryShowWithDapurRole(): void
+    {
+        $token = $this->getToken('dapur');
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/item-categories/1');
+
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('BASAH', $json['data']['name']);
     }
 
     public function testItemCategoriesWithAdminRole(): void
@@ -372,8 +388,11 @@ class LookupsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/transaction-types');
 
-        $result->assertStatus(403);
-        $result->assertJSONFragment(['message' => 'Insufficient permissions.']);
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertCount(3, $json['data']);
     }
 
     public function testTransactionTypesWithAdminRole(): void
@@ -472,8 +491,11 @@ class LookupsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/approval-statuses');
 
-        $result->assertStatus(403);
-        $result->assertJSONFragment(['message' => 'Insufficient permissions.']);
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertCount(3, $json['data']);
     }
 
     public function testApprovalStatusesWithAdminRole(): void
@@ -536,13 +558,32 @@ class LookupsTest extends CIUnitTestCase
 
     public function testMealTimesWithDapurRole(): void
     {
+        $this->db->table('meal_times')->insertBatch([
+            ['name' => 'Pagi'],
+            ['name' => 'Siang'],
+            ['name' => 'Sore'],
+        ]);
+
         $token = $this->getToken('dapur');
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/meal-times');
 
-        $result->assertStatus(403);
-        $result->assertJSONFragment(['message' => 'Insufficient permissions.']);
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertCount(3, $json['data']);
+    }
+
+    public function testDapurCannotCreateItemCategory(): void
+    {
+        $token = $this->getToken('dapur');
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/item-categories', ['name' => 'MINUMAN'])
+            ->assertStatus(403);
     }
 
     public function testMealTimesWithAdminRole(): void

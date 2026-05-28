@@ -90,6 +90,40 @@ class SpkBasahTest extends CIUnitTestCase
         $response->assertJSONFragment(['message' => 'SPK basah generated successfully.']);
     }
 
+    public function testGenerateReturnsConflictForDuplicateScopeUnlessRegenerateIsTrue(): void
+    {
+        $token = $this->login('dapur');
+
+        $this->createDailyPatient($token, '2026-03-01', 100);
+
+        $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+            ]);
+        $first->assertStatus(201);
+
+        $conflict = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+            ]);
+        $conflict->assertStatus(409);
+        $conflictJson = json_decode($conflict->getJSON(), true);
+        $this->assertSame('SPK generation conflict.', $conflictJson['message']);
+        $this->assertSame(true, $conflictJson['conflict']['regenerate_allowed']);
+
+        $regenerated = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+                'regenerate'   => true,
+            ]);
+        $regenerated->assertStatus(201);
+        $regeneratedJson = json_decode($regenerated->getJSON(), true);
+        $this->assertSame(2, $regeneratedJson['data']['version']);
+    }
+
     public function testGenerateOnMonthEndIncludesOnlyRequestedDate(): void
     {
         $token = $this->login('dapur');
@@ -116,6 +150,61 @@ class SpkBasahTest extends CIUnitTestCase
 
         $this->assertCount(1, $details);
         $this->assertSame('2026-03-31', $details[0]['target_date']);
+    }
+
+    public function testDeactivatedDishNoLongerContributesToSpkBasahGeneration(): void
+    {
+        $dapurToken = $this->login('dapur');
+        $adminToken = $this->login('admin');
+
+        $this->createDailyPatient($dapurToken, '2026-03-01', 100);
+
+        $baseline = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+            ]);
+
+        $baseline->assertStatus(201);
+
+        $baselineJson = json_decode($baseline->getJSON(), true);
+        $this->assertIsArray($baselineJson);
+        $this->assertSame(201, $baseline->response()->getStatusCode());
+        $this->assertSame(['2026-03-01', '2026-03-02'], $baselineJson['data']['target_dates']);
+        $this->assertSame(105, (int) $baselineJson['data']['estimated_patients']);
+
+        $db = Database::connect();
+        $beforeDetails = $db->table('spk_recommendations')
+            ->where('spk_id', (int) $baselineJson['data']['id'])
+            ->orderBy('target_date', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $this->assertCount(2, $beforeDetails);
+        $this->assertSame('1', (string) $beforeDetails[0]['item_id']);
+        $this->assertSame('210.00', number_format((float) $beforeDetails[0]['required_qty'], 2, '.', ''));
+
+        $deactivate = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
+            ->patch('api/v1/dishes/1/deactivate');
+
+        $deactivate->assertStatus(200);
+        $deactivate->assertJSONFragment(['message' => 'Dish deactivated successfully.']);
+
+        $regenerated = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-01',
+                'regenerate'   => true,
+            ]);
+
+        $regenerated->assertStatus(400);
+
+        $regeneratedJson = json_decode($regenerated->getJSON(), true);
+        $this->assertIsArray($regeneratedJson);
+        $this->assertSame('Validation failed.', $regeneratedJson['message']);
+        $this->assertArrayHasKey('errors', $regeneratedJson);
+        $this->assertArrayHasKey('menu_mapping', $regeneratedJson['errors']);
+        $this->assertStringContainsString('has no dish mapping', $regeneratedJson['errors']['menu_mapping']);
     }
 
     public function testGenerateFailsAtomicallyWhenDailyPatientMissingAndCreatesNoRows(): void

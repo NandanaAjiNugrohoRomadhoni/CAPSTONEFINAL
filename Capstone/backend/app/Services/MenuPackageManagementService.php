@@ -95,6 +95,8 @@ class MenuPackageManagementService
         $dish = $this->dishModel->findById($dishId);
         if ($dish === null) {
             $errors['dish_id'] = 'The selected dish is invalid.';
+        } elseif (! (bool) ($dish['is_active'] ?? false)) {
+            $errors['dish_id'] = 'The selected dish is inactive.';
         }
 
         if ($errors !== []) {
@@ -224,6 +226,8 @@ class MenuPackageManagementService
             $dish = $this->dishModel->findById($dishId);
             if ($dish === null) {
                 $errors['dish_id'] = 'The selected dish is invalid.';
+            } elseif (! (bool) ($dish['is_active'] ?? false)) {
+                $errors['dish_id'] = 'The selected dish is inactive.';
             }
         } else {
             $dishId = (int) $existing['dish_id'];

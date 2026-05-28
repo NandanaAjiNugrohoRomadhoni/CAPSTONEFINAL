@@ -61,7 +61,11 @@ class DefaultBaselineCoverageTest extends CIUnitTestCase
         $this->assertLookupNames('transaction_types', ['IN', 'OUT', 'RETURN_IN', 'OPNAME_ADJUSTMENT'], 'transaction_types table should contain the contract-critical transaction lookup baseline');
         $this->assertLookupNames('approval_statuses', ['APPROVED', 'PENDING', 'REJECTED'], 'approval_statuses table should contain the contract-critical approval lookup baseline');
         $this->assertLookupNames('meal_times', ['Pagi', 'Siang', 'Sore'], 'meal_times table should contain the deterministic baseline meal-time rows');
-        $this->assertLookupNames('item_units', ['gram', 'kg', 'ml', 'liter', 'butir', 'pack'], 'item_units table should contain the active baseline unit set');
+        $this->assertLookupNames(
+            'item_units',
+            ['gram', 'kg', 'ml', 'liter', 'butir', 'btr', 'pack', 'pcs', 'roll', 'bks', 'ssr', 'ons', 'ikt', 'sachet', 'dus', 'kotak', 'kaleng', 'bungkus', 'jurigen', 'botol', 'pace'],
+            'item_units table should contain the active baseline unit set'
+        );
     }
 
     public function testMenusAndMealTimesMatchDocumentedBaseline(): void

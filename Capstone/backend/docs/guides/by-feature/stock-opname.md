@@ -5,6 +5,7 @@ Manages the physical inventory audit and adjustment process.
 ## Endpoints
 
 - `POST /api/v1/stock-opnames`: Start a new opname (snapshot current stock).
+- `PUT /api/v1/stock-opnames/{id}`: Update an editable opname while it is still `DRAFT` or `REJECTED`.
 - `GET /api/v1/stock-opnames/{id}`: Show opname results and discrepancies.
 - `POST /api/v1/stock-opnames/{id}/submit`: Submit results for approval.
 - `POST /api/v1/stock-opnames/{id}/approve`: Admin approval of audit.
@@ -17,6 +18,7 @@ Manages the physical inventory audit and adjustment process.
 - **Discrepancy**: Calculated as `physical_qty - system_qty`.
 - **Posting**: Finalizing an opname generates a `CORRECTION` transaction to align system stock with the verified physical count.
 - **Permissions**: `gudang` performs the count; `admin` approves and posts the adjustments.
+- **Edit Guardrail**: Only `DRAFT` and `REJECTED` opnames can be updated. `SUBMITTED`, `APPROVED`, and `POSTED` are immutable.
 
 ## Related Documentation
 - [Stock Opname Workflow](../by-workflow/stock-opname-workflow.md)

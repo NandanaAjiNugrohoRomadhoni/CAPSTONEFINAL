@@ -143,16 +143,19 @@ export function ThemedSelect({
   onChange,
   className = "",
   placeholder = "Pilih opsi",
+  disabled = false,
 }: Readonly<{
   value: string;
   options: ThemedSelectOption[];
   onChange: (value: string) => void;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
 }>) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value);
 
   useEffect(() => {
@@ -161,6 +164,7 @@ export function ThemedSelect({
     const updatePosition = () => setRect(buttonRef.current?.getBoundingClientRect() ?? null);
     const closeOnOutside = (event: MouseEvent) => {
       if (buttonRef.current?.contains(event.target as Node)) return;
+      if (menuRef.current?.contains(event.target as Node)) return;
       setOpen(false);
     };
 
@@ -178,8 +182,9 @@ export function ThemedSelect({
 
   const menu =
     open && rect
-      ? createPortal(
+        ? createPortal(
           <div
+            ref={menuRef}
             className="z-[9999] max-h-64 overflow-auto rounded-xl border border-[#D7E0EE] bg-white p-2 text-base text-[#16213E] shadow-[0_18px_50px_rgba(15,23,42,0.18)]"
             style={{
               left: rect.left,
@@ -214,8 +219,12 @@ export function ThemedSelect({
     <>
       <button
         ref={buttonRef}
-        className={`flex h-12 items-center justify-between gap-3 rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none transition-all hover:bg-[#F8FAFC] ${open ? "border-[#2155CD] ring-2 ring-[#DBEAFE]" : ""} ${className}`}
-        onClick={() => setOpen((current) => !current)}
+        className={`flex h-12 items-center justify-between gap-3 rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none transition-all hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#94A3B8] ${open ? "border-[#2155CD] ring-2 ring-[#DBEAFE]" : ""} ${className}`}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
         type="button"
       >
         <span>{selected?.label ?? placeholder}</span>
@@ -266,8 +275,8 @@ export function MiniActionButton({
   type = "button",
 }: Readonly<{
   children: ReactNode;
-  tone?: "neutral" | "danger";
-  variant?: "neutral" | "danger";
+  tone?: "neutral" | "danger" | "success";
+  variant?: "neutral" | "danger" | "success";
   className?: string;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit" | "reset";
@@ -276,8 +285,13 @@ export function MiniActionButton({
     typeof children === "string" ? children.trim().toLowerCase() : "";
 
   const resolvedTone =
-    tone === "danger" || variant === "danger" || normalizedLabel === "hapus"
+    tone === "danger" ||
+    variant === "danger" ||
+    normalizedLabel === "hapus" ||
+    normalizedLabel === "nonaktifkan"
       ? "danger"
+      : tone === "success" || variant === "success" || normalizedLabel === "aktifkan"
+        ? "success"
       : normalizedLabel === "edit"
         ? "edit"
         : normalizedLabel === "detail"
@@ -286,9 +300,11 @@ export function MiniActionButton({
 
   const toneClass =
     resolvedTone === "danger"
-      ? "border border-[#FECACA] bg-[#FEE2E2] text-[#DC2626] shadow-[0_6px_18px_rgba(239,68,68,0.14)] hover:bg-[#FECACA] hover:shadow-[0_10px_24px_rgba(239,68,68,0.18)]"
-      : resolvedTone === "edit"
-        ? "border border-[#FDE68A] bg-[#FEF3C7] text-[#B45309] shadow-[0_6px_18px_rgba(245,158,11,0.14)] hover:bg-[#FDE68A] hover:shadow-[0_10px_24px_rgba(245,158,11,0.18)]"
+      ? "border border-[#FCA5A5] bg-[#FEE2E2] text-[#B91C1C] shadow-[0_6px_18px_rgba(220,38,38,0.18)] hover:bg-[#FECACA] hover:shadow-[0_10px_24px_rgba(220,38,38,0.24)]"
+      : resolvedTone === "success"
+        ? "border border-[#86EFAC] bg-[#DCFCE7] text-[#15803D] shadow-[0_6px_18px_rgba(34,197,94,0.18)] hover:bg-[#BBF7D0] hover:shadow-[0_10px_24px_rgba(34,197,94,0.24)]"
+        : resolvedTone === "edit"
+          ? "border border-[#FDE68A] bg-[#FEF3C7] text-[#B45309] shadow-[0_6px_18px_rgba(245,158,11,0.14)] hover:bg-[#FDE68A] hover:shadow-[0_10px_24px_rgba(245,158,11,0.18)]"
         : resolvedTone === "detail"
           ? "border border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4ED8] shadow-[0_6px_18px_rgba(37,99,235,0.14)] hover:bg-[#BFDBFE] hover:shadow-[0_10px_24px_rgba(37,99,235,0.18)]"
           : "border border-[#CFFAFE] bg-[#ECFEFF] text-[#0F766E] shadow-[0_6px_18px_rgba(20,184,166,0.14)] hover:bg-[#CFFAFE] hover:shadow-[0_10px_24px_rgba(20,184,166,0.18)]";

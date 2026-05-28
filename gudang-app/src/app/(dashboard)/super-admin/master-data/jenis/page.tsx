@@ -3,9 +3,16 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
+import {
+  FilterSearch,
+  MiniActionButton,
+  Pagination,
+  PrimaryAction,
+  SurfaceCard,
+} from "@/components/admin/ui";
 import sdk from "@/lib";
 import { listAllItems } from "@/lib/items";
 
@@ -55,6 +62,7 @@ export default function JenisBahanPage() {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<SuccessState>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadCategories() {
     setLoading(true);
@@ -83,6 +91,23 @@ export default function JenisBahanPage() {
 
     return items.filter((item) => item.name.toLowerCase().includes(keyword));
   }, [items, search]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [currentPage, filteredItems]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   function closeModal() {
     setModalMode(null);
@@ -232,82 +257,69 @@ export default function JenisBahanPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[22px] font-semibold text-gray-900">Data Jenis Bahan</h1>
-            <p className="mt-1 text-sm text-gray-400">
+            <h1 className="text-[22px] font-semibold text-[#16213E]">Data Jenis Bahan</h1>
+            <p className="mt-1 text-base text-[#94A3B8]">
               Untuk melihat dan mengelola data jenis bahan
             </p>
           </div>
 
-          <button
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition hover:bg-blue-700"
-            onClick={openAddModal}
-            type="button"
-          >
+          <PrimaryAction onClick={openAddModal}>
             Tambah Jenis Bahan
-          </button>
+          </PrimaryAction>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <SurfaceCard className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-[#F8FAFC] px-5 py-4">
-            <div className="flex h-10 w-64 items-center rounded-lg border border-gray-200 bg-white px-3">
-              <Search size={16} className="mr-2 text-gray-400" />
-              <input
+            <div className="w-full max-w-[340px]">
+              <FilterSearch
                 placeholder="Cari nama jenis"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder-gray-400"
+                onChange={setSearch}
+                readOnly={false}
               />
             </div>
 
-            <p className="text-xs text-gray-400">{filteredItems.length} jenis bahan</p>
+            <p className="text-sm text-[#94A3B8]">{filteredItems.length} jenis bahan</p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-left text-sm">
               <thead>
-                <tr className="bg-[#F1F5F9] text-[11px] uppercase tracking-wide text-gray-500">
+                <tr className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
                   <th className="px-6 py-3 text-left">Nama Jenis Bahan</th>
-                  <th className="px-6 text-right">Aksi</th>
+                  <th className="px-6 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
 
-              <tbody className="text-gray-700">
+              <tbody className="bg-white text-base text-[#334155]">
                 {loading ? (
                   <tr>
-                    <td className="px-6 py-10 text-center text-gray-500" colSpan={2}>
+                    <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={2}>
                       Memuat data jenis bahan...
                     </td>
                   </tr>
-                ) : filteredItems.length === 0 ? (
+                ) : paginatedItems.length === 0 ? (
                   <tr>
-                    <td className="px-6 py-10 text-center text-gray-500" colSpan={2}>
+                    <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={2}>
                       Tidak ada data jenis bahan.
                     </td>
                   </tr>
                 ) : (
-                  filteredItems.map((item) => (
+                  paginatedItems.map((item) => (
                     <tr
                       key={item.id}
-                      className="border-t border-gray-200 transition hover:bg-[#F9FAFB]"
+                      className="border-t border-[#E2E8F0] transition hover:bg-[#F8FAFC]"
                     >
-                      <td className="px-6 py-4 font-medium text-gray-900">{item.name}</td>
+                      <td className="px-6 py-4 font-semibold text-[#16213E]">{item.name}</td>
 
-                      <td className="px-6">
+                      <td className="px-6 py-4">
                         <div className="flex justify-end gap-2">
-                          <button
-                            className="rounded-lg bg-gray-100 px-3 py-[6px] text-xs text-gray-600 transition hover:bg-gray-200"
-                            onClick={() => openEditModal(item)}
-                            type="button"
-                          >
+                          <MiniActionButton onClick={() => openEditModal(item)}>
                             Edit
-                          </button>
-                          <button
-                            className="rounded-lg bg-red-50 px-3 py-[6px] text-xs text-red-600 transition hover:bg-red-100"
-                            onClick={() => openDeleteModal(item)}
-                            type="button"
-                          >
+                          </MiniActionButton>
+                          <MiniActionButton onClick={() => openDeleteModal(item)} tone="danger">
                             Hapus
-                          </button>
+                          </MiniActionButton>
                         </div>
                       </td>
                     </tr>
@@ -317,29 +329,22 @@ export default function JenisBahanPage() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between border-t bg-[#F8FAFC] px-6 py-3 text-xs text-gray-400">
-            <span>
-              {filteredItems.length === 0 ? "0" : `1-${filteredItems.length}`} dari{" "}
-              {filteredItems.length}
-            </span>
-
-            {pageError ? (
-              <span className="text-red-600">{pageError}</span>
-            ) : (
-              <div className="flex gap-2">
-                <button className="rounded-lg bg-gray-100 px-2 py-1 text-gray-600" type="button">
-                  {"<"}
-                </button>
-                <button className="rounded-lg bg-blue-600 px-3 py-1 text-white" type="button">
-                  1
-                </button>
-                <button className="rounded-lg bg-gray-100 px-2 py-1 text-gray-600" type="button">
-                  {">"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalLabel={
+              filteredItems.length > 0
+                ? `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, filteredItems.length)} dari ${filteredItems.length} item`
+                : "0 dari 0 item"
+            }
+          />
+          {pageError ? (
+            <div className="border-t border-[#E2E8F0] bg-[#FFF7ED] px-6 py-3 text-sm text-red-600">
+              {pageError}
+            </div>
+          ) : null}
+        </SurfaceCard>
       </div>
 
       {modalMode && (

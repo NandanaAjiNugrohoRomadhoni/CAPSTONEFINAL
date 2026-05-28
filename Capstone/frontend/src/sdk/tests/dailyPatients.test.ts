@@ -70,6 +70,25 @@ describe("DailyPatientsResource", () => {
             headers: { "content-type": "application/json" }
           }
         )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Daily patient updated successfully.",
+            data: {
+              id: 2,
+              service_date: "2026-03-03",
+              total_patients: 135,
+              notes: "Adjusted census",
+              created_at: "2026-03-02 06:00:00",
+              updated_at: "2026-03-02 07:00:00"
+            }
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        )
       );
 
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
@@ -80,10 +99,16 @@ describe("DailyPatientsResource", () => {
       service_date: "2026-03-02",
       total_patients: 130
     });
+    await sdk.dailyPatients.update(2, {
+      service_date: "2026-03-03",
+      total_patients: 135,
+      notes: "Adjusted census"
+    });
 
     const [listUrl, listInit] = fetchMock.mock.calls[0] ?? [];
     const [getUrl, getInit] = fetchMock.mock.calls[1] ?? [];
     const [createUrl, createInit] = fetchMock.mock.calls[2] ?? [];
+    const [updateUrl, updateInit] = fetchMock.mock.calls[3] ?? [];
 
     expect(listUrl).toBe("http://127.0.0.1:8080/api/v1/daily-patients");
     expect(listInit?.method).toBe("GET");
@@ -95,6 +120,15 @@ describe("DailyPatientsResource", () => {
       JSON.stringify({
         service_date: "2026-03-02",
         total_patients: 130
+      })
+    );
+    expect(updateUrl).toBe("http://127.0.0.1:8080/api/v1/daily-patients/2");
+    expect(updateInit?.method).toBe("PUT");
+    expect(updateInit?.body).toBe(
+      JSON.stringify({
+        service_date: "2026-03-03",
+        total_patients: 135,
+        notes: "Adjusted census"
       })
     );
   });

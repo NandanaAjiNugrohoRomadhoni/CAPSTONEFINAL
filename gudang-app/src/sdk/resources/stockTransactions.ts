@@ -124,11 +124,11 @@ export class StockTransactionsResource {
   }
 
   /**
-   * Submits a revision for an existing transaction.
+   * Submits or replaces the pending revision for an existing transaction.
    *
    * @endpoint POST /api/v1/stock-transactions/{id}/submit-revision
    * @access   admin | gudang
-   * @param payload - Same detail contract as create. Revisions always create a child transaction with `is_revision=true` and `PENDING` status.
+   * @param payload - Same detail contract as create. The backend creates a pending child revision on first submit, then reuses/replaces that same pending revision when the parent is submitted again before admin review.
    * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
    * @throws {ValidationApiError} if validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)

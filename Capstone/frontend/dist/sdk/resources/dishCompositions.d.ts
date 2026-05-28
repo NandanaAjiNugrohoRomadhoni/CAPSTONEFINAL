@@ -12,7 +12,7 @@ import type { ApiDataResponse, ApiMessageDataResponse, ApiMessageResponse, Creat
 export declare class DishCompositionsResource {
     private readonly client;
     constructor(client: ApiClient);
-    /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
+    /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `paginate`, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. `paginate=false` keeps the same envelope and sets `meta.paginated=false`. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
     list(query?: ListDishCompositionsQuery): Promise<DishCompositionsListResponse>;
     /** @endpoint GET /api/v1/dish-compositions/{id} @access admin | gudang | dapur @returns {Promise<ApiDataResponse<DishComposition>>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the row does not exist (404) @sideeffect None */
     get(id: number): Promise<ApiDataResponse<DishComposition>>;

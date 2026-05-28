@@ -290,7 +290,7 @@ var ApprovalStatusesResource = class {
    * Lists approval statuses with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/approval-statuses
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    *
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<ApprovalStatus>>}
@@ -375,12 +375,31 @@ var DailyPatientsResource = class {
    * @throws {ValidationApiError} if validation fails or the service date already exists (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
-   * @sideeffect Creates a new immutable audit row; no update/delete endpoint exists.
+   * @sideeffect Creates a new daily patient row used by SPK generation.
    */
   create(payload) {
     return this.client.request({
       method: "POST",
       path: "/daily-patients",
+      body: payload
+    });
+  }
+  /**
+   * Updates a daily patient row by id.
+   *
+   * @endpoint PUT /api/v1/daily-patients/{id}
+   * @access   admin | dapur
+   * @returns {Promise<DailyPatientUpdateResponse>}
+   * @throws {ValidationApiError} if validation fails or the service date collides with another row (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @throws {NotFoundApiError} if the row does not exist (404)
+   * @sideeffect Updates the existing daily patient input row without changing the list/detail envelope shapes.
+   */
+  update(id, payload) {
+    return this.client.request({
+      method: "PUT",
+      path: `/daily-patients/${id}`,
       body: payload
     });
   }
@@ -392,7 +411,7 @@ var DishesResource = class {
     this.client = client;
   }
   client;
-  /** @endpoint GET /api/v1/dishes @access admin | gudang | dapur @param query - Supports standard list pagination, search, sorting, and created/updated date ranges. @returns {Promise<DishesListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
+  /** @endpoint GET /api/v1/dishes @access admin | gudang | dapur @param query - Supports standard list pagination, `paginate`, `is_active`, search, sorting, and created/updated date ranges. `paginate=false` keeps the same envelope and sets `meta.paginated=false`. @returns {Promise<DishesListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
   list(query) {
     return this.client.request({
       method: "GET",
@@ -423,7 +442,21 @@ var DishesResource = class {
       body: payload
     });
   }
-  /** @endpoint DELETE /api/v1/dishes/{id} @access admin | dapur @returns {Promise<ApiMessageResponse>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Permanently deletes the dish row. */
+  /** @endpoint PATCH /api/v1/dishes/{id}/deactivate @access admin | dapur @returns {Promise<ApiMessageDataResponse<Dish>>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Sets `is_active=false`, preserves dish compositions, and removes linked menu slot assignments. */
+  deactivate(id) {
+    return this.client.request({
+      method: "PATCH",
+      path: `/dishes/${id}/deactivate`
+    });
+  }
+  /** @endpoint PATCH /api/v1/dishes/{id}/reactivate @access admin | dapur @returns {Promise<ApiMessageDataResponse<Dish>>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Sets `is_active=true` and makes the dish assignable again without restoring prior menu slot assignments. */
+  reactivate(id) {
+    return this.client.request({
+      method: "PATCH",
+      path: `/dishes/${id}/reactivate`
+    });
+  }
+  /** @endpoint DELETE /api/v1/dishes/{id} @access admin | dapur @returns {Promise<ApiMessageResponse>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Permanently deletes the dish row only after it is inactive and detached from menu slots; dish compositions are removed by DB cascade. */
   delete(id) {
     return this.client.request({
       method: "DELETE",
@@ -433,8 +466,10 @@ var DishesResource = class {
 };
 function buildDishesQuery(query) {
   const result = {};
+  if (query.paginate !== void 0) result.paginate = query.paginate;
   if (query.page !== void 0) result.page = query.page;
   if (query.perPage !== void 0) result.perPage = query.perPage;
+  if (query.is_active !== void 0) result.is_active = query.is_active;
   if (query.q !== void 0) result.q = query.q;
   if (query.search !== void 0) result.search = query.search;
   if (query.sortBy !== void 0) result.sortBy = query.sortBy;
@@ -452,7 +487,7 @@ var DishCompositionsResource = class {
     this.client = client;
   }
   client;
-  /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
+  /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `paginate`, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. `paginate=false` keeps the same envelope and sets `meta.paginated=false`. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
   list(query) {
     return this.client.request({
       method: "GET",
@@ -493,6 +528,7 @@ var DishCompositionsResource = class {
 };
 function buildDishCompositionsQuery(query) {
   const result = {};
+  if (query.paginate !== void 0) result.paginate = query.paginate;
   if (query.page !== void 0) result.page = query.page;
   if (query.perPage !== void 0) result.perPage = query.perPage;
   if (query.dish_id !== void 0) result.dish_id = query.dish_id;
@@ -518,7 +554,7 @@ var ItemCategoriesResource = class {
    * Lists item categories with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/item-categories
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<ItemCategory>>}
    * @throws {ValidationApiError} if query validation fails (400)
@@ -537,7 +573,7 @@ var ItemCategoriesResource = class {
    * Returns one active item category.
    *
    * @endpoint GET /api/v1/item-categories/{id}
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @returns {Promise<ApiDataResponse<ItemCategory>>}
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
@@ -651,7 +687,7 @@ var ItemsResource = class {
    * Lists active items with pagination, filtering, and search.
    *
    * @endpoint GET /api/v1/items
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @param query - Supports `page`, `perPage`, `item_category_id`, `is_active`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted items are excluded.
    * @returns {Promise<ApiListResponse<Item>>}
    * @throws {ValidationApiError} if query validation fails (400)
@@ -670,7 +706,7 @@ var ItemsResource = class {
    * Returns one active item.
    *
    * @endpoint GET /api/v1/items/{id}
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @returns {Promise<ApiDataResponse<Item>>}
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
@@ -809,7 +845,7 @@ var ItemUnitsResource = class {
    * Lists item units with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/item-units
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<ItemUnit>>}
    * @throws {ValidationApiError} if query validation fails (400)
@@ -828,7 +864,7 @@ var ItemUnitsResource = class {
    * Returns one active item unit.
    *
    * @endpoint GET /api/v1/item-units/{id}
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @returns {Promise<ApiDataResponse<ItemUnit>>}
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
@@ -943,7 +979,7 @@ var MealTimesResource = class {
    * Lists meal times with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/meal-times
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    *
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<MealTime>>}
@@ -1021,9 +1057,9 @@ var MenusResource = class {
    *
    * @endpoint POST /api/v1/menu-dishes
    * @access   admin | dapur
-   * @param payload - Writable fields: `menu_id`, `meal_time_id`, `dish_id`. Occupied slots are rejected; this is not an upsert endpoint.
+    * @param payload - Writable fields: `menu_id`, `meal_time_id`, `dish_id`. Occupied slots are rejected, inactive dishes are rejected with `The selected dish is inactive.`, and this is not an upsert endpoint.
    * @returns {Promise<ApiMessageDataResponse<MenuSlot>>}
-   * @throws {ValidationApiError} if validation fails or the slot is already occupied (400)
+    * @throws {ValidationApiError} if validation fails, the selected dish is inactive, or the slot is already occupied (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect Creates a menu slot assignment.
@@ -1041,11 +1077,11 @@ var MenusResource = class {
    * @endpoint PUT /api/v1/menu-dishes/{id}
    * @access   admin | dapur
    * @returns {Promise<ApiMessageDataResponse<MenuSlot>>}
-   * @throws {ValidationApiError} if validation fails or the target slot conflicts (400)
+    * @throws {ValidationApiError} if validation fails, the selected dish is inactive, or the target slot conflicts (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @throws {NotFoundApiError} if the slot assignment does not exist (404)
-   * @sideeffect Replaces slot assignment metadata.
+    * @sideeffect Replaces slot assignment metadata when the replacement dish is still active.
    */
   updateSlot(id, payload) {
     return this.client.request({
@@ -1692,7 +1728,7 @@ var StockTransactionsResource = class {
    *
    * @endpoint POST /api/v1/stock-transactions/{id}/submit-revision
    * @access   admin | gudang
-   * @param payload - Same detail contract as create. Revisions always create a child transaction with `is_revision=true` and `PENDING` status.
+   * @param payload - Same detail contract as create. The backend creates a pending child revision on first submit, then reuses and replaces that same pending child payload if the parent is resubmitted before admin review.
    * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
    * @throws {ValidationApiError} if validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -1779,7 +1815,7 @@ var TransactionTypesResource = class {
    * Lists transaction types with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/transaction-types
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    *
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<TransactionType>>}
@@ -2149,6 +2185,25 @@ var StockOpnamesResource = class {
     return this.client.request({
       method: "GET",
       path: `/stock-opnames/${id}`
+    });
+  }
+  /**
+   * Updates an editable stock opname.
+   *
+   * @endpoint PUT /api/v1/stock-opnames/{id}
+   * @access   admin | gudang
+   * @returns {Promise<StockOpnameActionResponse>}
+   * @throws {ValidationApiError} if the payload is invalid or the workflow state is immutable (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @throws {NotFoundApiError} if the opname does not exist (404)
+   * @sideeffect Replaces the draft/rejected detail set in full; does not post stock.
+   */
+  async update(id, request) {
+    return this.client.request({
+      method: "PUT",
+      path: `/stock-opnames/${id}`,
+      body: request
     });
   }
   /**

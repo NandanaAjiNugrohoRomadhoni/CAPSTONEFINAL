@@ -37,6 +37,19 @@ export declare class StockOpnamesResource {
      */
     get(id: number): Promise<StockOpnameResponse>;
     /**
+     * Updates an editable stock opname.
+     *
+     * @endpoint PUT /api/v1/stock-opnames/{id}
+     * @access   admin | gudang
+     * @returns {Promise<StockOpnameActionResponse>}
+     * @throws {ValidationApiError} if the payload is invalid or the workflow state is immutable (400)
+     * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+     * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+     * @throws {NotFoundApiError} if the opname does not exist (404)
+     * @sideeffect Replaces the draft/rejected detail set in full; does not post stock.
+     */
+    update(id: number, request: CreateStockOpnameRequest): Promise<StockOpnameActionResponse>;
+    /**
      * Submits a stock opname draft for approval.
      *
      * @endpoint POST /api/v1/stock-opnames/{id}/submit

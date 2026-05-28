@@ -29,6 +29,7 @@ type FoodMenu = {
   description: string;
   compositionSummary: string;
   ingredients: IngredientRow[];
+  isActive: boolean;
 };
 
 type ModalMode = "create" | "detail" | "edit" | "delete" | null;
@@ -59,6 +60,14 @@ const ALL_STOCK_REPORT_PERIOD = {
   period_start: "2000-01-01",
   period_end: "2099-12-31",
 };
+
+function sortMenusByStatusAndName(menus: FoodMenu[]) {
+  return [...menus].sort((left, right) => {
+    const activeDiff = Number(right.isActive) - Number(left.isActive);
+    if (activeDiff !== 0) return activeDiff;
+    return left.name.localeCompare(right.name, "id-ID", { sensitivity: "base" });
+  });
+}
 
 const MENU_DESCRIPTION_STORAGE_KEY = "menu-manual-descriptions";
 
@@ -321,6 +330,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
       const descriptionMap = readMenuDescriptions();
       const nextMenus = (dishesResponse.data ?? []).map((dish) => {
         const dishId = Number(dish.id);
+        const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
 
         return {
           id: dishId,
@@ -328,11 +338,12 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
           description: descriptionMap[String(dishId)] ?? "",
           compositionSummary: "Klik detail untuk melihat komposisi bahan.",
           ingredients: [],
+          isActive,
         };
       });
 
       setItems(availableItems);
-      setMenus(nextMenus);
+      setMenus(sortMenusByStatusAndName(nextMenus));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat menu makanan."));
     } finally {
@@ -357,8 +368,8 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
   const filteredMenus = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return menus;
-    return menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    const filtered = !query ? menus : menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    return sortMenusByStatusAndName(filtered);
   }, [menus, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMenus.length / 8));
@@ -486,6 +497,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
             description: menuDescription.trim(),
             compositionSummary: buildCompositionSummary(validRows, itemMap),
             ingredients: validRows,
+            isActive: true,
           },
         ]);
         const createdDish = await sdk.dishes.create({ name: menuName.trim() });
@@ -510,16 +522,18 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
       if (modalMode === "edit" && selectedMenu) {
         setMenus((current) =>
-          current.map((menu) =>
-            menu.id === selectedMenu.id
-              ? {
-                ...menu,
-                name: menuName.trim(),
-                description: menuDescription.trim(),
-                compositionSummary: buildCompositionSummary(validRows, itemMap),
-                ingredients: validRows,
-              }
-              : menu,
+          sortMenusByStatusAndName(
+            current.map((menu) =>
+              menu.id === selectedMenu.id
+                ? {
+                    ...menu,
+                    name: menuName.trim(),
+                    description: menuDescription.trim(),
+                    compositionSummary: buildCompositionSummary(validRows, itemMap),
+                    ingredients: validRows,
+                  }
+                : menu,
+            ),
           ),
         );
         await sdk.dishes.update(selectedMenu.id, { name: menuName.trim() });
@@ -565,60 +579,42 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     }
   }
 
-  async function deleteMenu() {
+  async function toggleMenuActive() {
     if (!selectedMenu) return;
 
     setSaving(true);
     setError(null);
     const previousMenus = menus;
-    setMenus((current) => current.filter((menu) => menu.id !== selectedMenu.id));
     try {
-      const slotsResponse = await sdk.menus.slots();
-      const linkedPackages = Array.from(
-        new Set(
-          (slotsResponse.data ?? [])
-            .filter((slot) => Number(slot.dish_id) === Number(selectedMenu.id))
-            .map((slot) => slot.menu?.name)
-            .filter((name): name is string => Boolean(name)),
+      const nextIsActive = !selectedMenu.isActive;
+      await sdk.dishes.update(selectedMenu.id, {
+        is_active: nextIsActive,
+      } as never);
+
+      const updatedMenus = sortMenusByStatusAndName(
+        previousMenus.map((menu) =>
+          menu.id === selectedMenu.id
+            ? {
+                ...menu,
+                isActive: nextIsActive,
+              }
+            : menu,
         ),
       );
-
-      if (linkedPackages.length > 0) {
-        setMenus(previousMenus);
-        setSuccessState({
-          title: "Informasi",
-          headline: "Menu Tidak Bisa Dihapus",
-          message: `Menu tidak bisa dihapus karena masih bagian dari paket menu ${linkedPackages.join(", ")}.`,
-        });
-        closeModal();
-        return;
-      }
-
-      for (const ingredient of selectedMenu.ingredients) {
-        if (ingredient.compositionId) {
-          await sdk.dishCompositions.delete(ingredient.compositionId);
-        }
-      }
-
-      await sdk.client.request({
-        method: "DELETE",
-        path: `/dishes/${selectedMenu.id}`,
-      });
-      removeMenuDescription(selectedMenu.id);
-
+      setMenus(updatedMenus);
       setSuccessState({
-        headline: "Menu Makanan Berhasil Dihapus",
+        headline: nextIsActive ? "Menu Makanan Berhasil Diaktifkan" : "Menu Makanan Berhasil Dinonaktifkan",
         message:
-          mode === "admin"
-            ? `Menu ${selectedMenu.name} dihapus dari sistem.`
-            : `Menu ${selectedMenu.name} telah dipindahkan ke arsip.`,
+          nextIsActive
+            ? `Menu ${selectedMenu.name} kembali aktif di daftar menu.`
+            : `Menu ${selectedMenu.name} telah dinonaktifkan dari daftar menu.`,
       });
       await loadMenus();
       router.refresh();
       closeModal();
-    } catch (deleteError) {
+    } catch (toggleError) {
       setMenus(previousMenus);
-      setError(getErrorMessage(deleteError, "Gagal menghapus menu makanan."));
+      setError(getErrorMessage(toggleError, "Gagal memperbarui status menu makanan."));
     } finally {
       setSaving(false);
     }
@@ -684,9 +680,18 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
                         </div>
                       </div>
 
-                      <div className="space-y-2">
+                    <div className="space-y-2">
                         <span className="inline-flex rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
                           Menu
+                        </span>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                            menu.isActive
+                              ? "bg-[#ECFDF3] text-[#16A34A]"
+                              : "bg-[#F1F5F9] text-[#64748B]"
+                          }`}
+                        >
+                          {menu.isActive ? "Aktif" : "Nonaktif"}
                         </span>
                         <h3 className="line-clamp-2 text-xl font-semibold leading-tight text-[#16213E]">
                           {menu.name}
@@ -715,13 +720,12 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
                         Edit
                       </MiniActionButton>
                       <MiniActionButton
-                        variant="danger"
                         onClick={(event) => {
                           event.stopPropagation();
                           openDeleteModal(menu);
                         }}
                       >
-                        Hapus
+                        {menu.isActive ? "Nonaktifkan" : "Aktifkan"}
                       </MiniActionButton>
                     </div>
                   </article>
@@ -962,10 +966,14 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
       <DeleteConfirmModal
         open={modalMode === "delete"}
-        title="Hapus Menu Makanan"
-        message={`Apakah Anda yakin ingin menghapus menu ${selectedMenu?.name}? Tindakan ini tidak dapat dibatalkan.`}
+        title={selectedMenu?.isActive ? "Nonaktifkan Menu Makanan" : "Aktifkan Menu Makanan"}
+        message={
+          selectedMenu?.isActive
+            ? `Apakah Anda yakin ingin menonaktifkan menu ${selectedMenu?.name}? Menu ini akan tetap ada di sistem dan bisa diaktifkan kembali.`
+            : `Apakah Anda yakin ingin mengaktifkan kembali menu ${selectedMenu?.name}?`
+        }
         onClose={closeModal}
-        onConfirm={deleteMenu}
+        onConfirm={toggleMenuActive}
         loading={saving}
       />
 
