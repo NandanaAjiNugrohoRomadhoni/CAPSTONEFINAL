@@ -270,6 +270,7 @@ class DocsTest extends CIUnitTestCase
         $this->assertArrayHasKey('/api/v1/dashboard', $json['paths']);
         $this->assertArrayHasKey('/api/v1/stock-transactions', $json['paths']);
         $this->assertArrayHasKey('/api/v1/spk/basah/history', $json['paths']);
+        $this->assertArrayHasKey('/api/v1/reports/monthly-stock-export', $json['paths']);
 
         $this->assertArrayHasKey('schemas', $json['components']);
         $this->assertArrayHasKey('TransactionTypeCollectionResponse', $json['components']['schemas']);
@@ -291,6 +292,10 @@ class DocsTest extends CIUnitTestCase
         $this->assertArrayHasKey('MenuCoreCollectionMeta', $json['components']['schemas']);
         $this->assertArrayHasKey('properties', $json['components']['schemas']['MenuCoreCollectionMeta']);
         $this->assertArrayHasKey('paginated', $json['components']['schemas']['MenuCoreCollectionMeta']['properties']);
+        $this->assertArrayHasKey('MonthlyStockExportResponse', $json['components']['schemas']);
+        $this->assertArrayHasKey('MonthlyStockExportData', $json['components']['schemas']);
+        $this->assertArrayHasKey('MonthlyStockExportRow', $json['components']['schemas']);
+        $this->assertArrayHasKey('MonthlyStockExportDayEntry', $json['components']['schemas']);
     }
 
     private function assertSpecExamplesAreSanitized(string $body): void

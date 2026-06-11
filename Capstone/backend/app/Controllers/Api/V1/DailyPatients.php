@@ -112,13 +112,13 @@ class DailyPatients extends BaseController
      *     operationId="createDailyPatient",
      *     tags={"Daily Patients"},
      *     summary="Create daily patient row",
-     *     description="Creates a daily patient row for one service_date. Accessible to admin and dapur users. service_date must be unique and valid in Y-m-d format; duplicates return HTTP 400 validation errors.",
+     *     description="Creates a daily patient row for one service_date. Accessible to admin and gudang users. service_date must be unique and valid in Y-m-d format; duplicates return HTTP 400 validation errors.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/DailyPatientCreateRequest")),
      *     @OA\Response(response=201, description="Daily patient created successfully.", @OA\JsonContent(ref="#/components/schemas/DailyPatientMutationResponse")),
      *     @OA\Response(response=400, description="Validation failed for missing fields, invalid service_date format, invalid calendar dates, duplicate service_date values, or invalid notes data.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
-     *     @OA\Response(response=403, description="Authenticated user lacks one of the admin or dapur roles required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=403, description="Authenticated user lacks one of the admin or gudang roles required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=422, description="Persistence failed while creating the daily patient row.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse"))
      * )
      */
@@ -150,14 +150,14 @@ class DailyPatients extends BaseController
      *     operationId="updateDailyPatient",
      *     tags={"Daily Patients"},
      *     summary="Update daily patient row",
-     *     description="Updates an existing daily patient row by identifier. Accessible to admin and dapur users. Runtime prevents duplicate service_date values and keeps the row addressed by numeric id for mutation while read-by-date remains available through GET /daily-patients/{service_date}.",
+     *     description="Updates an existing daily patient row by identifier. Accessible to admin and gudang users. Runtime prevents duplicate service_date values and keeps the row addressed by numeric id for mutation while read-by-date remains available through GET /daily-patients/{service_date}.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, description="Daily patient identifier.", @OA\Schema(type="integer", minimum=1, example=3)),
      *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/DailyPatientUpdateRequest")),
      *     @OA\Response(response=200, description="Daily patient updated successfully.", @OA\JsonContent(ref="#/components/schemas/DailyPatientMutationResponse")),
      *     @OA\Response(response=400, description="Validation failed for invalid dates, invalid patient counts, or duplicate service_date values.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
-     *     @OA\Response(response=403, description="Authenticated user lacks one of the admin or dapur roles required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+     *     @OA\Response(response=403, description="Authenticated user lacks one of the admin or gudang roles required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=404, description="Daily patient not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=422, description="Persistence failed while updating the daily patient row.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse"))
      * )

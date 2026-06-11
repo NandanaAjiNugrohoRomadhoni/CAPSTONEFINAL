@@ -227,6 +227,14 @@ class ReportingService
         return preg_match('/^Stock opname(?: #\d+)? posting for item #\d+$/', $trimmed) === 1;
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function isLegacyOpnameCompatibilityPlaceholder(array $row): bool
+    {
+        return trim((string) ($row['reason'] ?? '')) === 'Legacy opname posting line';
+    }
+
     public function getSpkHistoryReport(array $query): array
     {
         $validated = $this->validateReportQuery($query, ['spk_type', 'category_id']);
@@ -419,6 +427,176 @@ class ReportingService
         ];
     }
 
+    public function getMonthlyStockExport(array $query): array
+    {
+        $validated = $this->validateReportQuery($query, ['category_id', 'item_id']);
+        if (! $validated['success']) {
+            return $validated;
+        }
+
+        $approvedStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        if ($approvedStatusId === null) {
+            return [
+                'success' => false,
+                'status' => 400,
+                'message' => 'Validation failed.',
+                'errors' => [
+                    'lookup' => 'Required lookup data for monthly stock export is not configured.',
+                ],
+            ];
+        }
+
+        $itemBuilder = $this->db
+            ->table('items i')
+            ->select('i.id, i.name, i.item_category_id, ic.name AS category_name, i.unit_base')
+            ->join('item_categories ic', 'ic.id = i.item_category_id', 'inner')
+            ->where('i.deleted_at', null)
+            ->where('ic.deleted_at', null);
+
+        if (isset($validated['filters']['category_id'])) {
+            $itemBuilder->where('i.item_category_id', (int) $validated['filters']['category_id']);
+        }
+
+        if (isset($validated['filters']['item_id'])) {
+            $itemBuilder->where('i.id', (int) $validated['filters']['item_id']);
+        }
+
+        $itemRows = $itemBuilder
+            ->orderBy('i.id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $movementBuilder = $this->db
+            ->table('stock_transactions st')
+            ->select('st.transaction_date, st.approval_status_id, st.user_id, st.reason, std.item_id, std.qty, tt.name AS type_name')
+            ->join('stock_transaction_details std', 'std.transaction_id = st.id', 'inner')
+            ->join('transaction_types tt', 'tt.id = st.type_id', 'inner')
+            ->join('items i', 'i.id = std.item_id', 'inner')
+            ->join('item_categories ic', 'ic.id = i.item_category_id', 'inner')
+            ->where('st.deleted_at', null)
+            ->where('i.deleted_at', null)
+            ->where('ic.deleted_at', null)
+            ->where('st.approval_status_id', $approvedStatusId)
+            ->where('st.transaction_date >=', $validated['period_start'])
+            ->where('st.transaction_date <=', $validated['period_end']);
+
+        if (isset($validated['filters']['category_id'])) {
+            $movementBuilder->where('i.item_category_id', (int) $validated['filters']['category_id']);
+        }
+
+        if (isset($validated['filters']['item_id'])) {
+            $movementBuilder->where('i.id', (int) $validated['filters']['item_id']);
+        }
+
+        $movementRows = $movementBuilder
+            ->orderBy('std.item_id', 'ASC')
+            ->orderBy('st.transaction_date', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $movementRows = $this->applyTransactionCompatibilityAggregationRules($movementRows);
+        $movementRows = array_values(array_filter(
+            $movementRows,
+            fn(array $row): bool => ! $this->isLegacyOpnameCompatibilityPlaceholder($row)
+        ));
+
+        $movementMap = [];
+        foreach ($movementRows as $row) {
+            $typeName = (string) ($row['type_name'] ?? '');
+            if (! in_array($typeName, [TransactionTypeModel::NAME_IN, TransactionTypeModel::NAME_RETURN_IN, TransactionTypeModel::NAME_OUT], true)) {
+                continue;
+            }
+
+            $itemId = (int) $row['item_id'];
+            $date = (string) $row['transaction_date'];
+            $movementMap[$itemId] ??= [];
+            $movementMap[$itemId][$date] ??= [
+                'tanggal' => (int) substr($date, 8, 2),
+                'masuk' => 0.0,
+                'keluar' => 0.0,
+            ];
+
+            if (in_array($typeName, [TransactionTypeModel::NAME_IN, TransactionTypeModel::NAME_RETURN_IN], true)) {
+                $movementMap[$itemId][$date]['masuk'] += (float) $row['qty'];
+            }
+
+            if ($typeName === TransactionTypeModel::NAME_OUT) {
+                $movementMap[$itemId][$date]['keluar'] += (float) $row['qty'];
+            }
+        }
+
+        $snapshotMap = [];
+        if ($itemRows !== []) {
+            $itemIds = array_map(static fn(array $row): int => (int) $row['id'], $itemRows);
+            $snapshotRows = $this->db
+                ->table('monthly_stock_snapshots')
+                ->select('item_id, opening_qty')
+                ->where('period_month', substr($validated['period_start'], 0, 7) . '-01')
+                ->whereIn('item_id', $itemIds)
+                ->get()
+                ->getResultArray();
+
+            foreach ($snapshotRows as $snapshotRow) {
+                $snapshotMap[(int) $snapshotRow['item_id']] = (float) $snapshotRow['opening_qty'];
+            }
+        }
+
+        $rows = [];
+        foreach ($itemRows as $index => $itemRow) {
+            $itemId = (int) $itemRow['id'];
+            $stokAwal = $snapshotMap[$itemId] ?? null;
+            $runningSisa = $stokAwal;
+            $harian = [];
+
+            $dailyMovements = $movementMap[$itemId] ?? [];
+            ksort($dailyMovements);
+
+            foreach ($dailyMovements as $dailyMovement) {
+                $masuk = round((float) $dailyMovement['masuk'], 2);
+                $keluar = round((float) $dailyMovement['keluar'], 2);
+                if ($runningSisa !== null) {
+                    $runningSisa = round($runningSisa + $masuk - $keluar, 2);
+                }
+
+                $harian[] = [
+                    'tanggal' => (int) $dailyMovement['tanggal'],
+                    'masuk' => $masuk,
+                    'keluar' => $keluar,
+                    'sisa' => $runningSisa,
+                ];
+            }
+
+            $rows[] = [
+                'no' => $index + 1,
+                'item_id' => $itemId,
+                'nama_bahan_makanan' => $itemRow['name'],
+                'category_id' => (int) $itemRow['item_category_id'],
+                'category_name' => $itemRow['category_name'],
+                'satuan' => $itemRow['unit_base'],
+                'stok_awal' => $stokAwal,
+                'harian' => $harian,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                'report_type' => 'monthly-stock-export',
+                'period' => [
+                    'start' => $validated['period_start'],
+                    'end' => $validated['period_end'],
+                ],
+                'filters' => $validated['filters'],
+                'summary' => [
+                    'total_items' => count($rows),
+                    'total_days' => $this->countPeriodDays($validated['period_start'], $validated['period_end']),
+                ],
+                'periode' => $this->buildPeriodeLabel($validated['period_start'], $validated['period_end']),
+                'rows' => $rows,
+            ],
+        ];
+    }
+
     /**
      * @param array<int, string> $allowedFilterKeys
      */
@@ -547,5 +725,18 @@ class ReportingService
         }
 
         return $parsed->format('Y-m-d') === $value;
+    }
+
+    private function countPeriodDays(string $periodStart, string $periodEnd): int
+    {
+        $start = new DateTimeImmutable($periodStart);
+        $end = new DateTimeImmutable($periodEnd);
+
+        return (int) $start->diff($end)->days + 1;
+    }
+
+    private function buildPeriodeLabel(string $periodStart, string $periodEnd): string
+    {
+        return sprintf('%d-%d', (int) substr($periodStart, 8, 2), (int) substr($periodEnd, 8, 2));
     }
 }

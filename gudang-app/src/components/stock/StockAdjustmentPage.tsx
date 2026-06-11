@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import { formatDate, formatNumber, getCurrentMonthPeriod, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import DateRangePicker from "@/components/filters/DateRangePicker";
 import { listAllItems } from "@/lib/items";
 import { useAuthStore } from "@/store/authStore";
 import {
@@ -420,8 +421,7 @@ export default function StockAdjustmentPage({
   const [error, setError] = useState<string | null>(null);
   const [successConfig, setSuccessConfig] = useState<{ headline: string; message: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFromFilter, setDateFromFilter] = useState("");
-  const [dateToFilter, setDateToFilter] = useState("");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [categoryFilter, setCategoryFilter] = useState("Semua Jenis");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
   const [currentPage, setCurrentPage] = useState(1);
@@ -750,8 +750,8 @@ export default function StockAdjustmentPage({
         row.createdByLabel.toLowerCase().includes(normalizedSearch) ||
         row.categoryName.toLowerCase().includes(normalizedSearch) ||
         `PS-${String(row.headerId).padStart(4, "0")}`.toLowerCase().includes(normalizedSearch);
-      const matchesDateFrom = !dateFromFilter || row.opnameDate >= dateFromFilter;
-      const matchesDateTo = !dateToFilter || row.opnameDate <= dateToFilter;
+      const matchesDateFrom = !dateRange.startDate || row.opnameDate >= dateRange.startDate;
+      const matchesDateTo = !dateRange.endDate || row.opnameDate <= dateRange.endDate;
       const matchesCategory =
         normalizedCategoryFilter === normalizeFilterValue("Semua Jenis") ||
         normalizeFilterValue(row.categoryName) === normalizedCategoryFilter;
@@ -761,7 +761,7 @@ export default function StockAdjustmentPage({
 
       return matchesSearch && matchesDateFrom && matchesDateTo && matchesCategory && matchesStatus;
     });
-  }, [categoryFilter, dateFromFilter, dateToFilter, searchTerm, statusFilter, tableRows]);
+  }, [categoryFilter, dateRange.endDate, dateRange.startDate, searchTerm, statusFilter, tableRows]);
 
   const userOwnedDraftHeaders = useMemo(() => {
     const currentUserId = Number(user?.id ?? 0);
@@ -776,7 +776,7 @@ export default function StockAdjustmentPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFromFilter, dateToFilter, categoryFilter, statusFilter]);
+  }, [searchTerm, dateRange.endDate, dateRange.startDate, categoryFilter, statusFilter]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -1130,23 +1130,13 @@ export default function StockAdjustmentPage({
                 placeholder="Cari Bahan"
                 className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
               />
-              <input
-                aria-label="Tanggal awal"
-                type="date"
-                value={dateFromFilter}
-                onChange={(event) => setDateFromFilter(event.target.value)}
-                onKeyDown={(event) => event.preventDefault()}
-                onPaste={(event) => event.preventDefault()}
-                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
-              />
-              <input
-                aria-label="Tanggal akhir"
-                type="date"
-                value={dateToFilter}
-                onChange={(event) => setDateToFilter(event.target.value)}
-                onKeyDown={(event) => event.preventDefault()}
-                onPaste={(event) => event.preventDefault()}
-                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none"
+              <DateRangePicker
+                ariaLabel="Rentang tanggal penyesuaian stok"
+                className="w-full"
+                endDate={dateRange.endDate}
+                onChange={setDateRange}
+                placeholder="dd/mm/yyyy"
+                startDate={dateRange.startDate}
               />
               <ThemedSelect
                 className="w-full"

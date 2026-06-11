@@ -356,6 +356,68 @@ class ReportsTest extends CIUnitTestCase
         ]);
     }
 
+    protected function insertItem(string $categoryName, string $name, float $qty = 0, string $updatedAt = '2026-04-10 10:00:00'): int
+    {
+        $db = Database::connect();
+        $categoryModel = new ItemCategoryModel();
+        $itemUnitModel = new ItemUnitModel();
+
+        $db->table('items')->insert([
+            'item_category_id'     => $categoryModel->getIdByName($categoryName),
+            'name'                 => $name,
+            'unit_base'            => 'gram',
+            'unit_convert'         => 'kg',
+            'item_unit_base_id'    => $itemUnitModel->getIdByName('gram'),
+            'item_unit_convert_id' => $itemUnitModel->getIdByName('kg'),
+            'conversion_base'      => 1000,
+            'is_active'            => true,
+            'qty'                  => $qty,
+            'updated_at'           => $updatedAt,
+            'created_at'           => '2026-04-10 10:00:00',
+        ]);
+
+        return (int) $db->insertID();
+    }
+
+    protected function insertMonthlySnapshot(string $periodMonth, int $itemId, float $openingQty): void
+    {
+        Database::connect()->table('monthly_stock_snapshots')->insert([
+            'period_month' => $periodMonth,
+            'item_id'      => $itemId,
+            'opening_qty'  => $openingQty,
+        ]);
+    }
+
+    protected function insertStockTransactionRow(string $typeName, string $transactionDate, int $itemId, float $qty, ?string $reason = null, ?int $approvalStatusId = null): int
+    {
+        $db = Database::connect();
+        $typeModel = new TransactionTypeModel();
+        $statusModel = new ApprovalStatusModel();
+
+        $db->table('stock_transactions')->insert([
+            'type_id'             => $typeModel->getIdByName($typeName),
+            'transaction_date'    => $transactionDate,
+            'is_revision'         => 0,
+            'parent_transaction_id' => null,
+            'approval_status_id'  => $approvalStatusId ?? $statusModel->getIdByName('APPROVED'),
+            'approved_by'         => null,
+            'user_id'             => 1,
+            'spk_id'              => null,
+            'reason'              => $reason,
+        ]);
+        $transactionId = (int) $db->insertID();
+
+        $db->table('stock_transaction_details')->insert([
+            'transaction_id' => $transactionId,
+            'item_id'        => $itemId,
+            'qty'            => $qty,
+            'input_qty'      => $qty,
+            'input_unit'     => 'base',
+        ]);
+
+        return $transactionId;
+    }
+
     protected function login(string $username): string
     {
         $result = $this->withBodyFormat('json')->post('api/v1/auth/login', [
@@ -517,5 +579,150 @@ class ReportsTest extends CIUnitTestCase
         $json = json_decode($result->getJSON(), true);
         $this->assertSame('Validation failed.', $json['message']);
         $this->assertArrayHasKey('query', $json['errors']);
+    }
+
+    public function testMonthlyStockExportRequiresPeriodStart(): void
+    {
+        $token = $this->login('admin');
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_end=2026-04-30');
+
+        $result->assertStatus(400);
+        $result->assertJSONFragment(['message' => 'Validation failed.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('period_start', $json['errors']);
+    }
+
+    public function testMonthlyStockExportRequiresPeriodEnd(): void
+    {
+        $token = $this->login('admin');
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_start=2026-04-01');
+
+        $result->assertStatus(400);
+        $result->assertJSONFragment(['message' => 'Validation failed.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('period_end', $json['errors']);
+    }
+
+    public function testMonthlyStockExportRejectsUnsupportedQueryParameters(): void
+    {
+        $token = $this->login('admin');
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_start=2026-04-01&period_end=2026-04-30&unexpected=value');
+
+        $result->assertStatus(400);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertSame('Validation failed.', $json['message']);
+        $this->assertArrayHasKey('query', $json['errors']);
+    }
+
+    public function testMonthlyStockExportReturnsDailyRowsUsingTransactionDateAndItemLevelCategoryFilters(): void
+    {
+        $token = $this->login('gudang');
+        $categoryModel = new ItemCategoryModel();
+        $approvedId = (new ApprovalStatusModel())->getIdByName('APPROVED');
+
+        $pengemasItemId = $this->insertItem('PENGEMAS', 'Plastik Vakum', 250);
+
+        $this->insertMonthlySnapshot('2026-04-01', 1, 1000);
+        $this->insertMonthlySnapshot('2026-04-01', 2, 500);
+        $this->insertMonthlySnapshot('2026-04-01', $pengemasItemId, 250);
+
+        $this->insertStockTransactionRow('RETURN_IN', '2026-04-11', 1, 15);
+        $this->insertStockTransactionRow('IN', '2026-04-12', 2, 25);
+        $this->insertStockTransactionRow('OUT', '2026-04-12', 2, 10);
+        $this->insertStockTransactionRow('IN', '2026-04-12', $pengemasItemId, 40);
+        $this->insertStockTransactionRow('OUT', '2026-04-13', $pengemasItemId, 5);
+        $this->insertStockTransactionRow('OUT', '2026-04-14', 2, 99, null, $approvedId);
+        $this->insertStockTransactionRow('OPNAME_ADJUSTMENT', '2026-04-15', 2, 30, 'Manual stock correction outside opname posting', $approvedId);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_start=2026-04-01&period_end=2026-04-30');
+
+        $result->assertStatus(200);
+        $json = json_decode($result->getJSON(), true);
+
+        $this->assertSame('monthly-stock-export', $json['data']['report_type']);
+        $this->assertSame('1-30', $json['data']['periode']);
+        $this->assertSame(3, $json['data']['summary']['total_items']);
+        $this->assertSame(30, $json['data']['summary']['total_days']);
+
+        $rows = $json['data']['rows'];
+        $this->assertCount(3, $rows);
+        $this->assertSame(['KERING', 'BASAH', 'PENGEMAS'], array_column($rows, 'category_name'));
+
+        $keringRow = $rows[0];
+        $this->assertSame(1, $keringRow['item_id']);
+        $this->assertSame('Beras', $keringRow['nama_bahan_makanan']);
+        $this->assertSame('KERING', $keringRow['category_name']);
+        $this->assertSame('gram', $keringRow['satuan']);
+        $this->assertEquals(1000.0, $keringRow['stok_awal']);
+        $this->assertSame([
+            ['tanggal' => 11, 'masuk' => 15, 'keluar' => 0, 'sisa' => 1015],
+            ['tanggal' => 12, 'masuk' => 0, 'keluar' => 120, 'sisa' => 895],
+            ['tanggal' => 13, 'masuk' => 80, 'keluar' => 0, 'sisa' => 975],
+            ['tanggal' => 19, 'masuk' => 0, 'keluar' => 260, 'sisa' => 715],
+            ['tanggal' => 25, 'masuk' => 0, 'keluar' => 999, 'sisa' => -284],
+        ], $keringRow['harian']);
+
+        $basahRow = $rows[1];
+        $this->assertSame(2, $basahRow['item_id']);
+        $this->assertSame('Ayam', $basahRow['nama_bahan_makanan']);
+        $this->assertSame('BASAH', $basahRow['category_name']);
+        $this->assertEquals(500.0, $basahRow['stok_awal']);
+        $this->assertSame([
+            ['tanggal' => 12, 'masuk' => 25, 'keluar' => 10, 'sisa' => 515],
+            ['tanggal' => 14, 'masuk' => 0, 'keluar' => 99, 'sisa' => 416],
+        ], $basahRow['harian']);
+
+        $pengemasRow = $rows[2];
+        $this->assertSame($pengemasItemId, $pengemasRow['item_id']);
+        $this->assertSame('PENGEMAS', $pengemasRow['category_name']);
+        $this->assertEquals(250.0, $pengemasRow['stok_awal']);
+        $this->assertSame([
+            ['tanggal' => 12, 'masuk' => 40, 'keluar' => 0, 'sisa' => 290],
+            ['tanggal' => 13, 'masuk' => 0, 'keluar' => 5, 'sisa' => 285],
+        ], $pengemasRow['harian']);
+
+        $categoryId = $categoryModel->getIdByName('PENGEMAS');
+        $filteredResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_start=2026-04-01&period_end=2026-04-30&category_id=' . $categoryId);
+
+        $filteredResult->assertStatus(200);
+        $filteredJson = json_decode($filteredResult->getJSON(), true);
+        $this->assertSame(['category_id' => $categoryId], $filteredJson['data']['filters']);
+        $this->assertCount(1, $filteredJson['data']['rows']);
+        $this->assertSame('PENGEMAS', $filteredJson['data']['rows'][0]['category_name']);
+    }
+
+    public function testMonthlyStockExportFiltersByItemIdAndReturnsNullOpeningStockWhenSnapshotMissing(): void
+    {
+        $token = $this->login('admin');
+
+        $this->insertStockTransactionRow('IN', '2026-04-20', 2, 50);
+        $this->insertStockTransactionRow('OUT', '2026-04-21', 2, 20);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/reports/monthly-stock-export?period_start=2026-04-01&period_end=2026-04-30&item_id=2');
+
+        $result->assertStatus(200);
+        $json = json_decode($result->getJSON(), true);
+
+        $this->assertSame(['item_id' => 2], $json['data']['filters']);
+        $this->assertSame(1, $json['data']['summary']['total_items']);
+        $this->assertCount(1, $json['data']['rows']);
+        $this->assertSame(2, $json['data']['rows'][0]['item_id']);
+        $this->assertNull($json['data']['rows'][0]['stok_awal']);
+        $this->assertSame([
+            ['tanggal' => 20, 'masuk' => 50, 'keluar' => 0, 'sisa' => null],
+            ['tanggal' => 21, 'masuk' => 0, 'keluar' => 20, 'sisa' => null],
+        ], $json['data']['rows'][0]['harian']);
     }
 }

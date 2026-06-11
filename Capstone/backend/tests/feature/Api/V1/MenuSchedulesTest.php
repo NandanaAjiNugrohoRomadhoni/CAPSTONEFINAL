@@ -105,13 +105,14 @@ class MenuSchedulesTest extends CIUnitTestCase
         $createResult->assertStatus(201);
         $createResult->assertJSONFragment(['message' => 'Menu schedule created successfully.']);
 
+        // No longer rejects duplicate day_of_month
         $duplicateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')
             ->post('api/v1/menu-schedules', [
                 'day_of_month' => 15,
                 'menu_id'      => 6,
             ]);
-        $duplicateResult->assertStatus(400);
+        $duplicateResult->assertStatus(201);
 
         $gudangToken = $this->login('gudang');
         $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
@@ -126,9 +127,11 @@ class MenuSchedulesTest extends CIUnitTestCase
             ->get('api/v1/menu-schedules');
         $listResult->assertStatus(200);
         $listJson = json_decode($listResult->getJSON(), true);
-        $this->assertCount(1, $listJson['data']);
+        $this->assertCount(2, $listJson['data']);
         $this->assertSame(15, $listJson['data'][0]['day_of_month']);
         $this->assertSame(5, $listJson['data'][0]['menu_id']);
+        $this->assertSame(15, $listJson['data'][1]['day_of_month']);
+        $this->assertSame(6, $listJson['data'][1]['menu_id']);
 
         $scheduleId = (int) $listJson['data'][0]['id'];
 
@@ -149,7 +152,7 @@ class MenuSchedulesTest extends CIUnitTestCase
         $this->assertSame(7, (int) ($updateJson['data']['menu_id'] ?? 0));
     }
 
-    public function testUpdateScheduleRejectsDuplicateDayOfMonth(): void
+    public function testUpdateScheduleAllowsDuplicateDayOfMonth(): void
     {
         $adminToken = $this->login('admin');
         $db         = Database::connect();
@@ -165,10 +168,9 @@ class MenuSchedulesTest extends CIUnitTestCase
                 'day_of_month' => 15,
             ]);
 
-        $result->assertStatus(400);
+        $result->assertStatus(200);
         $json = json_decode($result->getJSON(), true);
-        $this->assertSame('Validation failed.', $json['message']);
-        $this->assertSame('The day_of_month has already been taken.', $json['errors']['day_of_month']);
+        $this->assertSame(15, $json['data']['day_of_month']);
     }
 
     public function testCalendarProjectionCoversLeapAndMonthRules(): void
@@ -187,8 +189,8 @@ class MenuSchedulesTest extends CIUnitTestCase
 
             $json = json_decode($result->getJSON(), true);
             $this->assertSame($date, $json['data']['date'] ?? null);
-            $this->assertSame($expectedMenuId, (int) ($json['data']['menu_id'] ?? 0));
-            $this->assertSame('Paket ' . $expectedMenuId, $json['data']['menu_name'] ?? null);
+            $this->assertIsArray($json['data']['assignments']);
+            $this->assertSame($expectedMenuId, (int) ($json['data']['assignments'][0]['menu_id'] ?? 0));
         }
 
         $leapResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -196,8 +198,8 @@ class MenuSchedulesTest extends CIUnitTestCase
         $leapResult->assertStatus(200);
         $leapJson = json_decode($leapResult->getJSON(), true);
         $this->assertSame('2024-02-29', $leapJson['data']['date'] ?? null);
-        $this->assertSame(9, (int) ($leapJson['data']['menu_id'] ?? 0));
-        $this->assertSame('Paket 9', $leapJson['data']['menu_name'] ?? null);
+        $this->assertIsArray($leapJson['data']['assignments']);
+        $this->assertSame(9, (int) ($leapJson['data']['assignments'][0]['menu_id'] ?? 0));
 
         $invalidLeapResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?date=2025-02-29');
@@ -211,22 +213,17 @@ class MenuSchedulesTest extends CIUnitTestCase
         $this->assertSame('Validation failed.', $malformedDateJson['message'] ?? null);
         $this->assertSame('The date field must be a valid date in Y-m-d format.', $malformedDateJson['errors']['date'] ?? null);
 
-        if (! function_exists('cal_days_in_month')) {
-            $this->markTestSkipped('calendar extension is unavailable in this runtime.');
-        }
-
         $marchResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?month=2026-03');
         $marchResult->assertStatus(200);
         $marchJson = json_decode($marchResult->getJSON(), true);
         $this->assertCount(31, $marchJson['data']);
-        $this->assertSame(1, (int) ($marchJson['data'][0]['menu_id'] ?? 0));
-        $this->assertSame(11, (int) ($marchJson['data'][10]['menu_id'] ?? 0));
-        $this->assertSame(1, (int) ($marchJson['data'][11]['menu_id'] ?? 0));
-        $this->assertSame(11, (int) ($marchJson['data'][21]['menu_id'] ?? 0));
+        $this->assertSame(1, (int) ($marchJson['data'][0]['assignments'][0]['menu_id'] ?? 0));
+        $this->assertSame(11, (int) ($marchJson['data'][10]['assignments'][0]['menu_id'] ?? 0));
+        $this->assertSame(1, (int) ($marchJson['data'][11]['assignments'][0]['menu_id'] ?? 0));
+        $this->assertSame(11, (int) ($marchJson['data'][21]['assignments'][0]['menu_id'] ?? 0));
         $this->assertSame('2026-03-31', $marchJson['data'][30]['date']);
-        $this->assertSame(11, $marchJson['data'][30]['menu_id']);
-        $this->assertSame('Paket 11', $marchJson['data'][30]['menu_name']);
+        $this->assertSame(11, $marchJson['data'][30]['assignments'][0]['menu_id']);
 
         $aprilResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?month=2026-04');
@@ -252,28 +249,21 @@ class MenuSchedulesTest extends CIUnitTestCase
         $dateOverrideResult->assertStatus(200);
         $dateOverrideJson = json_decode($dateOverrideResult->getJSON(), true);
         $this->assertSame('2026-03-15', $dateOverrideJson['data']['date'] ?? null);
-        $this->assertSame(7, (int) ($dateOverrideJson['data']['menu_id'] ?? 0));
-        $this->assertSame('Paket 7', $dateOverrideJson['data']['menu_name'] ?? null);
+        $this->assertSame(7, (int) ($dateOverrideJson['data']['assignments'][0]['menu_id'] ?? 0));
 
         $dateSpecialResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?date=2024-02-29');
         $dateSpecialResult->assertStatus(200);
         $dateSpecialJson = json_decode($dateSpecialResult->getJSON(), true);
         $this->assertSame('2024-02-29', $dateSpecialJson['data']['date'] ?? null);
-        $this->assertSame(9, (int) ($dateSpecialJson['data']['menu_id'] ?? 0));
-        $this->assertSame('Paket 9', $dateSpecialJson['data']['menu_name'] ?? null);
+        $this->assertSame(9, (int) ($dateSpecialJson['data']['assignments'][0]['menu_id'] ?? 0));
 
         $dateFallbackResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?date=2026-03-12');
         $dateFallbackResult->assertStatus(200);
         $dateFallbackJson = json_decode($dateFallbackResult->getJSON(), true);
         $this->assertSame('2026-03-12', $dateFallbackJson['data']['date'] ?? null);
-        $this->assertSame(1, (int) ($dateFallbackJson['data']['menu_id'] ?? 0));
-        $this->assertSame('Paket 1', $dateFallbackJson['data']['menu_name'] ?? null);
-
-        if (! function_exists('cal_days_in_month')) {
-            $this->markTestSkipped('calendar extension is unavailable in this runtime.');
-        }
+        $this->assertSame(1, (int) ($dateFallbackJson['data']['assignments'][0]['menu_id'] ?? 0));
 
         $monthResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?month=2026-03');
@@ -281,22 +271,22 @@ class MenuSchedulesTest extends CIUnitTestCase
         $monthJson = json_decode($monthResult->getJSON(), true);
         $this->assertCount(31, $monthJson['data']);
         $this->assertSame('2026-03-12', $monthJson['data'][11]['date']);
-        $this->assertSame(1, (int) ($monthJson['data'][11]['menu_id'] ?? 0));
+        $this->assertSame(1, (int) ($monthJson['data'][11]['assignments'][0]['menu_id'] ?? 0));
         $this->assertSame('2026-03-15', $monthJson['data'][14]['date']);
-        $this->assertSame(7, (int) ($monthJson['data'][14]['menu_id'] ?? 0));
+        $this->assertSame(7, (int) ($monthJson['data'][14]['assignments'][0]['menu_id'] ?? 0));
         $this->assertSame('2026-03-31', $monthJson['data'][30]['date']);
-        $this->assertSame(11, (int) ($monthJson['data'][30]['menu_id'] ?? 0));
+        $this->assertSame(11, (int) ($monthJson['data'][30]['assignments'][0]['menu_id'] ?? 0));
 
         $rangeResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->get('api/v1/menu-calendar?start_date=2026-03-12&end_date=2026-03-31');
         $rangeResult->assertStatus(200);
         $rangeJson = json_decode($rangeResult->getJSON(), true);
         $this->assertSame('2026-03-12', $rangeJson['data'][0]['date']);
-        $this->assertSame(1, (int) ($rangeJson['data'][0]['menu_id'] ?? 0));
+        $this->assertSame(1, (int) ($rangeJson['data'][0]['assignments'][0]['menu_id'] ?? 0));
         $this->assertSame('2026-03-15', $rangeJson['data'][3]['date']);
-        $this->assertSame(7, (int) ($rangeJson['data'][3]['menu_id'] ?? 0));
+        $this->assertSame(7, (int) ($rangeJson['data'][3]['assignments'][0]['menu_id'] ?? 0));
         $this->assertSame('2026-03-31', $rangeJson['data'][19]['date']);
-        $this->assertSame(11, (int) ($rangeJson['data'][19]['menu_id'] ?? 0));
+        $this->assertSame(11, (int) ($rangeJson['data'][19]['assignments'][0]['menu_id'] ?? 0));
     }
 
     public function testCalendarResolverRejectsConflictingModeParameters(): void

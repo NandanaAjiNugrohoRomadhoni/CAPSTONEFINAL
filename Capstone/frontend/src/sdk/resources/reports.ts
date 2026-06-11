@@ -97,4 +97,24 @@ export class ReportsResource {
       query: { ...params }
     });
   }
+
+  /**
+   * Returns the monthly per-item stock movement export dataset.
+   *
+   * @endpoint GET /api/v1/reports/monthly-stock-export
+   * @access   admin | gudang | dapur
+   * @param params - Must include `period_start` and `period_end`. Supports `category_id` and `item_id`. Unknown params return 400.
+   * @returns {Promise<ReportResponse>}
+   * @throws {ValidationApiError} if the period is missing, malformed, reversed, or query params are unsupported (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @sideeffect None
+   */
+  public async getMonthlyStockExport(params: ReportParams & { category_id?: number; item_id?: number }): Promise<ReportResponse> {
+    return this.client.request<ReportResponse>({
+      method: "GET",
+      path: "/reports/monthly-stock-export",
+      query: { ...params }
+    });
+  }
 }

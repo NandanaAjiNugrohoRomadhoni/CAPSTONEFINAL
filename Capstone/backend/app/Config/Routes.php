@@ -251,6 +251,10 @@ $routes->group(
             "reports/evaluation",
             static fn() => service("response")->setStatusCode(204),
         );
+        $routes->options(
+            "reports/monthly-stock-export",
+            static fn() => service("response")->setStatusCode(204),
+        );
 
         if (ENVIRONMENT === "testing") {
             $routes->get(
@@ -291,6 +295,10 @@ $routes->group(
                     );
                     $routes->get("reports/spk-history", "Reports::spkHistory");
                     $routes->get("reports/evaluation", "Reports::evaluation");
+                    $routes->get(
+                        "reports/monthly-stock-export",
+                        "Reports::monthlyStockExport",
+                    );
                 },
             );
 
@@ -318,38 +326,20 @@ $routes->group(
                         "menu-schedules/(:num)",
                         'MenuSchedules::show/$1',
                     );
-                    $routes->get(
-                        "menu-calendar",
-                        "MenuSchedules::calendarProjection",
-                    );
+                    $routes->get("menu-calendar", "MenuSchedules::calendarProjection");
                     $routes->get("daily-patients", "DailyPatients::index");
                     $routes->get(
                         "daily-patients/(:segment)",
                         'DailyPatients::show/$1',
                     );
 
-                    $routes->get(
-                        "spk/basah/menu-calendar",
-                        "SpkBasah::menuCalendarProjection",
-                    );
+                    $routes->get("spk/basah/menu-calendar", "SpkBasah::menuCalendarProjection");
                     $routes->get("spk/basah/history", "SpkBasah::history");
-                    $routes->get(
-                        "spk/basah/history/(:num)",
-                        'SpkBasah::show/$1',
-                    );
+                    $routes->get("spk/basah/history/(:num)", 'SpkBasah::show/$1');
 
-                    $routes->get(
-                        "spk/kering-pengemas/menu-calendar",
-                        "SpkKeringPengemas::menuCalendarProjection",
-                    );
-                    $routes->get(
-                        "spk/kering-pengemas/history",
-                        "SpkKeringPengemas::history",
-                    );
-                    $routes->get(
-                        "spk/kering-pengemas/history/(:num)",
-                        'SpkKeringPengemas::show/$1',
-                    );
+                    $routes->get("spk/kering-pengemas/menu-calendar", "SpkKeringPengemas::menuCalendarProjection");
+                    $routes->get("spk/kering-pengemas/history", "SpkKeringPengemas::history");
+                    $routes->get("spk/kering-pengemas/history/(:num)", 'SpkKeringPengemas::show/$1');
                 },
             );
 
@@ -451,7 +441,7 @@ $routes->group(
                 "",
                 ["filter" => "role:admin,dapur"],
                 static function ($routes) {
-                    // [MODULE: Menu & Nutrition Write Surface] Roles: admin, dapur | Controller: App\Controllers\Api\V1\Dishes, DishCompositions, Menus, MenuSchedules, DailyPatients, SpkBasah, SpkKeringPengemas, SpkStockInPrefill
+                    // [MODULE: Menu & Nutrition Write Surface] Roles: admin, dapur | Controller: App\Controllers\Api\V1\Dishes, DishCompositions, Menus, MenuSchedules, SpkBasah, SpkKeringPengemas, SpkStockInPrefill
                     $routes->post("dishes", "Dishes::create");
                     $routes->put("dishes/(:num)", 'Dishes::update/$1');
                     $routes->patch(
@@ -486,6 +476,14 @@ $routes->group(
                         "menu-schedules/(:num)",
                         'MenuSchedules::update/$1',
                     );
+                },
+            );
+
+            $routes->group(
+                "",
+                ["filter" => "role:admin,gudang"],
+                static function ($routes) {
+                    // [MODULE: Daily Patients Write Surface] Roles: admin, gudang | Controller: App\Controllers\Api\V1\DailyPatients
                     $routes->post("daily-patients", "DailyPatients::create");
                     $routes->put(
                         "daily-patients/(:num)",

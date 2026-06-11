@@ -9,7 +9,9 @@ import {
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
+import DateRangePicker from "@/components/filters/DateRangePicker";
 import { formatDate, getErrorMessage, resolveDetailItemName, resolveDetailUnit } from "@/lib/admin-utils";
+import { isIsoDateInRange } from "@/lib/date-range";
 import { X } from "lucide-react";
 
 type TransactionRow = Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number];
@@ -39,7 +41,7 @@ export default function TransactionRevisionPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [selectedStatus, setSelectedStatus] = useState("");
 
   const [detailTransaction, setDetailTransaction] = useState<TransactionRevisionRow | null>(null);
@@ -330,12 +332,12 @@ export default function TransactionRevisionPage({
         parentId.includes(query) ||
         userLabel.includes(query) ||
         statusLabel.includes(query);
-      const matchesDate = !selectedDate || revision.transaction_date.slice(0, 10) === selectedDate;
+      const matchesDate = isIsoDateInRange(revision.transaction_date.slice(0, 10), dateRange);
       const matchesStatus = !selectedStatus || String(revision.approval_status_id) === selectedStatus;
 
       return matchesSearch && matchesDate && matchesStatus;
     });
-  }, [revisions, search, selectedDate, selectedStatus, getStatusLabel]);
+  }, [dateRange, revisions, search, selectedStatus, getStatusLabel]);
 
   const filteredTotalPages = Math.max(1, Math.ceil(visibleRevisions.length / PAGE_SIZE));
   const paginatedRevisions = useMemo(() => {
@@ -384,7 +386,7 @@ export default function TransactionRevisionPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedDate, selectedStatus]);
+  }, [dateRange, search, selectedStatus]);
 
   useEffect(() => {
     if (currentPage > filteredTotalPages) {
@@ -442,11 +444,13 @@ function handleExport() {
               className="h-12 w-full rounded-xl border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8] focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
             />
           </div>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
-            className="h-12 min-w-[180px] rounded-xl border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
+          <DateRangePicker
+            ariaLabel="Rentang tanggal pengajuan revisi"
+            className="min-w-[240px]"
+            endDate={dateRange.endDate}
+            onChange={setDateRange}
+            placeholder="dd/mm/yyyy"
+            startDate={dateRange.startDate}
           />
           <ThemedSelect
             className="min-w-[210px]"
@@ -550,9 +554,9 @@ function handleExport() {
       </SurfaceCard>
 
       {detailTransaction && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => setDetailTransaction(null)} />
-          <div className="relative w-full max-w-[980px] overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
+          <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[560px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-[#CBD5E1] px-6 py-5">
               <div>
@@ -571,10 +575,10 @@ function handleExport() {
             </div>
 
             {/* Content */}
-            <div className="space-y-4 px-6 py-5">
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
               <div className="rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] p-4">
                 {/* Column headers */}
-                <div className="mb-3 grid grid-cols-12 gap-4 px-2 text-[13px] font-bold uppercase tracking-wider text-[#475569]">
+                <div className="mb-3 grid grid-cols-12 gap-4 px-2 text-[12px] font-bold uppercase tracking-wider text-[#475569]">
                   <div className="col-span-4">Nama Bahan</div>
                   <div className="col-span-3 text-center">Qty Sebelumnya</div>
                   <div className="col-span-3 text-center">Qty Perubahan</div>
@@ -582,13 +586,13 @@ function handleExport() {
                 </div>
 
                 {/* Rows */}
-                <div className="space-y-2">
+                <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
                   {loadingDetails ? (
-                    <div className="rounded-lg bg-white p-6 text-center text-base font-medium text-[#64748B] shadow-sm">
+                    <div className="rounded-lg bg-white p-5 text-center text-sm font-medium text-[#64748B] shadow-sm">
                       Memuat detail...
                     </div>
                   ) : detailRows.length === 0 ? (
-                    <div className="rounded-lg bg-white p-6 text-center text-base font-medium text-[#64748B] shadow-sm">
+                    <div className="rounded-lg bg-white p-5 text-center text-sm font-medium text-[#64748B] shadow-sm">
                       Tidak ada detail bahan.
                     </div>
                   ) : (
@@ -596,24 +600,24 @@ function handleExport() {
                       return (
                         <div
                           key={`${row.itemId}-${index}`}
-                          className={`grid grid-cols-12 items-center gap-4 rounded-lg px-3 py-3.5 shadow-sm border ${
+                          className={`grid grid-cols-12 items-center gap-3 rounded-lg px-3 py-3 shadow-sm border ${
                             row.changed ? "border-[#93C5FD] bg-[#EFF6FF]" : "border-[#E2E8F0] bg-white"
                           }`}
                         >
                           <div className="col-span-4">
-                            <p className="text-[15px] font-semibold text-[#0F172A]">{row.itemName}</p>
+                            <p className="text-[14px] font-semibold text-[#0F172A]">{row.itemName}</p>
                           </div>
                           <div className="col-span-3">
-                            <div className="flex h-11 items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] text-base font-semibold text-[#0F172A]">
+                            <div className="flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] text-sm font-semibold text-[#0F172A]">
                               {row.previousQty}
                             </div>
                           </div>
                           <div className="col-span-3">
-                            <div className="flex h-11 items-center justify-center rounded-lg border border-[#93C5FD] bg-[#EFF6FF] text-base font-bold text-[#1D4ED8]">
+                            <div className="flex h-10 items-center justify-center rounded-lg border border-[#93C5FD] bg-[#EFF6FF] text-sm font-bold text-[#1D4ED8]">
                               {row.revisedQty}
                             </div>
                           </div>
-                          <div className="col-span-2 text-base font-semibold text-[#334155]">
+                          <div className="col-span-2 text-sm font-semibold text-[#334155]">
                             {row.unit}
                           </div>
                         </div>
@@ -624,7 +628,7 @@ function handleExport() {
               </div>
 
               {/* Info bar */}
-              <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3.5 text-sm font-medium text-[#334155]">
+              <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3 text-sm font-medium text-[#334155]">
                 ID revisi:{" "}
                 <span className="font-bold text-[#1E40AF]">REV-{String(detailTransaction.id).padStart(4, "0")}</span>
                 {" | "}ID transaksi:{" "}
@@ -635,7 +639,7 @@ function handleExport() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end border-t border-[#CBD5E1] px-6 py-4">
+            <div className="flex justify-end border-t border-[#CBD5E1] px-5 py-4">
               <button
                 className="rounded-xl border-2 border-[#2155CD] bg-white px-6 py-2.5 text-base font-semibold text-[#2155CD] transition hover:bg-[#EEF4FF]"
                 onClick={() => setDetailTransaction(null)}
@@ -649,12 +653,12 @@ function handleExport() {
       )}
 
       {confirmRevision && role === "admin" ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 py-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => setConfirmRevision(null)} />
-          <div className="relative w-full max-w-[980px] overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
+          <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[760px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between border-b border-[#CBD5E1] px-6 py-5">
               <div>
-                <h2 className="text-[24px] font-bold text-[#0F172A]">Konfirmasi Revisi</h2>
+                <h2 className="text-[22px] font-bold text-[#0F172A]">Konfirmasi Revisi</h2>
                 <p className="mt-1 text-sm font-medium text-[#475569]">
                   Tinjau perubahan qty sebelum menyetujui revisi transaksi.
                 </p>
@@ -668,16 +672,16 @@ function handleExport() {
               </button>
             </div>
 
-            <div className="space-y-4 px-6 py-5">
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
               <div className="rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] p-4">
-                <div className="mb-3 grid grid-cols-12 gap-4 px-2 text-[13px] font-bold uppercase tracking-wider text-[#475569]">
+                <div className="mb-3 grid grid-cols-12 gap-4 px-2 text-[12px] font-bold uppercase tracking-wider text-[#475569]">
                   <div className="col-span-4">Nama Bahan</div>
                   <div className="col-span-3 text-center">Qty Sebelumnya</div>
                   <div className="col-span-3 text-center">Qty Perubahan</div>
                   <div className="col-span-2">Satuan</div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="max-h-[46vh] space-y-2 overflow-y-auto pr-1">
                   {loadingConfirmRows ? (
                     <div className="rounded-lg bg-white p-6 text-center text-base font-medium text-[#64748B] shadow-sm">
                       Memuat perbandingan...
@@ -692,18 +696,18 @@ function handleExport() {
                       return (
                       <div
                         key={`${row.itemId}-${index}`}
-                        className={`grid grid-cols-12 items-center gap-4 rounded-lg bg-white px-3 py-3.5 shadow-sm border ${
+                        className={`grid grid-cols-12 items-center gap-3 rounded-lg border bg-white px-3 py-3 shadow-sm ${
                           changed ? "border-[#93C5FD] bg-[#EFF6FF]" : "border-[#E2E8F0]"
                         }`}
                       >
-                        <div className="col-span-4 text-[15px] font-semibold text-[#0F172A]">{row.itemName}</div>
+                        <div className="col-span-4 text-[14px] font-semibold text-[#0F172A]">{row.itemName}</div>
                         <div className="col-span-3">
-                          <div className="flex h-11 items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] text-base font-semibold text-[#0F172A]">
+                          <div className="flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] text-sm font-semibold text-[#0F172A]">
                             {row.previousQty}
                           </div>
                         </div>
                         <div className="col-span-3">
-                          <div className={`flex h-11 items-center justify-center rounded-lg text-base ${
+                          <div className={`flex h-10 items-center justify-center rounded-lg text-sm ${
                             changed
                               ? "border border-[#93C5FD] bg-[#EFF6FF] font-bold text-[#1D4ED8]"
                               : "border border-[#CBD5E1] bg-[#F8FAFC] font-semibold text-[#0F172A]"
@@ -711,7 +715,7 @@ function handleExport() {
                             {row.revisedQty}
                           </div>
                         </div>
-                        <div className="col-span-2 text-base font-semibold text-[#334155]">{row.unit}</div>
+                        <div className="col-span-2 text-sm font-semibold text-[#334155]">{row.unit}</div>
                       </div>
                     );
                     })
@@ -719,7 +723,7 @@ function handleExport() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3.5 text-sm font-medium text-[#334155]">
+              <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3 text-sm font-medium text-[#334155]">
                 Revisi: <span className="font-bold text-[#1E40AF]">REV-{String(confirmRevision.id).padStart(4, "0")}</span>
                 {" | "}Parent: <span className="font-bold text-[#1E40AF]">TR-{String(confirmRevision.parent_transaction_id).padStart(4, "0")}</span>
                 {" | "}Tanggal <span className="font-semibold text-[#0F172A]">{formatDate(confirmRevision.transaction_date)}</span>

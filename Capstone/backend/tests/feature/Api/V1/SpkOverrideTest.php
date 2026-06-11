@@ -484,7 +484,7 @@ class SpkOverrideTest extends CIUnitTestCase
 
     private function createBasahSpk(string $token, string $serviceDate, int $totalPatients): array
     {
-        $this->createDailyPatient($token, $serviceDate, $totalPatients);
+        $this->createDailyPatient($this->login('gudang'), $serviceDate, $totalPatients);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')

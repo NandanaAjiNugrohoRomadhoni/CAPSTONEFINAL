@@ -8,6 +8,7 @@ Otorisasi Anda didasarkan pada App Role `gudang` yang dikelola oleh `app/Filters
 ## Can/Can’t
 - **Can:**
   - Create and update Items and their conversion rules.
+  - Input and update daily patient counts before SPK generation.
   - Record stock movements using IN, OUT, and RETURN_IN transaction types.
   - Submit revisions for existing transactions if errors are found.
   - Create, submit, and manage Stock Opname drafts.
@@ -44,12 +45,18 @@ Record any physical movement of goods using the appropriate transaction type.
 }
 ```
 
-### 2. Correcting Errors (Revision Flow)
+### 2. Daily Patient Input
+Daily patient counts are the canonical runtime input for SPK basah generation and should be recorded before the kitchen starts the SPK flow.
+- **Create Entry:** `POST /api/v1/daily-patients`
+- **Update Entry:** `PUT /api/v1/daily-patients/{id}`
+- **Data Shape:** `{ "service_date": "YYYY-MM-DD", "total_patients": 120, "notes": "..." }`
+
+### 3. Correcting Errors (Revision Flow)
 If you discover an error in a transaction that has already been recorded, you cannot edit it directly. Instead, you must submit a revision for Admin approval.
 - **Submit Revision:** `POST /api/v1/stock-transactions/(:num)/submit-revision`
 - **Visibility:** Once submitted, the revision enters a PENDING state. It only affects stock levels AFTER an Admin approves it.
 
-### 3. Stock Opname (Inventory Count)
+### 4. Stock Opname (Inventory Count)
 Perform regular physical counts to synchronize system data with warehouse reality.
 1. **Create Draft:** `POST /api/v1/stock-opnames`
 2. **Record Counts:** Update counts during the opname process.
@@ -58,6 +65,7 @@ Perform regular physical counts to synchronize system data with warehouse realit
 
 ## Gotchas
 - **Controlled Stock:** Direct edits to `items.qty` are not the normal path. Always use Transactions or Opnames to move stock.
+- **Daily Patient Dependency:** Dapur depends on the daily patient rows you enter to generate basah SPK correctly for the service date.
 - **Unit Conversions:** When recording transactions, you can specify `input_unit` as "base" or "convert". The system automatically handles the math based on the item's conversion factor.
 - **Revision Limits:** A transaction lineage can only have one `PENDING` revision at a time, and you still cannot revise a revision. If you submit the same parent transaction again before Admin review, the system updates that same pending revision with your latest payload. After a sibling revision is approved or rejected, you can submit the next sibling revision against the same original transaction.
 - **Negative Stock:** The system blocks OUT transactions if the requested quantity exceeds available stock. Check current levels before issuing items.

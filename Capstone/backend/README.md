@@ -121,13 +121,13 @@ php spark db:seed TestSeeder
 `TestSeeder` calls:
 
 1. `RoleSeeder`
-2. `UserSeeder`
-3. `ItemCategorySeeder`
-4. `TransactionTypeSeeder`
-5. `ApprovalStatusSeeder`
-6. `MealTimeSeeder`
-7. `MenuSeeder`
-8. `ItemUnitSeeder`
+2. `ItemCategorySeeder`
+3. `TransactionTypeSeeder`
+4. `ApprovalStatusSeeder`
+5. `MealTimeSeeder`
+6. `MenuSeeder`
+7. `ItemUnitSeeder`
+8. `UserSeeder`
 9. `ItemSeeder`
 10. `DishSeeder`
 11. `DishCompositionSeeder`
@@ -137,6 +137,9 @@ php spark db:seed TestSeeder
 15. `StockTransactionSeeder`
 16. `StockOpnameSeeder`
 17. `SpkPersistenceSeeder`
+18. `RuntimeCurrentMonthSpkScenarioSeeder`
+
+`TestSeeder` is the single safe root seeder for the full development baseline. It seeds shared lookup and domain prerequisites once, then runs the runtime current-month scenario directly without re-invoking `RuntimeCurrentMonthSeeder`, which avoids duplicate reference/master inserts.
 
 To seed a separate runtime-relative current-month SPK scenario without changing the deterministic baseline path, run:
 

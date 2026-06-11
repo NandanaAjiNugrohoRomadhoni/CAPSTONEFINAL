@@ -43,13 +43,11 @@ class MenuDishModel extends Model
         return $row ?: null;
     }
 
-    public function findBySlot(int $menuId, int $mealTimeId): ?array
+    public function findDishesBySlot(int $menuId, int $mealTimeId): array
     {
-        $row = $this->where('menu_id', $menuId)
+        return $this->where('menu_id', $menuId)
             ->where('meal_time_id', $mealTimeId)
-            ->first();
-
-        return $row ?: null;
+            ->findAll();
     }
 
     public function countByMenuId(int $menuId): int

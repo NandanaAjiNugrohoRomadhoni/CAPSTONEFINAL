@@ -369,7 +369,7 @@ var DailyPatientsResource = class {
    * Creates a daily patient row.
    *
    * @endpoint POST /api/v1/daily-patients
-   * @access   admin | dapur
+   * @access   admin | gudang
    * @param payload - Writable fields: `service_date`, `total_patients`, and optional `notes`. `service_date` must remain unique.
    * @returns {Promise<DailyPatientCreateResponse>}
    * @throws {ValidationApiError} if validation fails or the service date already exists (400)
@@ -388,7 +388,7 @@ var DailyPatientsResource = class {
    * Updates a daily patient row by id.
    *
    * @endpoint PUT /api/v1/daily-patients/{id}
-   * @access   admin | dapur
+   * @access   admin | gudang
    * @returns {Promise<DailyPatientUpdateResponse>}
    * @throws {ValidationApiError} if validation fails or the service date collides with another row (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -2141,6 +2141,25 @@ var ReportsResource = class {
     return this.client.request({
       method: "GET",
       path: "/reports/evaluation",
+      query: { ...params }
+    });
+  }
+  /**
+   * Returns the monthly per-item stock movement export dataset.
+   *
+   * @endpoint GET /api/v1/reports/monthly-stock-export
+   * @access   admin | gudang | dapur
+   * @param params - Must include `period_start` and `period_end`. Supports `category_id` and `item_id`. Unknown params return 400.
+   * @returns {Promise<ReportResponse>}
+   * @throws {ValidationApiError} if the period is missing, malformed, reversed, or query params are unsupported (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @sideeffect None
+   */
+  async getMonthlyStockExport(params) {
+    return this.client.request({
+      method: "GET",
+      path: "/reports/monthly-stock-export",
       query: { ...params }
     });
   }

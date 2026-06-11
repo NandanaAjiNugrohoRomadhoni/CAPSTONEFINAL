@@ -66,68 +66,98 @@ class OperationalStockPreviewService
             ];
         }
 
-        $menuId   = (int) ($menuProjection['data']['menu_id'] ?? 0);
-        $menuName = (string) ($menuProjection['data']['menu_name'] ?? ('Paket ' . $menuId));
-
-        $menuDishes = $this->db
-            ->table('menu_dishes')
-            ->select('dish_id')
-            ->where('menu_id', $menuId)
-            ->where('meal_time_id', $mealTimeId)
-            ->get()
-            ->getResultArray();
-
-        if ($menuDishes === []) {
+        $assignments = $menuProjection['data']['assignments'] ?? [];
+        if (empty($assignments)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
                 'errors'  => [
-                    'menu_mapping' => sprintf('Menu %d has no dish mapping for meal_time %s.', $menuId, $mealTime),
+                    'menu_mapping' => sprintf('No menu mapping found for service date %s.', $serviceDate),
                 ],
             ];
         }
 
+        // Distribute patients among assignments
+        $allocatedPatients = 0;
+        foreach ($assignments as $assignment) {
+            if (isset($assignment['patient_count'])) {
+                $allocatedPatients += (int) $assignment['patient_count'];
+            }
+        }
+
+        $remainingPatients      = max(0, $totalPatients - $allocatedPatients);
+        $nullCountAssignments   = array_filter($assignments, fn ($a) => ! isset($a['patient_count']));
+        $nullCountCount         = count($nullCountAssignments);
+        $defaultPatientsPerNull = $nullCountCount > 0 ? (int) floor($remainingPatients / $nullCountCount) : 0;
+        $remainder              = $nullCountCount > 0 ? $remainingPatients % $nullCountCount : 0;
+
         $requiredByItem = [];
-        foreach ($menuDishes as $menuDish) {
-            $dishId = (int) $menuDish['dish_id'];
-            $compositions = $this->db
-                ->table('dish_compositions')
-                ->select('item_id, qty_per_patient')
-                ->where('dish_id', $dishId)
+        $menuInfo       = [];
+
+        $firstNullHandled = false;
+        foreach ($assignments as $assignment) {
+            $menuId = (int) $assignment['menu_id'];
+            if (isset($assignment['patient_count'])) {
+                $patientsForThisMenu = (int) $assignment['patient_count'];
+            } else {
+                $patientsForThisMenu = $defaultPatientsPerNull;
+                if (! $firstNullHandled) {
+                    $patientsForThisMenu += $remainder;
+                    $firstNullHandled = true;
+                }
+            }
+
+            if ($patientsForThisMenu <= 0) {
+                continue;
+            }
+
+            // Capture menu info for response summary
+            $menuRow = $this->db->table('menus')->select('name')->where('id', $menuId)->get()->getRowArray();
+            $menuInfo[] = [
+                'id'            => $menuId,
+                'name'          => $menuRow['name'] ?? ('Paket ' . $menuId),
+                'patient_count' => $patientsForThisMenu,
+            ];
+
+            $menuDishes = $this->db
+                ->table('menu_dishes')
+                ->select('dish_id')
+                ->where('menu_id', $menuId)
+                ->where('meal_time_id', $mealTimeId)
                 ->get()
                 ->getResultArray();
 
-            if ($compositions === []) {
-                return [
-                    'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors'  => [
-                        'recipe_mapping' => sprintf('Dish %d has no item composition for service date %s.', $dishId, $serviceDate),
-                    ],
-                ];
-            }
+            foreach ($menuDishes as $menuDish) {
+                $dishId = (int) $menuDish['dish_id'];
+                $compositions = $this->db
+                    ->table('dish_compositions')
+                    ->select('item_id, qty_per_patient')
+                    ->where('dish_id', $dishId)
+                    ->get()
+                    ->getResultArray();
 
-            foreach ($compositions as $composition) {
-                $itemId = (int) $composition['item_id'];
-                $item   = $this->itemModel->find($itemId);
+                foreach ($compositions as $composition) {
+                    $itemId = (int) $composition['item_id'];
+                    $item   = $this->itemModel->find($itemId);
 
-                if ($item === null) {
-                    return [
-                        'success' => false,
-                        'message' => 'Validation failed.',
-                        'errors'  => [
-                            'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
-                        ],
-                    ];
+                    if ($item === null || (int) $item['item_category_id'] !== $basahCategoryId) {
+                        continue;
+                    }
+
+                    $requiredQty = ((float) $composition['qty_per_patient']) * $patientsForThisMenu;
+                    $requiredByItem[$itemId] = ($requiredByItem[$itemId] ?? 0.0) + $requiredQty;
                 }
-
-                if ((int) $item['item_category_id'] !== $basahCategoryId) {
-                    continue;
-                }
-
-                $requiredQty = ((float) $composition['qty_per_patient']) * $totalPatients;
-                $requiredByItem[$itemId] = ($requiredByItem[$itemId] ?? 0.0) + $requiredQty;
             }
+        }
+
+        if ($requiredByItem === []) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => [
+                    'menu_mapping' => sprintf('No required items found for meal_time %s on %s.', $mealTime, $serviceDate),
+                ],
+            ];
         }
 
         ksort($requiredByItem);
@@ -170,10 +200,8 @@ class OperationalStockPreviewService
                 'service_date'       => $serviceDate,
                 'meal_time'          => $mealTime,
                 'total_patients'     => $totalPatients,
-                'menu'               => [
-                    'id'   => $menuId,
-                    'name' => $menuName,
-                ],
+                'menu'               => $menuInfo[0] ?? null,
+                'menus'              => $menuInfo,
                 'items'              => $items,
                 'summary'            => [
                     'total_items'              => count($items),

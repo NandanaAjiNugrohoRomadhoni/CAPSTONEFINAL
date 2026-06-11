@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import sdk from "@/lib";
 import { formatDate, formatQuantity, getCurrentMonthPeriod, getErrorMessage } from "@/lib/admin-utils";
 import { addDaysIsoDate } from "@/lib/spk-recommendations";
+import { isIsoDateInRange } from "@/lib/date-range";
 import {
   AdminPageHeading,
   FilterSearch,
@@ -13,6 +14,7 @@ import {
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
+import DateRangePicker from "@/components/filters/DateRangePicker";
 
 type SpkHistoryRow = {
   spk_id: number;
@@ -50,7 +52,7 @@ export default function SpkHistoryReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [selectedType, setSelectedType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -65,11 +67,12 @@ export default function SpkHistoryReportPage() {
         spkId.includes(query) ||
         category.includes(query) ||
         typeLabel.includes(query);
-      const matchesDate = !selectedDate || row.calculation_date.slice(0, 10) === selectedDate;
+      const rowDate = row.calculation_date.slice(0, 10);
+      const matchesDate = isIsoDateInRange(rowDate, dateRange);
       const matchesType = selectedType === "all" || row.spk_type === selectedType;
       return matchesSearch && matchesDate && matchesType;
     });
-  }, [rows, search, selectedDate, selectedType]);
+  }, [dateRange, rows, search, selectedType]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const pageStartIndex = (currentPage - 1) * pageSize;
   const paginatedRows = useMemo(
@@ -81,7 +84,7 @@ export default function SpkHistoryReportPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filteredRows.length, search, selectedDate, selectedType]);
+  }, [dateRange, filteredRows.length, search, selectedType]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -184,11 +187,13 @@ export default function SpkHistoryReportPage() {
                   value={search}
                 />
               </div>
-              <input
-                className="h-12 min-w-[160px] rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#DBEAFE]"
-                onChange={(event) => setSelectedDate(event.target.value)}
-                type="date"
-                value={selectedDate}
+              <DateRangePicker
+                ariaLabel="Rentang tanggal SPK"
+                className="min-w-[240px]"
+                endDate={dateRange.endDate}
+                onChange={setDateRange}
+                placeholder="dd/mm/yyyy"
+                startDate={dateRange.startDate}
               />
               <ThemedSelect
                 className="min-w-[170px]"

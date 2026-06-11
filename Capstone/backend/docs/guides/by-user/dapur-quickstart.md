@@ -1,7 +1,7 @@
 # Dapur Quickstart Guide
 
 ## Your Role
-The Dapur role is responsible for meal planning, dish management, and generating Surat Perintah Kerja (SPK) for nutritional operations. Your primary goals are to maintain an accurate menu cycle, manage dish compositions (recipes), and provide the daily patient counts that drive stock requirements. You bridge the gap between clinical nutrition needs and warehouse inventory.
+The Dapur role is responsible for meal planning, dish management, and generating Surat Perintah Kerja (SPK) for nutritional operations. Your primary goals are to maintain an accurate menu cycle, manage dish compositions (recipes), and consume the daily patient counts that drive stock requirements. You bridge the gap between clinical nutrition needs and warehouse inventory.
 
 Akses fitur Anda dikelola oleh App Role `dapur` melalui `app/Filters/RoleFilter.php` pada route API. Meskipun Shield Group Anda mungkin `user` di `app/Config/AuthGroups.php`, App Role `dapur` adalah yang memberikan Anda akses ke modul menu dan SPK.
 
@@ -10,13 +10,13 @@ Akses fitur Anda dikelola oleh App Role `dapur` melalui `app/Filters/RoleFilter.
   - Create and update dishes and their ingredient compositions.
   - Assign dishes to menu slots and meal times.
   - Create and manage cyclical menu schedules.
-  - Input daily patient counts.
   - Generate SPK for both Basah (Fresh) and Kering/Pengemas (Dry/Packaging) categories.
   - Override system-recommended quantities in SPK drafts before they are finalized.
   - Access dashboard metrics related to menu cycles and SPK history.
 - **Can’t:**
   - Manage user accounts or roles.
   - Modify the core inventory master list (Items, Categories, Units).
+  - Input daily patient counts directly.
   - Create or approve standard stock transactions (IN/OUT/Correction) directly.
   - Perform the final "Post Stock" action on SPK (this is typically an Admin or Gudang responsibility to ensure physical inventory synchronization).
   - Access financial reports or global transaction logs outside of SPK contexts.
@@ -30,18 +30,14 @@ Maintain the repository of dishes and their cyclical rotation.
 - **Assign to Menu:** `POST /api/v1/menu-dishes`
 - **Set Schedule:** `POST /api/v1/menu-schedules`
 
-### 2. Daily Patient Input
-Every SPK calculation depends on the number of patients. Input this before generating SPK.
-- **Create Entry:** `POST /api/v1/daily-patients`
-- **Data Shape:** `{ "service_date": "YYYY-MM-DD", "total_patients": 120, "notes": "..." }`
-
-### 3. SPK Basah (Fresh) Workflow
+### 2. SPK Basah (Fresh) Workflow
 Generate requirements for fresh ingredients, usually on a daily basis.
+- **Dependency:** Confirm that Gudang/Admin has entered the required daily patient count for the target service date before generation.
 - **Preview Stock:** `POST /api/v1/spk/basah/operational-stock-preview` (Check what's left today)
 - **Generate SPK:** `POST /api/v1/spk/basah/generate`
 - **Override Qty:** `POST /api/v1/spk/basah/history/(:num)/override` (Adjust recommendations)
 
-### 4. SPK Kering/Pengemas (Dry/Packaging) Workflow
+### 3. SPK Kering/Pengemas (Dry/Packaging) Workflow
 Generate requirements for dry goods and packaging, usually on a monthly or batch basis.
 - **Generate SPK:** `POST /api/v1/spk/kering-pengemas/generate`
 - **History Detail:** `GET /api/v1/spk/kering-pengemas/history/(:num)`

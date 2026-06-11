@@ -18,6 +18,7 @@ class MenuCalendarContract
             return 9;
         }
 
-        return (($day - 1) % 11) + 1;
+        $res = (($day - 1) % 11) + 1;
+        return $res;
     }
 }

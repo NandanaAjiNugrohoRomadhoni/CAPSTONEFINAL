@@ -1,5 +1,5 @@
-import DapurEvaluationReportPage from "@/components/reports/DapurEvaluationReportPage";
+import LaporanEvaluationPage from "@/components/reports/LaporanEvaluationPage";
 
 export default function Page() {
-  return <DapurEvaluationReportPage />;
+  return <LaporanEvaluationPage />;
 }

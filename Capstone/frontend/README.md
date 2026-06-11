@@ -448,7 +448,8 @@ await sdk.auth.login({
 |---|---|---|
 | `sdk.dailyPatients.list()` | `GET /api/v1/daily-patients` | `admin`, `dapur`, `gudang` |
 | `sdk.dailyPatients.get(serviceDate)` | `GET /api/v1/daily-patients/{service_date}` | `admin`, `dapur`, `gudang` |
-| `sdk.dailyPatients.create(payload)` | `POST /api/v1/daily-patients` | `admin`, `dapur` |
+| `sdk.dailyPatients.create(payload)` | `POST /api/v1/daily-patients` | `admin`, `gudang` |
+| `sdk.dailyPatients.update(id, payload)` | `PUT /api/v1/daily-patients/{id}` | `admin`, `gudang` |
 
 ### `spk`
 
@@ -548,7 +549,7 @@ These resources provide analytical views and auditing tools.
 | Resource | Methods | Access |
 |---|---|---|
 | `dashboard` | `getAggregate` | `admin`, `dapur`, `gudang` |
-| `reports` | `getStocks`, `getTransactions`, `getSpkHistory`, `getEvaluation` | `admin`, `dapur`, `gudang` |
+| `reports` | `getStocks`, `getTransactions`, `getSpkHistory`, `getEvaluation`, `getMonthlyStockExport` | `admin`, `dapur`, `gudang` |
 | `stockOpnames` | `create`, `get`, `submit` | `admin`, `gudang` |
 | `stockOpnames` | `approve`, `reject`, `post` | `admin` |
 
@@ -804,10 +805,10 @@ import { createCapstoneSdk } from "./src";
 const sdk = createCapstoneSdk({ baseUrl: "http://127.0.0.1:8080" });
 
 // Authenticate
-const login = await sdk.auth.login({ username: "dapur1", password: "password123" });
+const login = await sdk.auth.login({ username: "gudang", password: "password123" });
 sdk.setAccessToken(login.access_token);
 
-// Input daily patients (canonical source for SPK Basah)
+// Input daily patients as Gudang before SPK Basah generation
 const patients = await sdk.dailyPatients.create({
   service_date: "2026-04-14",
   total_patients: 120

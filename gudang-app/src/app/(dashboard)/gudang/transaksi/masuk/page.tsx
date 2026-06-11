@@ -728,6 +728,10 @@ function SelectSpkModal({
   onConfirm: () => void;
   loading: boolean;
 }) {
+  const latestOptions = [...options]
+    .sort((left, right) => right.id - left.id)
+    .slice(0, 3);
+
   if (!open) return null;
 
   return (
@@ -763,7 +767,7 @@ function SelectSpkModal({
               onChange={(value) => onChangeSelectedSpkId(Number(value) || null)}
               options={[
                 { value: "", label: "Pilih ID SPK" },
-                ...options.map((option) => ({ value: String(option.id), label: option.label })),
+                ...latestOptions.map((option) => ({ value: String(option.id), label: option.label })),
               ]}
             />
           </div>

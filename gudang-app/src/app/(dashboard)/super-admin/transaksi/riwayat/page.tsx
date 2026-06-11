@@ -11,6 +11,7 @@ import {
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
+import DateRangePicker from "@/components/filters/DateRangePicker";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import SearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 import {
@@ -20,6 +21,9 @@ import {
   resolveDetailItemName,
   resolveDetailUnit,
 } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
+import { getDateRangeQuery } from "@/lib/date-range";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import { useRouter } from "next/navigation";
 
 type TransactionRow = Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number];
@@ -85,42 +89,23 @@ function pickLatestTransactionByParent(rows: TransactionRow[], statusMap: Map<nu
   return Array.from(byParent.values());
 }
 
+function isLegacyTransactionRow(row: TransactionRow) {
+  const transactionId = normalizeTransactionId(row.parent_transaction_id) || normalizeTransactionId(row.id);
+  return transactionId === 1;
+}
+
 const PAGE_SIZE = 10;
 
 async function loadAllTransactions(query: Omit<StockTransactionListQuery, "page" | "perPage">) {
-  const allRows: TransactionRow[] = [];
-  let page = 1;
-
-  while (page <= 20) {
-    const response = await sdk.stockTransactions.list({
-      ...query,
-      page,
-      perPage: 100,
-    });
-    const chunk = response.data ?? [];
-    allRows.push(...chunk);
-
-    if (chunk.length < 100) {
-      break;
-    }
-
-    page += 1;
-  }
-
-  return allRows;
+  return listAllPaginatedRows<TransactionRow>(
+    sdk.stockTransactions.list.bind(sdk.stockTransactions),
+    query,
+    100,
+  );
 }
 
 async function loadAllItemsSortedByName(): Promise<ItemRow[]> {
-  const allItems: ItemRow[] = [];
-  let page = 1;
-  while (page <= 20) {
-    const response = await sdk.items.list({ page, perPage: 100, sortBy: "name", sortDir: "ASC" });
-    const chunk = response.data ?? [];
-    allItems.push(...chunk);
-    if (chunk.length < 100) break;
-    page += 1;
-  }
-  return allItems;
+  return listAllItems({ sortBy: "name", sortDir: "ASC" });
 }
 
 export default function Page() {
@@ -136,9 +121,8 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [selectedType, setSelectedType] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
   const [revisionState, setRevisionState] = useState<DetailState | null>(null);
@@ -201,12 +185,8 @@ export default function Page() {
         };
 
         if (search.trim()) params.search = search.trim();
-        if (selectedDate) {
-          params.transaction_date_from = selectedDate;
-          params.transaction_date_to = selectedDate;
-        }
+        Object.assign(params, getDateRangeQuery(dateRange));
         if (selectedType) params.type_id = Number(selectedType);
-        if (selectedStatus) params.status_id = Number(selectedStatus);
 
         const response = await loadAllTransactions(params);
 
@@ -215,20 +195,22 @@ export default function Page() {
         const normalizedRows = pickLatestTransactionByParent(
           response,
           new Map(statuses.map((status) => [status.id, status.name])),
-        ).sort((left, right) => {
-          const rightTime = new Date(right.updated_at || right.created_at || right.transaction_date).getTime();
-          const leftTime = new Date(left.updated_at || left.created_at || left.transaction_date).getTime();
-          if (rightTime !== leftTime) {
-            return rightTime - leftTime;
-          }
+        )
+          .filter((row) => !isLegacyTransactionRow(row))
+          .sort((left, right) => {
+            const rightTime = new Date(right.updated_at || right.created_at || right.transaction_date).getTime();
+            const leftTime = new Date(left.updated_at || left.created_at || left.transaction_date).getTime();
+            if (rightTime !== leftTime) {
+              return rightTime - leftTime;
+            }
 
-          const rightParentId =
-            normalizeTransactionId(right.parent_transaction_id) || normalizeTransactionId(right.id);
-          const leftParentId =
-            normalizeTransactionId(left.parent_transaction_id) || normalizeTransactionId(left.id);
+            const rightParentId =
+              normalizeTransactionId(right.parent_transaction_id) || normalizeTransactionId(right.id);
+            const leftParentId =
+              normalizeTransactionId(left.parent_transaction_id) || normalizeTransactionId(left.id);
 
-          return rightParentId - leftParentId;
-        });
+            return rightParentId - leftParentId;
+          });
         setTransactions(normalizedRows);
         setTotalRecords(normalizedRows.length);
       } catch (loadError) {
@@ -244,7 +226,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [search, selectedDate, selectedType, selectedStatus, statuses]);
+  }, [dateRange, search, selectedType, statuses]);
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
@@ -279,11 +261,14 @@ export default function Page() {
   }, [transactions, detailMap, itemMap, statusMap, userMap, currentUser?.id, currentUser?.name, typeMap]);
 
   const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
-  const paginatedRows = derivedRows;
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return derivedRows.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [currentPage, derivedRows]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedDate, selectedType, selectedStatus]);
+  }, [dateRange, search, selectedType]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -511,12 +496,14 @@ export default function Page() {
                 className="h-10 w-full rounded-[9px] border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
               />
             </div>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-              className="h-10 min-w-[150px] rounded-lg border border-[#E2E8F0] bg-white px-3 text-base text-[#334155] outline-none"
-            />
+          <DateRangePicker
+            ariaLabel="Rentang tanggal riwayat transaksi"
+            className="min-w-[240px]"
+            endDate={dateRange.endDate}
+            onChange={setDateRange}
+            placeholder="dd/mm/yyyy"
+            startDate={dateRange.startDate}
+          />
             <ThemedSelect
               className="h-10 min-w-[150px] text-sm"
               value={selectedType}
@@ -646,9 +633,9 @@ function TransactionDetailModal({
   const typeLabel = typeMap.get(detailState.transaction.type_id) ?? "Transaksi";
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-4">
       <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-[530px] overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[560px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
           <div>
             <h2 className="text-[24px] font-semibold text-[#16213E]">
@@ -665,7 +652,7 @@ function TransactionDetailModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4">
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div className="grid grid-cols-4 gap-3 rounded-2xl bg-[#EEF4FF] px-4 py-3">
             <InfoBlock label="Tanggal" value={formatDate(detailState.transaction.transaction_date)} />
             <InfoBlock label="Kategori Bahan" value={categoryLabel} />
@@ -673,7 +660,7 @@ function TransactionDetailModal({
             <InfoBlock label="Total Item" value={`${detailState.details.length} item`} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-[#D7E0EE]">
+          <div className="max-h-[52vh] overflow-y-auto overflow-hidden rounded-2xl border border-[#D7E0EE]">
             <div className="grid grid-cols-12 bg-[#F1F5F9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
               <div className="col-span-1">#</div>
               <div className="col-span-5">Nama Bahan</div>
@@ -766,13 +753,13 @@ function TransactionRevisionModal({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-4">
       <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[1180px] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
           <div>
-            <h2 className="text-[30px] font-semibold text-[#16213E]">
+            <h2 className="text-[24px] font-semibold text-[#16213E]">
               Edit {typeLabel === "IN" ? "Barang Masuk" : "Barang Keluar"}
             </h2>
-            <p className="mt-2 text-lg text-[#94A3B8]">
+            <p className="mt-1 text-sm text-[#94A3B8]">
               Perubahan akan diajukan ke backend sebagai revisi transaksi
             </p>
           </div>
@@ -785,14 +772,14 @@ function TransactionRevisionModal({
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <div className="rounded-2xl border border-[#D7E0EE] bg-white shadow-sm">
             <div className="border-b border-[#E2E8F0] bg-[#F8FBFF] px-5 py-4">
-              <h3 className="text-[28px] font-semibold text-[#16213E]">Komposisi Bahan</h3>
-              <p className="mt-2 text-base text-[#94A3B8]">Sesuaikan bahan dan jumlah revisi sesuai stok yang tersedia.</p>
+              <h3 className="text-[22px] font-semibold text-[#16213E]">Komposisi Bahan</h3>
+              <p className="mt-1 text-sm text-[#94A3B8]">Sesuaikan bahan dan jumlah revisi sesuai stok yang tersedia.</p>
             </div>
             <div className="p-4">
-              <div className="mb-4 grid grid-cols-12 gap-4 px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+              <div className="mb-3 grid grid-cols-12 gap-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 <div className="col-span-5">Nama Bahan</div>
                 <div className="col-span-4 text-center">Jumlah Revisi</div>
                 <div className="col-span-2">Satuan</div>
@@ -855,11 +842,11 @@ function TransactionRevisionModal({
                           type="number"
                           value={row.qty}
                           onChange={(e) => updateRevisionRow(row.id, { qty: e.target.value })}
-                          className="h-12 w-full rounded-xl border border-slate-200 px-3 text-center text-lg outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
+                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-center text-base outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
                         />
                       </div>
                     </div>
-                    <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-lg font-medium text-slate-600">
+                    <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base font-medium text-slate-600">
                       {row.unit || "-"}
                     </div>
                     <div className="col-span-1 flex justify-end">
@@ -883,7 +870,7 @@ function TransactionRevisionModal({
 
               <button
                 onClick={addRevisionRow}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-3 text-lg font-medium text-slate-500 transition hover:border-[#2563EB] hover:bg-blue-50/50 hover:text-[#2563EB]"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-3 text-base font-medium text-slate-500 transition hover:border-[#2563EB] hover:bg-blue-50/50 hover:text-[#2563EB]"
               >
                 <Plus size={16} />
                 <span>Tambah Baris Bahan</span>
@@ -891,7 +878,7 @@ function TransactionRevisionModal({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#D7E0EE] bg-[#F8FAFC] px-4 py-3 text-lg text-[#64748B]">
+          <div className="rounded-2xl border border-[#D7E0EE] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
             ID transaksi:{" "}
             <span className="font-semibold text-[#16213E]">TR-{String(transaction.id).padStart(4, "0")}</span> |
             {" "}Tanggal {formatDate(transaction.transaction_date)}

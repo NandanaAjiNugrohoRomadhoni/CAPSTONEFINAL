@@ -52,18 +52,12 @@ class MenuScheduleManagementService
 
         $dayOfMonth = (int) $data['day_of_month'];
         $menuId     = (int) $data['menu_id'];
-
-        if ($this->menuScheduleModel->findByDayOfMonth($dayOfMonth) !== null) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => ['day_of_month' => 'The day_of_month has already been taken.'],
-            ];
-        }
+        $patientCount = isset($data['patient_count']) && $data['patient_count'] !== '' ? (int) $data['patient_count'] : null;
 
         $created = $this->menuScheduleModel->insert([
-            'day_of_month' => $dayOfMonth,
-            'menu_id'      => $menuId,
+            'day_of_month'  => $dayOfMonth,
+            'menu_id'       => $menuId,
+            'patient_count' => $patientCount,
         ], true);
 
         if ($created === false) {
@@ -92,8 +86,9 @@ class MenuScheduleManagementService
 
         $validation = service('validation');
         if (! $validation->setRules([
-            'day_of_month' => 'permit_empty|is_natural_no_zero|less_than_equal_to[31]',
-            'menu_id'      => 'permit_empty|is_natural_no_zero',
+            'day_of_month'  => 'permit_empty|is_natural_no_zero|less_than_equal_to[31]',
+            'menu_id'       => 'permit_empty|is_natural_no_zero',
+            'patient_count' => 'permit_empty|is_natural',
         ])->run($data)) {
             return [
                 'success' => false,
@@ -115,10 +110,6 @@ class MenuScheduleManagementService
             $errors['menu_id'] = 'The selected menu is invalid.';
         }
 
-        if ($this->menuScheduleModel->findByDayOfMonth($resolvedDayOfMonth, $id) !== null) {
-            $errors['day_of_month'] = 'The day_of_month has already been taken.';
-        }
-
         if ($errors !== []) {
             return [
                 'success' => false,
@@ -133,6 +124,9 @@ class MenuScheduleManagementService
         }
         if (array_key_exists('menu_id', $data)) {
             $updateData['menu_id'] = $resolvedMenuId;
+        }
+        if (array_key_exists('patient_count', $data)) {
+            $updateData['patient_count'] = $data['patient_count'] !== '' ? (int) $data['patient_count'] : null;
         }
 
         if ($updateData === []) {
@@ -206,15 +200,14 @@ class MenuScheduleManagementService
             ];
         }
 
-        $packageId = $this->resolveEffectiveMenuId($resolvedDate);
+        $assignments = $this->resolveEffectiveAssignments($resolvedDate);
 
         return [
             'success' => true,
             'data'    => [
                 'date'         => $resolvedDate->format('Y-m-d'),
                 'day_of_month' => (int) $resolvedDate->format('j'),
-                'menu_id'      => $packageId,
-                'menu_name'    => 'Paket ' . $packageId,
+                'assignments'  => $assignments,
             ],
         ];
     }
@@ -238,18 +231,17 @@ class MenuScheduleManagementService
             ];
         }
 
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $monthNum, $year);
+        $daysInMonth = (int) date('t', mktime(0, 0, 0, $monthNum, 1, $year));
         $rows        = [];
 
         for ($day = 1; $day <= $daysInMonth; $day++) {
-            $date      = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $monthNum, $day));
-            $packageId = $this->resolveEffectiveMenuId($date);
+            $date        = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $monthNum, $day));
+            $assignments = $this->resolveEffectiveAssignments($date);
 
             $rows[] = [
                 'date'         => $date->format('Y-m-d'),
                 'day_of_month' => $day,
-                'menu_id'      => $packageId,
-                'menu_name'    => 'Paket ' . $packageId,
+                'assignments'  => $assignments,
             ];
         }
 
@@ -296,13 +288,12 @@ class MenuScheduleManagementService
         $current = $start;
 
         while ($current <= $end) {
-            $packageId = $this->resolveEffectiveMenuId($current);
+            $assignments = $this->resolveEffectiveAssignments($current);
 
             $rows[] = [
                 'date'         => $current->format('Y-m-d'),
                 'day_of_month' => (int) $current->format('j'),
-                'menu_id'      => $packageId,
-                'menu_name'    => 'Paket ' . $packageId,
+                'assignments'  => $assignments,
             ];
 
             $current = $current->modify('+1 day');
@@ -333,23 +324,26 @@ class MenuScheduleManagementService
         return new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day));
     }
 
-    private function resolveEffectiveMenuId(DateTimeImmutable $date): int
+    private function resolveEffectiveAssignments(DateTimeImmutable $date): array
     {
         if ($date->format('m-d') === '02-29') {
-            return 9;
+            return [['menu_id' => 9, 'patient_count' => null]];
         }
 
         if ((int) $date->format('j') === 31) {
-            return 11;
+            return [['menu_id' => 11, 'patient_count' => null]];
         }
 
-        $schedule = $this->menuScheduleModel->findByDayOfMonth((int) $date->format('j'));
+        $schedules = $this->menuScheduleModel->findAssignmentsByDay((int) $date->format('j'));
 
-        if ($schedule !== null) {
-            return (int) $schedule['menu_id'];
+        if (! empty($schedules)) {
+            return array_map(fn ($s) => [
+                'menu_id'       => (int) $s['menu_id'],
+                'patient_count' => isset($s['patient_count']) ? (int) $s['patient_count'] : null,
+            ], $schedules);
         }
 
-        return $this->calendarContract->resolvePackageId($date);
+        return [['menu_id' => $this->calendarContract->resolvePackageId($date), 'patient_count' => null]];
     }
 
     private function validateWritePayload(array $data): array
@@ -358,6 +352,7 @@ class MenuScheduleManagementService
         if (! $validation->setRules([
             'day_of_month' => 'required|is_natural_no_zero|less_than_equal_to[31]',
             'menu_id'      => 'required|is_natural_no_zero',
+            'patient_count' => 'permit_empty|is_natural',
         ])->run($data)) {
             return [
                 'success' => false,
@@ -389,6 +384,7 @@ class MenuScheduleManagementService
             'id'           => (int) $row['id'],
             'day_of_month' => (int) $row['day_of_month'],
             'menu_id'      => (int) $row['menu_id'],
+            'patient_count'=> isset($row['patient_count']) ? (int) $row['patient_count'] : null,
             'created_at'   => $row['created_at'],
             'updated_at'   => $row['updated_at'],
             'menu'         => [

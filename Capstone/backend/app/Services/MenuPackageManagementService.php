@@ -107,15 +107,17 @@ class MenuPackageManagementService
             ];
         }
 
-        $existing = $this->menuDishModel->findBySlot($menuId, $mealTimeId);
-        if ($existing !== null) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors'  => [
-                    'menu_id,meal_time_id' => 'The menu_id and meal_time_id combination has already been taken.',
-                ],
-            ];
+        $existingDishes = $this->menuDishModel->findDishesBySlot($menuId, $mealTimeId);
+        foreach ($existingDishes as $ed) {
+            if ((int)$ed['dish_id'] === $dishId) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        'dish_id' => 'This dish is already assigned to this menu slot.',
+                    ],
+                ];
+            }
         }
 
         $created = $this->menuDishModel->insert([
@@ -241,10 +243,10 @@ class MenuPackageManagementService
             ];
         }
 
-        // Check for collision with another row (excluding current row)
         $collision = $this->menuDishModel
             ->where('menu_id', $menuId)
             ->where('meal_time_id', $mealTimeId)
+            ->where('dish_id', $dishId)
             ->where('id !=', $id)
             ->first();
 
@@ -253,7 +255,7 @@ class MenuPackageManagementService
                 'success' => false,
                 'message' => 'Validation failed.',
                 'errors'  => [
-                    'menu_id,meal_time_id' => 'The menu_id and meal_time_id combination has already been taken.',
+                    'dish_id' => 'This dish is already assigned to this menu slot.',
                 ],
             ];
         }

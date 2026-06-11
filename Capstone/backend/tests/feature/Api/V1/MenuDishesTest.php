@@ -170,7 +170,7 @@ class MenuDishesTest extends CIUnitTestCase
         $this->assertSame('Sore', $json['data'][2]['meal_time']['name']);
     }
 
-    public function testDuplicateSlotRejectedForSameMenuAndMealTime(): void
+    public function testDuplicateDishAssignmentRejectedForSameMenuAndMealTime(): void
     {
         $token = $this->login('admin');
 
@@ -181,13 +181,34 @@ class MenuDishesTest extends CIUnitTestCase
             ->post('api/v1/menu-dishes', [
                 'menu_id'      => 2,
                 'meal_time_id' => 1,
-                'dish_id'      => 2,
+                'dish_id'      => 1,
             ]);
 
         $duplicateResult->assertStatus(400);
         $json = json_decode($duplicateResult->getJSON(), true);
         $this->assertSame('Validation failed.', $json['message']);
-        $this->assertArrayHasKey('menu_id,meal_time_id', $json['errors']);
+        $this->assertArrayHasKey('dish_id', $json['errors']);
+        $this->assertSame(
+            'This dish is already assigned to this menu slot.',
+            $json['errors']['dish_id'],
+        );
+    }
+
+    public function testMultipleDishesAllowedForSameMenuAndMealTime(): void
+    {
+        $token = $this->login('admin');
+
+        $this->assignSlot($token, 2, 2, 1);
+
+        $secondDishResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/menu-dishes', [
+                'menu_id'      => 2,
+                'meal_time_id' => 2,
+                'dish_id'      => 2,
+            ]);
+
+        $secondDishResult->assertStatus(201);
     }
 
     public function testUpdateExistingSlotSuccess(): void
@@ -223,25 +244,27 @@ class MenuDishesTest extends CIUnitTestCase
         $this->assertSame('Menu slot not found.', $json['message']);
     }
 
-    public function testUpdateCollisionReturnsDuplicateKeyError(): void
+    public function testUpdateCollisionReturnsDuplicateDishError(): void
     {
         $token = $this->login('admin');
         $slot = $this->assignSlot($token, 4, 1, 1);
         $this->assignSlot($token, 4, 2, 2);
 
+        // Try to update slot 1 (4,1,1) to (4,2,2) - should fail because (4,2,2) exists
         $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->put('api/v1/menu-dishes/' . $slot['id'], [
                 'meal_time_id' => 2,
+                'dish_id'      => 2,
             ]);
 
         $updateResult->assertStatus(400);
         $json = json_decode($updateResult->getJSON(), true);
         $this->assertSame('Validation failed.', $json['message']);
-        $this->assertArrayHasKey('menu_id,meal_time_id', $json['errors']);
+        $this->assertArrayHasKey('dish_id', $json['errors']);
         $this->assertSame(
-            'The menu_id and meal_time_id combination has already been taken.',
-            $json['errors']['menu_id,meal_time_id'],
+            'This dish is already assigned to this menu slot.',
+            $json['errors']['dish_id'],
         );
     }
 

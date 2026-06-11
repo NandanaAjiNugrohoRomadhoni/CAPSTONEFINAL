@@ -67,8 +67,12 @@ export default function SatuanPage() {
     setPageError(null);
 
     try {
-      const response = await sdk.itemUnits.list();
-      setItems(response.data as Unit[]);
+      const response = await sdk.itemUnits.list({
+        paginate: false,
+        sortBy: "name",
+        sortDir: "ASC",
+      });
+      setItems((response.data ?? []) as Unit[]);
     } catch (error) {
       setPageError(getErrorMessage(error, "Gagal memuat data satuan."));
     } finally {
@@ -100,6 +104,20 @@ export default function SatuanPage() {
     const startIndex = (currentPage - 1) * pageSize;
     return filteredItems.slice(startIndex, startIndex + pageSize);
   }, [currentPage, filteredItems]);
+
+  useEffect(() => {
+    if (filteredItems.length === 0) {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+      return;
+    }
+
+    const maxPage = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [currentPage, filteredItems.length]);
 
   useEffect(() => {
     if (currentPage > totalPages) {

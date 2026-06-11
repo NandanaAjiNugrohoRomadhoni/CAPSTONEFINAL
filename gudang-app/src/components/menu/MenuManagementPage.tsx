@@ -6,6 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -44,6 +45,7 @@ type ItemRecord = {
   id: number;
   name: string;
   unit_base: string;
+  unit_convert: string;
 };
 
 type StockReportRow = {
@@ -191,41 +193,31 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       is_active: true,
     });
 
-    return itemsResponse.map((item) => ({
-      id: Number(item.id),
-      name: item.name,
-      unit_base: item.unit_base,
-    })) satisfies ItemRecord[];
-  }
+  return itemsResponse.map((item) => ({
+    id: Number(item.id),
+    name: item.name,
+    unit_base: item.unit_base,
+    unit_convert: item.unit_convert ?? item.unit_base,
+  })) satisfies ItemRecord[];
+}
 
-  const [compositionResponse, stocksResponse] = await Promise.all([
-    sdk.dishCompositions.list({ perPage: 100, sortBy: "id", sortDir: "ASC" }),
+  const [allCompositions, stocksResponse] = await Promise.all([
+    listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+      sortBy: "id",
+      sortDir: "ASC",
+    }),
     sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
   ]);
-
-  const allCompositions = [...(compositionResponse.data ?? [])];
-  const totalPages = compositionResponse.meta?.totalPages ?? 1;
-
-  if (totalPages > 1) {
-    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
-    const remainingResponses = await Promise.all(
-      remainingPages.map((page) =>
-        sdk.dishCompositions.list({ page, perPage: 100, sortBy: "id", sortDir: "ASC" }),
-      ),
-    );
-
-    for (const response of remainingResponses) {
-      allCompositions.push(...(response.data ?? []));
-    }
-  }
 
   const mergedItems = new Map<number, ItemRecord>();
   for (const composition of allCompositions) {
     const itemId = Number(composition.item_id);
-    const itemName =
-      composition.item && typeof composition.item.name === "string" ? composition.item.name : null;
-    const unitBase =
-      composition.item && typeof composition.item.unit_base === "string" ? composition.item.unit_base : "";
+    const compositionItem = composition.item as
+      | { name?: string; unit_base?: string; unit_convert?: string }
+      | null
+      | undefined;
+    const itemName = typeof compositionItem?.name === "string" ? compositionItem.name : null;
+    const unitBase = typeof compositionItem?.unit_base === "string" ? compositionItem.unit_base : "";
 
     if (!Number.isFinite(itemId) || !itemName) continue;
 
@@ -233,6 +225,7 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       id: itemId,
       name: itemName,
       unit_base: unitBase,
+      unit_convert: typeof compositionItem?.unit_convert === "string" ? compositionItem.unit_convert : unitBase,
     });
   }
 
@@ -246,6 +239,7 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       id: itemId,
       name: existing?.name || row.item_name,
       unit_base: existing?.unit_base || row.unit_base,
+      unit_convert: existing?.unit_convert || row.unit_base,
     });
   }
 
@@ -323,12 +317,15 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
     try {
       const [dishesResponse, availableItems] = await Promise.all([
-        sdk.dishes.list({ perPage: 100, sortBy: "name", sortDir: "ASC" }),
+        listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
+          sortBy: "name",
+          sortDir: "ASC",
+        }),
         loadAvailableItems(mode),
       ]);
 
       const descriptionMap = readMenuDescriptions();
-      const nextMenus = (dishesResponse.data ?? []).map((dish) => {
+      const nextMenus = dishesResponse.map((dish) => {
         const dishId = Number(dish.id);
         const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
 
@@ -360,7 +357,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
       items.map((item) => ({
         id: item.id,
         label: item.name,
-        unit: item.unit_base,
+        unit: item.unit_convert,
       })),
     [items],
   );
@@ -390,17 +387,36 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
   async function fetchCompositionsForDish(dishId: number) {
     try {
-      const response = await sdk.dishCompositions.list({ dish_id: dishId, perPage: 100 });
-      const compositions = response.data ?? [];
+      const compositions = await listAllPaginatedRows(
+        sdk.dishCompositions.list.bind(sdk.dishCompositions),
+        {
+          dish_id: dishId,
+          sortBy: "id",
+          sortDir: "ASC",
+        },
+      );
       const itemMap = new Map(items.map((item) => [Number(item.id), item]));
 
-      const nextIngredients: IngredientRow[] = compositions.map((comp) => ({
-        localId: comp.id,
-        compositionId: comp.id,
-        item_id: comp.item_id,
-        qty_per_patient: comp.qty_per_patient,
-        unit: itemMap.get(Number(comp.item_id))?.unit_base ?? comp.item?.unit_base ?? undefined,
-      }));
+      const nextIngredients: IngredientRow[] = compositions.map((comp) => {
+        const compositionItem = comp.item as
+          | { unit_convert?: string; unit_base?: string }
+          | null
+          | undefined;
+        const relatedItem = itemMap.get(Number(comp.item_id));
+
+        return {
+          localId: comp.id,
+          compositionId: comp.id,
+          item_id: comp.item_id,
+          qty_per_patient: comp.qty_per_patient,
+          unit:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
+        };
+      });
 
       setMenus((current) =>
         current.map((menu) =>
@@ -481,9 +497,12 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     const previousMenus = menus;
 
     try {
-      const validRows = ingredients.filter(
-        (row) => row.item_id !== null && Number(row.qty_per_patient) > 0,
-      );
+      const selectedRows = ingredients.filter((row) => row.item_id !== null);
+      if (selectedRows.some((row) => Number(row.qty_per_patient) <= 0)) {
+        throw new Error("Qty bahan tidak boleh 0. Silakan ubah qty bahan terlebih dahulu.");
+      }
+
+      const validRows = selectedRows.filter((row) => Number(row.qty_per_patient) > 0);
 
       if (menuName.trim() === "") throw new Error("Nama menu wajib diisi.");
       if (validRows.length === 0) throw new Error("Minimal satu komposisi bahan harus diisi.");
@@ -587,9 +606,10 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     const previousMenus = menus;
     try {
       const nextIsActive = !selectedMenu.isActive;
-      await sdk.dishes.update(selectedMenu.id, {
-        is_active: nextIsActive,
-      } as never);
+      await sdk.client.request({
+        method: "PATCH",
+        path: `/dishes/${selectedMenu.id}/${nextIsActive ? "reactivate" : "deactivate"}`,
+      });
 
       const updatedMenus = sortMenusByStatusAndName(
         previousMenus.map((menu) =>
@@ -702,15 +722,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
                       </div>
                     </div>
 
-                    <div className="mt-auto flex gap-2 pt-5">
-                      <MiniActionButton
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDetailModal(menu);
-                        }}
-                      >
-                        Detail
-                      </MiniActionButton>
+                    <div className="mt-auto flex flex-wrap gap-2 pt-5">
                       <MiniActionButton
                         onClick={(event) => {
                           event.stopPropagation();
@@ -805,6 +817,12 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
                 <X size={22} />
               </button>
             </div>
+
+            {modalMode !== "detail" && error ? (
+              <div className="mx-6 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            ) : null}
 
             <div className="space-y-5 overflow-y-auto px-6 py-6">
               <div className="space-y-2">
@@ -966,7 +984,9 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
       <DeleteConfirmModal
         open={modalMode === "delete"}
+        purpose="toggle"
         title={selectedMenu?.isActive ? "Nonaktifkan Menu Makanan" : "Aktifkan Menu Makanan"}
+        headline={selectedMenu?.isActive ? "Menu akan dinonaktifkan" : "Menu akan diaktifkan kembali"}
         message={
           selectedMenu?.isActive
             ? `Apakah Anda yakin ingin menonaktifkan menu ${selectedMenu?.name}? Menu ini akan tetap ada di sistem dan bisa diaktifkan kembali.`
@@ -975,6 +995,8 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
         onClose={closeModal}
         onConfirm={toggleMenuActive}
         loading={saving}
+        confirmLabel={selectedMenu?.isActive ? "Nonaktifkan" : "Aktifkan"}
+        tone={selectedMenu?.isActive ? "danger" : "neutral"}
       />
 
       <SuccessModal

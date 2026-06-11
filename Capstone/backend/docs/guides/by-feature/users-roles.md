@@ -21,8 +21,8 @@ Manages the system's human actors and their access levels.
 
 - **Access Control**: Role-based access is enforced via filters. 
   - `admin`: Full access to all endpoints.
-  - `dapur`: Access to SPK, dishes, and daily operational data.
-  - `gudang`: Access to items, stock transactions, and opnames.
+  - `dapur`: Access to SPK, dishes, and daily operational data, with read-only access to daily patient inputs.
+  - `gudang`: Access to items, stock transactions, opnames, and daily patient input writes.
 - **Uniqueness**: `username` remains globally unique even after soft delete.
 - **Restoration**: Deleted users can be restored by an admin.
 

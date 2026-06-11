@@ -183,70 +183,112 @@ class SpkBasahGenerationService
                 ];
             }
 
-            $menuId = (int) ($menuProjection['data']['menu_id'] ?? 0);
-            $menuDishes = $this->db
-                ->table('menu_dishes')
-                ->select('id, dish_id')
-                ->where('menu_id', $menuId)
-                ->get()
-                ->getResultArray();
-
-            if ($menuDishes === []) {
+            $assignments = $menuProjection['data']['assignments'] ?? [];
+            if (empty($assignments)) {
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
                     'errors'  => [
-                        'menu_mapping' => sprintf('Menu %d has no dish mapping for target date %s.', $menuId, $targetDate),
+                        'menu_mapping' => sprintf('No menu mapping found for target date %s.', $targetDate),
                     ],
                 ];
             }
 
-            foreach ($menuDishes as $menuDish) {
-                $dishId = (int) $menuDish['dish_id'];
-                $compositions = $this->db
-                    ->table('dish_compositions')
-                    ->select('item_id, qty_per_patient')
-                    ->where('dish_id', $dishId)
+            // Calculate unassigned patients
+            $allocatedPatients = 0;
+            foreach ($assignments as $assignment) {
+                if (isset($assignment['patient_count'])) {
+                    $allocatedPatients += (int) $assignment['patient_count'];
+                }
+            }
+
+            $remainingPatients      = max(0, $adjustedPatients - $allocatedPatients);
+            $nullCountAssignments   = array_filter($assignments, fn ($a) => ! isset($a['patient_count']));
+            $nullCountCount         = count($nullCountAssignments);
+            $defaultPatientsPerNull = $nullCountCount > 0 ? (int) floor($remainingPatients / $nullCountCount) : 0;
+            $remainder              = $nullCountCount > 0 ? $remainingPatients % $nullCountCount : 0;
+
+            $firstNullHandled = false;
+            foreach ($assignments as $assignment) {
+                $menuId = (int) $assignment['menu_id'];
+                if (isset($assignment['patient_count'])) {
+                    $patientsForThisMenu = (int) $assignment['patient_count'];
+                } else {
+                    $patientsForThisMenu = $defaultPatientsPerNull;
+                    if (! $firstNullHandled) {
+                        $patientsForThisMenu += $remainder;
+                        $firstNullHandled = true;
+                    }
+                }
+
+                if ($patientsForThisMenu <= 0) {
+                    continue;
+                }
+
+                $menuDishes = $this->db
+                    ->table('menu_dishes')
+                    ->select('id, dish_id')
+                    ->where('menu_id', $menuId)
                     ->get()
                     ->getResultArray();
 
-                if ($compositions === []) {
+                if ($menuDishes === []) {
                     return [
                         'success' => false,
                         'message' => 'Validation failed.',
                         'errors'  => [
-                            'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
+                            'menu_mapping' => sprintf('Menu %d has no dish mapping for target date %s.', $menuId, $targetDate),
                         ],
                     ];
                 }
 
-                foreach ($compositions as $composition) {
-                    $itemId = (int) $composition['item_id'];
-                    $item   = $this->itemModel->find($itemId);
+                foreach ($menuDishes as $menuDish) {
+                    $dishId       = (int) $menuDish['dish_id'];
+                    $compositions = $this->db
+                        ->table('dish_compositions')
+                        ->select('item_id, qty_per_patient')
+                        ->where('dish_id', $dishId)
+                        ->get()
+                        ->getResultArray();
 
-                    if ($item === null) {
+                    if ($compositions === []) {
                         return [
                             'success' => false,
                             'message' => 'Validation failed.',
                             'errors'  => [
-                                'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
+                                'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
                             ],
                         ];
                     }
 
-                    if ((int) $item['item_category_id'] !== $basahCategoryId) {
-                        continue;
-                    }
+                    foreach ($compositions as $composition) {
+                        $itemId = (int) $composition['item_id'];
+                        $item   = $this->itemModel->find($itemId);
 
-                    $requiredQty = ((float) $composition['qty_per_patient']) * $adjustedPatients;
-                    if (! isset($requiredByDate[$targetDate])) {
-                        $requiredByDate[$targetDate] = [];
-                    }
+                        if ($item === null) {
+                            return [
+                                'success' => false,
+                                'message' => 'Validation failed.',
+                                'errors'  => [
+                                    'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
+                                ],
+                            ];
+                        }
 
-                    $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
+                        if ((int) $item['item_category_id'] !== $basahCategoryId) {
+                            continue;
+                        }
 
-                    if (! isset($currentStockByItem[$itemId])) {
-                        $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
+                        $requiredQty = ((float) $composition['qty_per_patient']) * $patientsForThisMenu;
+                        if (! isset($requiredByDate[$targetDate])) {
+                            $requiredByDate[$targetDate] = [];
+                        }
+
+                        $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
+
+                        if (! isset($currentStockByItem[$itemId])) {
+                            $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
+                        }
                     }
                 }
             }

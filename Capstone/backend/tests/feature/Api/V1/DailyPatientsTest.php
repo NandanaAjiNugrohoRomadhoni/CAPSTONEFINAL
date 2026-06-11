@@ -80,9 +80,9 @@ class DailyPatientsTest extends CIUnitTestCase
 
     public function testCreateListShowAndDuplicateCanonicalRejection(): void
     {
-        $dapurToken = $this->login('dapur');
+        $gudangToken = $this->login('gudang');
 
-        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
                 'service_date'   => '2026-05-01',
@@ -99,7 +99,7 @@ class DailyPatientsTest extends CIUnitTestCase
         $this->assertSame(120, $createJson['data']['total_patients']);
         $this->assertSame('Morning shift', $createJson['data']['notes']);
 
-        $duplicateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $duplicateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
                 'service_date'   => '2026-05-01',
@@ -115,7 +115,16 @@ class DailyPatientsTest extends CIUnitTestCase
         );
         $this->assertSame('1', $duplicateJson['errors']['existing_id']);
 
-        $gudangToken = $this->login('gudang');
+        $dapurToken = $this->login('dapur');
+
+        $forbiddenCreateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+            ->withBodyFormat('json')
+            ->post('api/v1/daily-patients', [
+                'service_date'   => '2026-05-02',
+                'total_patients' => 110,
+            ]);
+
+        $forbiddenCreateResult->assertStatus(403);
 
         $listResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->get('api/v1/daily-patients');
@@ -172,9 +181,9 @@ class DailyPatientsTest extends CIUnitTestCase
 
     public function testUpdateAllowsChangingDailyPatientByIdAndRejectsDuplicateServiceDate(): void
     {
-        $dapurToken = $this->login('dapur');
+        $gudangToken = $this->login('gudang');
 
-        $firstCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $firstCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
                 'service_date'   => '2026-05-01',
@@ -183,7 +192,7 @@ class DailyPatientsTest extends CIUnitTestCase
         $firstCreate->assertStatus(201);
         $firstId = (int) json_decode($firstCreate->getJSON(), true)['data']['id'];
 
-        $secondCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $secondCreate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
                 'service_date'   => '2026-05-02',
@@ -192,7 +201,7 @@ class DailyPatientsTest extends CIUnitTestCase
         $secondCreate->assertStatus(201);
         $secondId = (int) json_decode($secondCreate->getJSON(), true)['data']['id'];
 
-        $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->put('api/v1/daily-patients/' . $firstId, [
                 'service_date'   => '2026-05-03',
@@ -207,7 +216,7 @@ class DailyPatientsTest extends CIUnitTestCase
         $this->assertSame(140, $updateJson['data']['total_patients']);
         $this->assertSame('Adjusted census', $updateJson['data']['notes']);
 
-        $duplicateUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+        $duplicateUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->put('api/v1/daily-patients/' . $firstId, [
                 'service_date' => '2026-05-02',
@@ -218,5 +227,15 @@ class DailyPatientsTest extends CIUnitTestCase
         $this->assertSame('Validation failed.', $duplicateJson['message']);
         $this->assertSame('A daily patient input for this service_date already exists.', $duplicateJson['errors']['service_date']);
         $this->assertSame((string) $secondId, $duplicateJson['errors']['existing_id']);
+
+        $dapurToken = $this->login('dapur');
+
+        $forbiddenUpdate = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
+            ->withBodyFormat('json')
+            ->put('api/v1/daily-patients/' . $firstId, [
+                'total_patients' => 150,
+            ]);
+
+        $forbiddenUpdate->assertStatus(403);
     }
 }

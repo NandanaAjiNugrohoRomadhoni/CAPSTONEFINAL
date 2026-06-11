@@ -26,34 +26,36 @@ class TestSeeder extends Seeder
     {
         // === PHASE 1: Lookup Tables (no dependencies) ===
         // These are foundational lookup/master data tables.
-        $this->call('RoleSeeder');                    // Roles: admin, dapur, gudang
-        $this->call('ItemCategorySeeder');            // Item categories: BASAH, KERING, PENGEMAS
-        $this->call('TransactionTypeSeeder');         // Transaction types: IN, OUT, RETURN_IN, OPNAME_ADJUSTMENT
-        $this->call('ApprovalStatusSeeder');          // Approval statuses: APPROVED, PENDING, REJECTED
-        $this->call('MealTimeSeeder');                // Meal times: PAGI, SIANG, SORE
-        $this->call('MenuSeeder');                    // Menus: Paket 1..11
-        $this->call('ItemUnitSeeder');                // Item units: gram, kg, ml, liter, butir, pack
+        $this->call("RoleSeeder"); // Roles: admin, dapur, gudang
+        $this->call("ItemCategorySeeder"); // Item categories: BASAH, KERING, PENGEMAS
+        $this->call("TransactionTypeSeeder"); // Transaction types: IN, OUT, RETURN_IN, OPNAME_ADJUSTMENT
+        $this->call("ApprovalStatusSeeder"); // Approval statuses: APPROVED, PENDING, REJECTED
+        $this->call("MealTimeSeeder"); // Meal times: PAGI, SIANG, SORE
+        $this->call("MenuSeeder"); // Menus: Paket 1..11
+        $this->call("ItemUnitSeeder"); // Item units: gram, kg, ml, liter, butir, pack
 
         // === PHASE 2: User-Facing Entities (depend on Phase 1) ===
         // Users depend on roles; items depend on categories and units.
-        $this->call('UserSeeder');                    // Users: admin, spkgizi, gudang (with roles)
-        $this->call('ItemSeeder');                    // Items: Beras, Ayam, Minyak Goreng, Telur (with categories/units)
+        $this->call("UserSeeder"); // Users: admin, spkgizi, gudang (with roles)
+        $this->call("ItemSeeder"); // Items: Beras, Ayam, Minyak Goreng, Telur (with categories/units)
 
         // === PHASE 3: Domain Entities (depend on Phase 1) ===
         // Dishes are independent; menu dishes depend on menus and meal times.
-        $this->call('DishSeeder');                    // Dishes: 33 named dishes
+        $this->call("DishSeeder"); // Dishes: 33 named dishes
 
         // === PHASE 4: Composed Entities (depend on Phase 2 & 3) ===
         // Compositions and menu assignments depend on items, dishes, and menus.
-        $this->call('DishCompositionSeeder');         // Dish compositions: item assignments per dish
-        $this->call('MenuDishSeeder');                // Menu dishes: meal-time slots per menu
+        $this->call("DishCompositionSeeder"); // Dish compositions: item assignments per dish
+        $this->call("MenuDishSeeder"); // Menu dishes: meal-time slots per menu
 
         // === PHASE 5: Operational Baseline (depend on all above) ===
         // Schedules, patients, transactions, opnames, and SPK depend on the full baseline.
-        $this->call('MenuScheduleSeeder');            // Menu schedules: calendar baseline
-        $this->call('DailyPatientSeeder');            // Daily patients: patient counts per schedule
-        $this->call('StockTransactionSeeder');        // Stock transactions: IN/OUT/RETURN_IN lifecycle samples
-        $this->call('StockOpnameSeeder');             // Stock opnames: opname lifecycle samples (DRAFT..POSTED)
-        $this->call('SpkPersistenceSeeder');          // SPK calculations/recommendations: versioned baseline
+        $this->call("MenuScheduleSeeder"); // Menu schedules: calendar baseline
+        $this->call("DailyPatientSeeder"); // Daily patients: patient counts per schedule
+        $this->call("StockTransactionSeeder"); // Stock transactions: IN/OUT/RETURN_IN lifecycle samples
+        $this->call("StockOpnameSeeder"); // Stock opnames: opname lifecycle samples (DRAFT..POSTED)
+        $this->call("SpkPersistenceSeeder"); // SPK calculations/recommendations: versioned baseline
+        $this->call("MonthlyExportScenarioSeeder"); // 2-month operational history for export reports
+        $this->call("RuntimeCurrentMonthSpkScenarioSeeder"); // Runtime-relative current-month SPK scenario without reseeding shared prerequisites
     }
 }

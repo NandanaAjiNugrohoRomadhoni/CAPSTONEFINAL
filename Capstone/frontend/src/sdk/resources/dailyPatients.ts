@@ -14,7 +14,7 @@ import type {
  *
  * Wraps:    /api/v1/daily-patients
  * Contract: api-contract.md §5.7.1
- * Access:   admin | dapur | gudang
+ * Access:   read admin | dapur | gudang; write admin | gudang
  *
  * Manages the standalone daily patient input used as canonical SPK basah input.
  */
@@ -61,7 +61,7 @@ export class DailyPatientsResource {
    * Creates a daily patient row.
    *
    * @endpoint POST /api/v1/daily-patients
-   * @access   admin | dapur
+   * @access   admin | gudang
    * @param payload - Writable fields: `service_date`, `total_patients`, and optional `notes`. `service_date` must remain unique.
    * @returns {Promise<DailyPatientCreateResponse>}
    * @throws {ValidationApiError} if validation fails or the service date already exists (400)
@@ -81,7 +81,7 @@ export class DailyPatientsResource {
    * Updates a daily patient row by id.
    *
    * @endpoint PUT /api/v1/daily-patients/{id}
-   * @access   admin | dapur
+   * @access   admin | gudang
    * @returns {Promise<DailyPatientUpdateResponse>}
    * @throws {ValidationApiError} if validation fails or the service date collides with another row (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)

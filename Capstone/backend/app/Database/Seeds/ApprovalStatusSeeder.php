@@ -8,10 +8,12 @@ class ApprovalStatusSeeder extends Seeder
 {
     public function run()
     {
-        $this->db->table('approval_statuses')->insertBatch([
-            ['name' => 'APPROVED'],
-            ['name' => 'PENDING'],
-            ['name' => 'REJECTED'],
-        ]);
+        $this->db
+            ->table("approval_statuses")
+            ->insertBatch([
+                ["name" => "APPROVED"],
+                ["name" => "PENDING"],
+                ["name" => "REJECTED"],
+            ]);
     }
 }

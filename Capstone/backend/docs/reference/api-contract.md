@@ -1503,6 +1503,22 @@ The `/api/v1/menu-calendar` endpoint requires exactly one of these query paramet
    - Days 11-20 map to Package % 10 (e.g., 14 -> Package 4, 20 -> Package 10).
    - Days 21-30 map to Package % 10 (e.g., 27 -> Package 7, 30 -> Package 10).
 
+**Example Response:**
+```json
+{
+  "data": [
+    {
+      "date": "2026-06-01",
+      "day_of_month": 1,
+      "assignments": [
+        { "menu_id": 1, "patient_count": 50 },
+        { "menu_id": 2, "patient_count": null }
+      ]
+    }
+  ]
+}
+```
+
 #### 5.6.5 Slot Assignment Detail & Examples
 
 **POST /api/v1/menu-dishes**
@@ -1571,7 +1587,7 @@ Bagian ini membekukan kontrak route, boundary, dan lifecycle untuk fondasi imple
 | PUT | `/api/v1/daily-patients/{id}` | Update daily patient row by numeric id |
 | GET | `/api/v1/daily-patients/{service_date}` | Get daily patient detail by service date (`Y-m-d`) |
 
-Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` dan `PUT` daily-patients tersedia untuk `admin` dan `dapur`.
+Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` dan `PUT` daily-patients tersedia untuk `admin` dan `gudang`.
 
 Collection response contract mengikuti envelope standar (`data`, `meta`, `links`).
 
@@ -1723,6 +1739,7 @@ Validation contract:
 | GET | `/api/v1/reports/transactions` | Stock transaction line dataset by period and optional transaction filters |
 | GET | `/api/v1/reports/spk-history` | SPK history dataset by period and optional SPK filters |
 | GET | `/api/v1/reports/evaluation` | Plan vs realization evaluation dataset with variance |
+| GET | `/api/v1/reports/monthly-stock-export` | Monthly per-item movement export grouped by `transaction_date` |
 
 #### 5.9.1 Stock Report
 
@@ -1803,6 +1820,56 @@ Evaluation semantics:
 - `variance_qty` = `realization_qty - planned_qty`
 
 Summary menyertakan total planned/realization/variance lintas baris hasil.
+
+#### 5.9.5 Monthly Stock Export
+
+Optional filters:
+
+- `category_id`
+- `item_id`
+
+Monthly stock export semantics:
+
+- hanya memuat transaksi `APPROVED`;
+- memakai `stock_transactions.transaction_date` sebagai business date filter dan daily grouping axis;
+- filter kategori diterapkan pada level item (`items.item_category_id`), bukan pada semantics SPK;
+- `stok_awal` dibaca dari `monthly_stock_snapshots(period_month, item_id)` untuk bulan `period_start`;
+- `masuk` menjumlahkan `IN` dan `RETURN_IN`;
+- `keluar` menjumlahkan `OUT`;
+- `OPNAME_ADJUSTMENT` tidak dipetakan ke `masuk/keluar` pada versi pertama ini;
+- jika snapshot item tidak ada, `stok_awal` dan seluruh `harian[].sisa` untuk item itu bernilai `null`.
+
+Response shape:
+
+```json
+{
+  "data": {
+    "report_type": "monthly-stock-export",
+    "period": { "start": "2026-04-01", "end": "2026-04-30" },
+    "filters": { "category_id": 3 },
+    "summary": {
+      "total_items": 1,
+      "total_days": 30
+    },
+    "periode": "1-30",
+    "rows": [
+      {
+        "no": 1,
+        "item_id": 3,
+        "nama_bahan_makanan": "Plastik Vakum",
+        "category_id": 3,
+        "category_name": "PENGEMAS",
+        "satuan": "gram",
+        "stok_awal": 250,
+        "harian": [
+          { "tanggal": 12, "masuk": 40, "keluar": 0, "sisa": 290 },
+          { "tanggal": 13, "masuk": 0, "keluar": 5, "sisa": 285 }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ### 5.10 Notifications
 

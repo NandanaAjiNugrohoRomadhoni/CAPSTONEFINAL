@@ -33,10 +33,11 @@ class SpkBasahReadTest extends CIUnitTestCase
     public function testHistoryReturnsBasahRowsInStableOrderWithMetadata(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
         $readToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
-        $this->createDailyPatient($token, '2026-03-31', 120);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-31', 120);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -79,10 +80,11 @@ class SpkBasahReadTest extends CIUnitTestCase
     public function testShowReturnsPersistedDetailFieldsWithoutRecomputeAndKeepsStockUntouched(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
         $readToken = $this->login('gudang');
         $db = Database::connect();
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $generated = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -145,9 +147,10 @@ class SpkBasahReadTest extends CIUnitTestCase
     public function testHistoryPreservesDistinctRowsAcrossRegenerationForSameScope(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
         $readToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -161,6 +164,7 @@ class SpkBasahReadTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
                 'service_date' => '2026-03-01',
+                'regenerate'   => true,
             ]);
         $second->assertStatus(201);
         $secondJson = json_decode($second->getJSON(), true);

@@ -176,7 +176,7 @@ class OperationalStockPreviewTest extends CIUnitTestCase
         $this->assertSame('Validation failed.', $afterJson['message']);
         $this->assertArrayHasKey('errors', $afterJson);
         $this->assertArrayHasKey('menu_mapping', $afterJson['errors']);
-        $this->assertStringContainsString('has no dish mapping', $afterJson['errors']['menu_mapping']);
+        $this->assertStringContainsString('No required items found', $afterJson['errors']['menu_mapping']);
     }
 
     protected function seedRoles(): void

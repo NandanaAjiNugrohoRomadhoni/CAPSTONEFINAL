@@ -8,10 +8,12 @@ class ItemCategorySeeder extends Seeder
 {
     public function run()
     {
-        $this->db->table('item_categories')->insertBatch([
-            ['name' => 'BASAH'],
-            ['name' => 'KERING'],
-            ['name' => 'PENGEMAS'],
-        ]);
+        $this->db
+            ->table("item_categories")
+            ->insertBatch([
+                ["name" => "BASAH"],
+                ["name" => "KERING"],
+                ["name" => "PENGEMAS"],
+            ]);
     }
 }

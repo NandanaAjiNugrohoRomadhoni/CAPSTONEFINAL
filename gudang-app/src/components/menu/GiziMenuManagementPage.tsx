@@ -6,6 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -29,6 +30,7 @@ type FoodMenu = {
   description: string;
   compositionSummary: string;
   ingredients: IngredientRow[];
+  isActive: boolean;
 };
 
 type ModalMode = "create" | "detail" | "edit" | "delete" | null;
@@ -42,6 +44,7 @@ type ItemRecord = {
   id: number;
   name: string;
   unit_base: string;
+  unit_convert: string;
 };
 
 type StockReportRow = {
@@ -56,6 +59,14 @@ const ALL_STOCK_REPORT_PERIOD = {
 };
 
 const MENU_DESCRIPTION_STORAGE_KEY = "menu-manual-descriptions";
+
+function sortMenusByStatusAndName(nextMenus: FoodMenu[]) {
+  return [...nextMenus].sort((left, right) => {
+    const activeDiff = Number(right.isActive) - Number(left.isActive);
+    if (activeDiff !== 0) return activeDiff;
+    return left.name.localeCompare(right.name, "id-ID", { sensitivity: "base" });
+  });
+}
 
 type SearchableIngredientSelectProps = {
   options: Array<{ id: number; label: string; unit: string }>;
@@ -179,37 +190,27 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       id: Number(item.id),
       name: item.name,
       unit_base: item.unit_base,
+      unit_convert: item.unit_convert ?? item.unit_base,
     })) satisfies ItemRecord[];
   }
 
-  const [compositionResponse, stocksResponse] = await Promise.all([
-    sdk.dishCompositions.list({ perPage: 100, sortBy: "id", sortDir: "ASC" }),
+  const [allCompositions, stocksResponse] = await Promise.all([
+    listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+      sortBy: "id",
+      sortDir: "ASC",
+    }),
     sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
   ]);
-
-  const allCompositions = [...(compositionResponse.data ?? [])];
-  const totalPages = compositionResponse.meta?.totalPages ?? 1;
-
-  if (totalPages > 1) {
-    const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
-    const remainingResponses = await Promise.all(
-      remainingPages.map((page) =>
-        sdk.dishCompositions.list({ page, perPage: 100, sortBy: "id", sortDir: "ASC" }),
-      ),
-    );
-
-    for (const response of remainingResponses) {
-      allCompositions.push(...(response.data ?? []));
-    }
-  }
 
   const mergedItems = new Map<number, ItemRecord>();
   for (const composition of allCompositions) {
     const itemId = Number(composition.item_id);
-    const itemName =
-      composition.item && typeof composition.item.name === "string" ? composition.item.name : null;
-    const unitBase =
-      composition.item && typeof composition.item.unit_base === "string" ? composition.item.unit_base : "";
+    const compositionItem = composition.item as
+      | { name?: string; unit_base?: string; unit_convert?: string }
+      | null
+      | undefined;
+    const itemName = typeof compositionItem?.name === "string" ? compositionItem.name : null;
+    const unitBase = typeof compositionItem?.unit_base === "string" ? compositionItem.unit_base : "";
 
     if (!Number.isFinite(itemId) || !itemName) continue;
 
@@ -217,6 +218,7 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       id: itemId,
       name: itemName,
       unit_base: unitBase,
+      unit_convert: typeof compositionItem?.unit_convert === "string" ? compositionItem.unit_convert : unitBase,
     });
   }
 
@@ -230,6 +232,7 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       id: itemId,
       name: existing?.name || row.item_name,
       unit_base: existing?.unit_base || row.unit_base,
+      unit_convert: existing?.unit_convert || row.unit_base,
     });
   }
 
@@ -307,48 +310,48 @@ export default function GiziMenuManagementPage() {
 
     try {
       const [dishesResponse, firstCompositionResponse, availableItems] = await Promise.all([
-        sdk.dishes.list({ perPage: 100, sortBy: "name", sortDir: "ASC" }),
-        sdk.dishCompositions.list({ perPage: 100, sortBy: "id", sortDir: "ASC" }),
+        listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
+          sortBy: "name",
+          sortDir: "ASC",
+        }),
+        listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+          sortBy: "id",
+          sortDir: "ASC",
+        }),
         loadAvailableItems("dapur"),
       ]);
-
-      const allCompositions = [...(firstCompositionResponse.data ?? [])];
-      const totalPages = firstCompositionResponse.meta?.totalPages ?? 1;
-
-      if (totalPages > 1) {
-        const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
-        const remainingResponses = await Promise.all(
-          remainingPages.map((page) =>
-            sdk.dishCompositions.list({ page, perPage: 100, sortBy: "id", sortDir: "ASC" }),
-          ),
-        );
-
-        for (const response of remainingResponses) {
-          allCompositions.push(...(response.data ?? []));
-        }
-      }
 
       const itemMap = new Map(availableItems.map((item) => [Number(item.id), item]));
       const compositionMap = new Map<number, IngredientRow[]>();
 
-      for (const composition of allCompositions) {
+      for (const composition of firstCompositionResponse) {
         const dishId = Number(composition.dish_id);
         const itemId = Number(composition.item_id);
         const group = compositionMap.get(dishId) ?? [];
         const relatedItem = itemMap.get(itemId);
+        const compositionItem = composition.item as
+          | { unit_convert?: string; unit_base?: string }
+          | null
+          | undefined;
         group.push({
           localId: composition.id,
           compositionId: composition.id,
           item_id: itemId,
           qty_per_patient: composition.qty_per_patient,
-          unit: relatedItem?.unit_base ?? composition.item?.unit_base ?? undefined,
+          unit:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
         });
         compositionMap.set(dishId, group);
       }
 
       const descriptionMap = readMenuDescriptions();
-      const nextMenus = (dishesResponse.data ?? []).map((dish) => {
+      const nextMenus = dishesResponse.map((dish) => {
         const dishId = Number(dish.id);
+        const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
         const menuIngredients = compositionMap.get(dishId) ?? [];
         const compositionSummary = buildCompositionSummary(menuIngredients, itemMap);
 
@@ -358,11 +361,12 @@ export default function GiziMenuManagementPage() {
           description: descriptionMap[String(dishId)] ?? "",
           compositionSummary,
           ingredients: menuIngredients,
+          isActive,
         };
       });
 
       setItems(availableItems);
-      setMenus(nextMenus);
+      setMenus(sortMenusByStatusAndName(nextMenus));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat menu makanan."));
     } finally {
@@ -379,7 +383,7 @@ export default function GiziMenuManagementPage() {
       items.map((item) => ({
         id: item.id,
         label: item.name,
-        unit: item.unit_base,
+        unit: item.unit_convert,
       })),
     [items],
   );
@@ -387,8 +391,8 @@ export default function GiziMenuManagementPage() {
 
   const filteredMenus = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return menus;
-    return menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    const filtered = !query ? menus : menus.filter((menu) => menu.name.toLowerCase().includes(query));
+    return sortMenusByStatusAndName(filtered);
   }, [menus, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMenus.length / 8));
@@ -462,9 +466,12 @@ export default function GiziMenuManagementPage() {
     const previousMenus = menus;
 
     try {
-      const validRows = ingredients.filter(
-        (row) => row.item_id !== null && Number(row.qty_per_patient) > 0,
-      );
+      const selectedRows = ingredients.filter((row) => row.item_id !== null);
+      if (selectedRows.some((row) => Number(row.qty_per_patient) <= 0)) {
+        throw new Error("Qty bahan tidak boleh 0. Silakan ubah qty bahan terlebih dahulu.");
+      }
+
+      const validRows = selectedRows.filter((row) => Number(row.qty_per_patient) > 0);
 
       if (menuName.trim() === "") throw new Error("Nama menu wajib diisi.");
       if (validRows.length === 0) throw new Error("Minimal satu komposisi bahan harus diisi.");
@@ -478,6 +485,7 @@ export default function GiziMenuManagementPage() {
             description: menuDescription.trim(),
             compositionSummary: buildCompositionSummary(validRows, itemMap),
             ingredients: validRows,
+            isActive: true,
           },
         ]);
         const createdDish = await sdk.dishes.create({ name: menuName.trim() });
@@ -502,16 +510,18 @@ export default function GiziMenuManagementPage() {
 
       if (modalMode === "edit" && selectedMenu) {
         setMenus((current) =>
-          current.map((menu) =>
-            menu.id === selectedMenu.id
-              ? {
-                  ...menu,
-                  name: menuName.trim(),
-                  description: menuDescription.trim(),
-                  compositionSummary: buildCompositionSummary(validRows, itemMap),
-                  ingredients: validRows,
-                }
-              : menu,
+          sortMenusByStatusAndName(
+            current.map((menu) =>
+              menu.id === selectedMenu.id
+                ? {
+                    ...menu,
+                    name: menuName.trim(),
+                    description: menuDescription.trim(),
+                    compositionSummary: buildCompositionSummary(validRows, itemMap),
+                    ingredients: validRows,
+                  }
+                : menu,
+            ),
           ),
         );
         await sdk.dishes.update(selectedMenu.id, { name: menuName.trim() });
@@ -563,31 +573,37 @@ export default function GiziMenuManagementPage() {
     setSaving(true);
     setError(null);
     const previousMenus = menus;
-    setMenus((current) => current.filter((menu) => menu.id !== selectedMenu.id));
     try {
-      for (const ingredient of selectedMenu.ingredients) {
-        if (ingredient.compositionId) {
-          await sdk.dishCompositions.delete(ingredient.compositionId);
-        }
-      }
-
+      const nextIsActive = !selectedMenu.isActive;
       await sdk.client.request({
-        method: "DELETE",
-        path: `/dishes/${selectedMenu.id}`,
+        method: "PATCH",
+        path: `/dishes/${selectedMenu.id}/${nextIsActive ? "reactivate" : "deactivate"}`,
       });
-      removeMenuDescription(selectedMenu.id);
 
+      setMenus((current) =>
+        sortMenusByStatusAndName(
+          current.map((menu) =>
+            menu.id === selectedMenu.id
+              ? {
+                  ...menu,
+                  isActive: nextIsActive,
+                }
+              : menu,
+          ),
+        ),
+      );
       setSuccessState({
-        headline: "Menu Makanan Berhasil Dihapus",
-        message:
-          `Menu ${selectedMenu.name} telah dipindahkan ke arsip.`,
+        headline: nextIsActive ? "Menu Makanan Berhasil Diaktifkan" : "Menu Makanan Berhasil Dinonaktifkan",
+        message: nextIsActive
+          ? `Menu ${selectedMenu.name} kembali aktif di daftar menu.`
+          : `Menu ${selectedMenu.name} telah dinonaktifkan dari daftar menu.`,
       });
       await loadMenus();
       router.refresh();
       closeModal();
     } catch (deleteError) {
       setMenus(previousMenus);
-      setError(getErrorMessage(deleteError, "Gagal menghapus menu makanan."));
+      setError(getErrorMessage(deleteError, "Gagal memperbarui status menu makanan."));
     } finally {
       setSaving(false);
     }
@@ -657,6 +673,13 @@ export default function GiziMenuManagementPage() {
                         <span className="inline-flex rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
                           Menu
                         </span>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                            menu.isActive ? "bg-[#ECFDF3] text-[#16A34A]" : "bg-[#F1F5F9] text-[#64748B]"
+                          }`}
+                        >
+                          {menu.isActive ? "Aktif" : "Nonaktif"}
+                        </span>
                         <h3 className="line-clamp-2 text-xl font-semibold leading-tight text-[#16213E]">
                           {menu.name}
                         </h3>
@@ -666,15 +689,7 @@ export default function GiziMenuManagementPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto flex gap-2 pt-5">
-                      <MiniActionButton
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDetailModal(menu);
-                        }}
-                      >
-                        Detail
-                      </MiniActionButton>
+                    <div className="mt-auto flex flex-wrap gap-2 pt-5">
                       <MiniActionButton
                         onClick={(event) => {
                           event.stopPropagation();
@@ -684,13 +699,12 @@ export default function GiziMenuManagementPage() {
                         Edit
                       </MiniActionButton>
                       <MiniActionButton
-                        variant="danger"
                         onClick={(event) => {
                           event.stopPropagation();
                           openDeleteModal(menu);
                         }}
                       >
-                        Hapus
+                        {menu.isActive ? "Nonaktifkan" : "Aktifkan"}
                       </MiniActionButton>
                     </div>
                   </article>
@@ -771,6 +785,12 @@ export default function GiziMenuManagementPage() {
                 <X size={22} />
               </button>
             </div>
+
+            {modalMode !== "detail" && error ? (
+              <div className="mx-6 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            ) : null}
 
             <div className="space-y-5 overflow-y-auto px-6 py-6">
               <div className="space-y-2">
@@ -923,17 +943,18 @@ export default function GiziMenuManagementPage() {
       ) : null}
 
       <DeleteConfirmModal
-        confirmLabel="Hapus"
-        headline="Konfirmasi Hapus"
+        confirmLabel={selectedMenu?.isActive ? "Nonaktifkan" : "Aktifkan"}
+        headline={selectedMenu?.isActive ? "Nonaktifkan Menu Makanan" : "Aktifkan Menu Makanan"}
         isOpen={modalMode === "delete" && !!selectedMenu}
         message={
           selectedMenu
-            ? `Menu ${selectedMenu.name} akan dihapus permanen dan tidak dapat dikembalikan.`
+            ? selectedMenu.isActive
+              ? `Apakah Anda yakin ingin menonaktifkan menu ${selectedMenu.name}? Menu ini akan tetap ada di sistem dan bisa diaktifkan kembali.`
+              : `Apakah Anda yakin ingin mengaktifkan kembali menu ${selectedMenu.name}?`
             : ""
         }
         onClose={closeModal}
         onConfirm={() => void deleteMenu()}
-        title="Hapus menu makanan ini?"
       />
 
       <SuccessModal

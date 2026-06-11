@@ -8,7 +8,7 @@ class MenuScheduleModel extends Model
 {
     protected $table         = 'menu_schedules';
     protected $primaryKey    = 'id';
-    protected $allowedFields = ['day_of_month', 'menu_id'];
+    protected $allowedFields = ['day_of_month', 'menu_id', 'patient_count'];
     protected $useTimestamps = true;
     protected $returnType    = 'array';
 
@@ -34,17 +34,13 @@ class MenuScheduleModel extends Model
         return $row ?: null;
     }
 
-    public function findByDayOfMonth(int $dayOfMonth, ?int $exceptId = null): ?array
+    public function findAssignmentsByDay(int $dayOfMonth, ?int $excludeId = null): array
     {
         $builder = $this->where('day_of_month', $dayOfMonth);
-
-        if ($exceptId !== null) {
-            $builder = $builder->where('id !=', $exceptId);
+        if ($excludeId !== null) {
+            $builder->where('id !=', $excludeId);
         }
-
-        $row = $builder->first();
-
-        return $row ?: null;
+        return $builder->findAll();
     }
 
     public function getDayToMenuMap(): array
@@ -57,7 +53,7 @@ class MenuScheduleModel extends Model
 
         $map = [];
         foreach ($rows as $row) {
-            $map[(int) $row['day_of_month']] = (int) $row['menu_id'];
+            $map[(int) $row['day_of_month']][] = (int) $row['menu_id'];
         }
 
         return $map;

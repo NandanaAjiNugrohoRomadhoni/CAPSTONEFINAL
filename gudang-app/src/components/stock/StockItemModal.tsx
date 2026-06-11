@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 
 type CategoryOption = {
@@ -51,8 +51,23 @@ export default function StockItemModal({
     categoryName: initialValue?.categoryName ?? categories[0]?.name ?? "",
     minimumStock: initialValue?.minimumStock ?? "",
     unitName: initialValue?.unitName ?? itemUnits[0]?.name ?? "",
-    unitConvertName: initialValue?.unitConvertName ?? "",
+    unitConvertName: initialValue?.unitConvertName ?? getDefaultUnitConvert(initialValue?.unitName ?? itemUnits[0]?.name ?? ""),
   }));
+  const [unitConvertTouched, setUnitConvertTouched] = useState(Boolean(initialValue?.unitConvertName));
+
+  useEffect(() => {
+    setForm({
+      id: initialValue?.id,
+      name: initialValue?.name ?? "",
+      categoryName: initialValue?.categoryName ?? categories[0]?.name ?? "",
+      minimumStock: initialValue?.minimumStock ?? "",
+      unitName: initialValue?.unitName ?? itemUnits[0]?.name ?? "",
+      unitConvertName:
+        initialValue?.unitConvertName ??
+        getDefaultUnitConvert(initialValue?.unitName ?? itemUnits[0]?.name ?? ""),
+    });
+    setUnitConvertTouched(Boolean(initialValue?.unitConvertName));
+  }, [categories, initialValue, itemUnits]);
 
   const title = useMemo(
     () => (mode === "create" ? "Tambah Master Barang" : "Edit Master Barang"),
@@ -63,9 +78,53 @@ export default function StockItemModal({
     () =>
       mode === "create"
         ? "Masukkan data master bahan baru."
-        : "Perbarui data master bahan yang dipilih.",
+      : "Perbarui data master bahan yang dipilih.",
     [mode],
   );
+
+  const availableItemUnits = useMemo(() => {
+    const currentUnit = initialValue?.unitName?.trim();
+
+    if (!currentUnit) {
+      return itemUnits;
+    }
+
+    const hasCurrentUnit = itemUnits.some((unit) => unit.name === currentUnit);
+
+    if (hasCurrentUnit) {
+      return itemUnits;
+    }
+
+    return [
+      ...itemUnits,
+      {
+        id: 0,
+        name: currentUnit,
+      },
+    ];
+  }, [initialValue?.unitName, itemUnits]);
+
+  function getDefaultUnitConvert(unitName: string) {
+    const normalized = unitName.trim().toLowerCase();
+
+    if (normalized === "gram") {
+      return "kg";
+    }
+
+    if (normalized === "ml") {
+      return "liter";
+    }
+
+    if (normalized === "butir") {
+      return "pack";
+    }
+
+    return {
+      gram: "kg",
+      ml: "liter",
+      butir: "pack",
+    }[normalized] ?? unitName;
+  }
 
   if (!open) {
     return null;
@@ -148,23 +207,56 @@ export default function StockItemModal({
                   </select>
                 </label>
 
-                {mode === "create" ? (
+                {mode === "create" || mode === "edit" ? (
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">
-                      Satuan Item <span className="text-red-500">*</span>
+                      Satuan Besar <span className="text-red-500">*</span>
                     </span>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, unitName: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        const nextUnitName = event.target.value;
+                        setForm((current) => ({
+                          ...current,
+                          unitName: nextUnitName,
+                          unitConvertName: unitConvertTouched
+                            ? current.unitConvertName
+                            : getDefaultUnitConvert(nextUnitName),
+                        }));
+                      }}
                       required
                       value={form.unitName}
                     >
                       <option value="" disabled>
-                        Pilih satuan item
+                        Pilih satuan besar
                       </option>
-                      {itemUnits.map((unit) => (
+                      {availableItemUnits.map((unit) => (
+                        <option key={unit.id} value={unit.name}>
+                          {unit.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                {mode === "create" || mode === "edit" ? (
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Satuan Kecil <span className="text-red-500">*</span>
+                    </span>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
+                      onChange={(event) => {
+                        setUnitConvertTouched(true);
+                        setForm((current) => ({ ...current, unitConvertName: event.target.value }));
+                      }}
+                      required
+                      value={form.unitConvertName ?? ""}
+                    >
+                      <option value="" disabled>
+                        Pilih satuan kecil
+                      </option>
+                      {availableItemUnits.map((unit) => (
                         <option key={unit.id} value={unit.name}>
                           {unit.name}
                         </option>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, getStockTone } from "@/lib/admin-utils";
+import { listAllItems } from "@/lib/items";
 import {
   AdminPageHeading,
   ExportButton,
@@ -93,15 +94,9 @@ export default function Page() {
       if (cat) baseParams.item_category_id = cat.id;
     }
 
-    const allItems: ItemRecord[] = [];
-    let page = 1;
-    while (page <= 20) {
-      const itemResponse = await sdk.items.list({ ...baseParams, page });
-      const chunk = (itemResponse.data ?? []).filter(item => item.category?.name?.toUpperCase() !== "BASAH");
-      allItems.push(...chunk);
-      if ((itemResponse.data ?? []).length < 100) break;
-      page += 1;
-    }
+    const allItems = (await listAllItems(baseParams)).filter(
+      (item) => item.category?.name?.toUpperCase() !== "BASAH",
+    );
 
     setItems(allItems);
     setTotalRecords(allItems.length);

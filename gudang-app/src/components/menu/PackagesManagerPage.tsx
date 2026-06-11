@@ -6,6 +6,7 @@ import { ChevronDown, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -39,7 +40,7 @@ type PackageCard = {
   id: number;
   title: string;
   active: boolean;
-  meals: Record<MealKey, string | null>;
+  meals: Record<MealKey, string[]>;
 };
 
 type SlotState = {
@@ -71,6 +72,12 @@ const mealLabel: Record<MealKey, string> = {
 
 const mealOrder: MealKey[] = ["siang", "sore", "pagi"];
 
+const emptyMealValues = (): Record<MealKey, string[]> => ({
+  siang: [""],
+  sore: [""],
+  pagi: [""],
+});
+
 function normalizeMealKey(name: string | null | undefined): MealKey | null {
   const normalized = (name ?? "").trim().toLowerCase();
 
@@ -99,7 +106,7 @@ function buildPackageCards(
     dish?: { id: number; name: string | null };
   }>,
 ): PackageCard[] {
-  const groupedSlots = new Map<number, Record<MealKey, string | null>>();
+  const groupedSlots = new Map<number, Record<MealKey, string[]>>();
 
   for (const slot of slots) {
     const mealKey = normalizeMealKey(slot.meal_time?.name);
@@ -108,12 +115,15 @@ function buildPackageCards(
     }
 
     const current = groupedSlots.get(slot.menu_id) ?? {
-      siang: null,
-      sore: null,
-      pagi: null,
+      siang: [],
+      sore: [],
+      pagi: [],
     };
 
-    current[mealKey] = slot.dish?.name ?? null;
+    const dishName = slot.dish?.name ?? null;
+    if (dishName && !current[mealKey].includes(dishName)) {
+      current[mealKey].push(dishName);
+    }
     groupedSlots.set(slot.menu_id, current);
   }
 
@@ -123,16 +133,22 @@ function buildPackageCards(
       id: menu.id,
       title: menu.name,
       meals: groupedSlots.get(menu.id) ?? {
-        siang: null,
-        sore: null,
-        pagi: null,
+        siang: [],
+        sore: [],
+        pagi: [],
       },
-      active: Object.values(groupedSlots.get(menu.id) ?? {
-        siang: null,
-        sore: null,
-        pagi: null,
-      }).some(Boolean),
+      active: Object.values(
+        groupedSlots.get(menu.id) ?? {
+          siang: [],
+          sore: [],
+          pagi: [],
+        },
+      ).some((items) => items.length > 0),
     }));
+}
+
+function getMealRowLabel(rowIndex: number) {
+  return `Menu ${rowIndex + 1}`;
 }
 
 function SearchableMealSelect({
@@ -325,6 +341,7 @@ export default function PackagesManagerPage() {
   const [mealTimeOptions, setMealTimeOptions] = useState<MealTimeOption[]>([]);
   const [pendingInactiveSelection, setPendingInactiveSelection] = useState<{
     mealKey: MealKey;
+    rowIndex: number;
     dish: DishOption;
   } | null>(null);
   const [menuSlots, setMenuSlots] = useState<
@@ -341,11 +358,7 @@ export default function PackagesManagerPage() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PackageCard | null>(null);
-  const [mealValues, setMealValues] = useState<Record<MealKey, string>>({
-    siang: "",
-    sore: "",
-    pagi: "",
-  });
+  const [mealValues, setMealValues] = useState<Record<MealKey, string[]>>(emptyMealValues);
   const [successState, setSuccessState] = useState<NoticeState>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -408,24 +421,27 @@ export default function PackagesManagerPage() {
       const slotsData = slotsResponse.data ?? [];
       setMenuSlots(slotsData);
 
-      const groupedSlots = new Map<number, Record<MealKey, string | null>>();
+      const groupedSlots = new Map<number, Record<MealKey, string[]>>();
       for (const slot of slotsData) {
         const mealKey = normalizeMealKey(slot.meal_time?.name);
         if (!mealKey) continue;
 
         const current = groupedSlots.get(slot.menu_id) ?? {
-          siang: null,
-          sore: null,
-          pagi: null,
+          siang: [],
+          sore: [],
+          pagi: [],
         };
-        current[mealKey] = slot.dish?.name ?? null;
+        const dishName = slot.dish?.name ?? null;
+        if (dishName && !current[mealKey].includes(dishName)) {
+          current[mealKey].push(dishName);
+        }
         groupedSlots.set(slot.menu_id, current);
       }
 
       setPackages((current) =>
         current.map((pkg) => ({
           ...pkg,
-          meals: groupedSlots.get(pkg.id) ?? { siang: null, sore: null, pagi: null },
+          meals: groupedSlots.get(pkg.id) ?? { siang: [], sore: [], pagi: [] },
         })),
       );
     } catch (err) {
@@ -453,14 +469,13 @@ export default function PackagesManagerPage() {
     if (menuOptions.length > 0) return;
 
     try {
-      const dishesResponse = await sdk.dishes.list({
-        perPage: 100,
+      const dishesResponse = await listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
         sortBy: "name",
         sortDir: "ASC",
       });
 
       setMenuOptions(
-        (dishesResponse.data ?? [])
+        dishesResponse
           .map((dish) => ({
             id: Number(dish.id),
             name: dish.name,
@@ -484,9 +499,9 @@ export default function PackagesManagerPage() {
     setSelectedPackage(item);
     setSelectedPackageId(item.id);
     setMealValues({
-      siang: item.meals.siang ?? "",
-      sore: item.meals.sore ?? "",
-      pagi: item.meals.pagi ?? "",
+      siang: item.meals.siang.length > 0 ? [...item.meals.siang] : [""],
+      sore: item.meals.sore.length > 0 ? [...item.meals.sore] : [""],
+      pagi: item.meals.pagi.length > 0 ? [...item.meals.pagi] : [""],
     });
     setModalMode("edit");
     await ensureMenuOptions();
@@ -495,26 +510,48 @@ export default function PackagesManagerPage() {
   function confirmInactiveDishSelection() {
     if (!pendingInactiveSelection) return;
 
-    const { mealKey, dish } = pendingInactiveSelection;
+    const { mealKey, rowIndex, dish } = pendingInactiveSelection;
     setMealValues((current) => ({
       ...current,
-      [mealKey]: dish.name,
+      [mealKey]: current[mealKey].map((value, index) => (index === rowIndex ? dish.name : value)),
     }));
     setPendingInactiveSelection(null);
   }
 
-  function getSlotState(menuId: number, mealKey: MealKey): SlotState {
-    const slot = menuSlots.find(
-      (item) =>
-        item.menu_id === menuId && normalizeMealKey(item.meal_time?.name) === mealKey,
-    );
+  function getSlotStates(menuId: number, mealKey: MealKey): SlotState[] {
+    return menuSlots
+      .filter((item) => item.menu_id === menuId && normalizeMealKey(item.meal_time?.name) === mealKey)
+      .sort((left, right) => left.id - right.id)
+      .map((slot) => ({
+        id: slot?.id ?? null,
+        mealTimeId: slot?.meal_time_id ?? null,
+        dishId: slot?.dish_id ?? null,
+        dishName: slot?.dish?.name ?? null,
+      }));
+  }
 
-    return {
-      id: slot?.id ?? null,
-      mealTimeId: slot?.meal_time_id ?? null,
-      dishId: slot?.dish_id ?? null,
-      dishName: slot?.dish?.name ?? null,
-    };
+  function addMealRow(mealKey: MealKey) {
+    setMealValues((current) => ({
+      ...current,
+      [mealKey]: [...current[mealKey], ""],
+    }));
+  }
+
+  function updateMealRow(mealKey: MealKey, rowIndex: number, nextValue: string) {
+    setMealValues((current) => ({
+      ...current,
+      [mealKey]: current[mealKey].map((value, index) => (index === rowIndex ? nextValue : value)),
+    }));
+  }
+
+  function removeMealRow(mealKey: MealKey, rowIndex: number) {
+    setMealValues((current) => {
+      const nextValues = current[mealKey].filter((_, index) => index !== rowIndex);
+      return {
+        ...current,
+        [mealKey]: nextValues.length > 0 ? nextValues : [""],
+      };
+    });
   }
 
   async function savePackage() {
@@ -535,85 +572,75 @@ export default function PackagesManagerPage() {
       const requests: Promise<unknown>[] = [];
 
       for (const mealKey of mealOrder) {
-        const selectedDishName = mealValues[mealKey].trim();
-
-        const slot = getSlotState(selectedPackageId, mealKey);
-        const mealTimeId = slot.mealTimeId ?? mealTimeNameToId.get(mealKey) ?? null;
+        const selectedDishNames = Array.from(
+          new Set(
+            mealValues[mealKey]
+              .map((value) => value.trim())
+              .filter((value) => value.length > 0),
+          ),
+        );
+        const existingSlots = getSlotStates(selectedPackageId, mealKey);
+        const mealTimeId =
+          existingSlots[0]?.mealTimeId ?? mealTimeNameToId.get(mealKey) ?? null;
 
         if (!mealTimeId) {
           continue;
         }
 
-        if (!selectedDishName) {
-          if (!slot.id) {
+        const nextMealNames = [...selectedDishNames];
+        setPackages((current) =>
+          current.map((item) => {
+            if (item.id !== selectedPackageId) {
+              return item;
+            }
+
+            return {
+              ...item,
+              meals: {
+                ...item.meals,
+                [mealKey]: nextMealNames,
+              },
+            };
+          }),
+        );
+
+        const desiredCount = selectedDishNames.length;
+        const existingCount = existingSlots.length;
+
+        for (let index = 0; index < Math.max(desiredCount, existingCount); index += 1) {
+          const selectedDishName = selectedDishNames[index] ?? null;
+          const slot = existingSlots[index] ?? null;
+
+          if (!selectedDishName) {
+            if (slot?.id) {
+              requests.push(sdk.menus.deleteSlot(slot.id));
+            }
             continue;
           }
 
-          setPackages((current) =>
-            current.map((item) =>
-              item.id === selectedPackageId
-                ? {
-                    ...item,
-                    meals: {
-                      ...item.meals,
-                      [mealKey]: null,
-                    },
-                  }
-                : item,
-            ),
-          );
-          requests.push(sdk.menus.deleteSlot(slot.id));
-          continue;
-        }
+          const selectedDishId = menuNameToId.get(selectedDishName);
+          if (!selectedDishId) {
+            continue;
+          }
 
-        const selectedDishId = menuNameToId.get(selectedDishName);
-        if (!selectedDishId) {
-          continue;
-        }
+          if (!slot?.id) {
+            requests.push(
+              sdk.menus.assignSlot({
+                menu_id: selectedPackageId,
+                meal_time_id: mealTimeId,
+                dish_id: selectedDishId,
+              }),
+            );
+            continue;
+          }
 
-        if (!slot.dishId) {
-          setPackages((current) =>
-            current.map((item) =>
-              item.id === selectedPackageId
-                ? {
-                    ...item,
-                    meals: {
-                      ...item.meals,
-                      [mealKey]: selectedDishName,
-                    },
-                  }
-                : item,
-            ),
-          );
-          requests.push(
-            sdk.menus.assignSlot({
-              menu_id: selectedPackageId,
-              meal_time_id: mealTimeId,
-              dish_id: selectedDishId,
-            }),
-          );
-          continue;
-        }
-
-        if (slot.dishId !== selectedDishId) {
-          setPackages((current) =>
-            current.map((item) =>
-              item.id === selectedPackageId
-                ? {
-                    ...item,
-                    meals: {
-                      ...item.meals,
-                      [mealKey]: selectedDishName,
-                    },
-                  }
-                : item,
-            ),
-          );
-          requests.push(
-            sdk.menus.updateSlot(slot.id ?? 0, {
-              dish_id: selectedDishId,
-            }),
-          );
+          if (slot.dishId !== selectedDishId) {
+            requests.push(
+              sdk.menus.updateSlot(slot.id, {
+                dish_id: selectedDishId,
+              }),
+            );
+          }
         }
       }
 
@@ -701,7 +728,11 @@ export default function PackagesManagerPage() {
                     >
                       <p className="text-[10px] font-bold">{mealLabel[mealKey]}</p>
                       <p className="mt-1 text-sm font-medium text-[#16213E]">
-                        {item.meals[mealKey] ?? (menuSlots.length === 0 ? "Memuat..." : "Belum diatur")}
+                        {item.meals[mealKey].length > 0
+                          ? item.meals[mealKey].join(", ")
+                          : menuSlots.length === 0
+                            ? "Memuat..."
+                            : "Belum diatur"}
                       </p>
                     </div>
                   ))}
@@ -719,7 +750,7 @@ export default function PackagesManagerPage() {
             onClick={closeModal}
           />
 
-          <div className="animate-modal-enter relative flex max-h-[calc(100vh-3rem)] w-full max-w-[550px] flex-col overflow-visible rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+          <div className="animate-modal-enter relative flex max-h-[calc(100vh-3rem)] w-full max-w-[620px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
             <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <h2 className="text-[22px] font-semibold leading-none text-slate-900">
@@ -736,7 +767,7 @@ export default function PackagesManagerPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-visible px-5 py-5">
+            <div className="flex-1 overflow-y-auto px-5 py-5">
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700">
@@ -758,31 +789,60 @@ export default function PackagesManagerPage() {
 
                   <div className="space-y-4 p-4">
                     {mealOrder.map((mealKey) => {
-                      const slotState = selectedPackageId
-                        ? getSlotState(selectedPackageId, mealKey)
-                        : { dishId: null, dishName: null };
+                      const slotStates = selectedPackageId ? getSlotStates(selectedPackageId, mealKey) : [];
 
                       return (
-                        <div key={mealKey} className="relative focus-within:z-40">
-                          <SearchableMealSelect
-                            label={mealLabel[mealKey]}
-                            options={menuOptions}
-                            placeholder={
-                              slotState.dishName ?? `Cari menu ${mealLabel[mealKey].toLowerCase()}`
-                            }
-                            value={mealValues[mealKey]}
-                            onChange={(nextValue, option) => {
-                              if (option && !option.isActive) {
-                                setPendingInactiveSelection({ mealKey, dish: option });
-                                return;
-                              }
+                        <div key={mealKey} className="rounded-[12px] border border-[#E2EAF5] bg-[#FBFDFF] p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-slate-700">
+                              {mealLabel[mealKey]}
+                            </h4>
+                            <button
+                              className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
+                              onClick={() => addMealRow(mealKey)}
+                              type="button"
+                            >
+                              + Tambah Menu
+                            </button>
+                          </div>
 
-                              setMealValues((current) => ({
-                                ...current,
-                                [mealKey]: nextValue,
-                              }));
-                            }}
-                          />
+                          <div className="space-y-3">
+                            {mealValues[mealKey].map((value, rowIndex) => {
+                              const slotState = slotStates[rowIndex] ?? null;
+
+                              return (
+                                <div key={`${mealKey}-${rowIndex}`} className="flex items-start gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <SearchableMealSelect
+                                      label={getMealRowLabel(rowIndex)}
+                                      options={menuOptions}
+                                      placeholder={
+                                        slotState?.dishName ??
+                                        `Cari menu ${mealLabel[mealKey].toLowerCase()}`
+                                      }
+                                      value={value}
+                                      onChange={(nextValue, option) => {
+                                        if (option && !option.isActive) {
+                                          setPendingInactiveSelection({ mealKey, rowIndex, dish: option });
+                                          return;
+                                        }
+
+                                        updateMealRow(mealKey, rowIndex, nextValue);
+                                      }}
+                                    />
+                                  </div>
+
+                                  <button
+                                    className="mt-7 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+                                    onClick={() => removeMealRow(mealKey, rowIndex)}
+                                    type="button"
+                                  >
+                                    Hapus
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}

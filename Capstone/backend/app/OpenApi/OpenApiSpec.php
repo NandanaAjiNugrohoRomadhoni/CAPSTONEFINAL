@@ -68,6 +68,10 @@ use OpenApi\Annotations as OA;
  *         description="Role-conditioned operational aggregate endpoint for admin, dapur, and gudang users."
  *     ),
  *     @OA\Tag(
+ *         name="Reports",
+ *         description="Export-ready reporting endpoints for stock, transaction, SPK, evaluation, and monthly stock movement datasets."
+ *     ),
+ *     @OA\Tag(
  *         name="Daily Patients",
  *         description="Daily patient input endpoints for listing, creating, and resolving service-date-specific operational totals."
  *     ),

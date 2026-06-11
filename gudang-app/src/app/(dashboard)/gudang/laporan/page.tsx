@@ -1,5 +1,5 @@
-import SuperAdminReportPage from "../../super-admin/laporan/page";
+import LaporanEvaluationPage from "@/components/reports/LaporanEvaluationPage";
 
 export default function Page() {
-  return <SuperAdminReportPage />;
+  return <LaporanEvaluationPage />;
 }

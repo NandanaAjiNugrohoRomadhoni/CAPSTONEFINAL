@@ -141,6 +141,7 @@ class SpkHistoryPersistenceTest extends CIUnitTestCase
             'category_id' => $keringCategoryId,
             'estimated_patients' => 0,
             'is_finish' => false,
+            'regenerate' => true,
         ], [
             [
                 'item_id' => (int) $beras['id'],

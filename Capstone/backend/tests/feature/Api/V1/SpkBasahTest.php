@@ -35,8 +35,9 @@ class SpkBasahTest extends CIUnitTestCase
     public function testGenerateIncludesRequestedDateAndNextDateWhenStillSameMonth(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -78,7 +79,7 @@ class SpkBasahTest extends CIUnitTestCase
     {
         $token = $this->login('gudang');
 
-        $this->createDailyPatient($this->login('dapur'), '2026-03-01', 100);
+        $this->createDailyPatient($this->login('gudang'), '2026-03-01', 100);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -93,8 +94,9 @@ class SpkBasahTest extends CIUnitTestCase
     public function testGenerateReturnsConflictForDuplicateScopeUnlessRegenerateIsTrue(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -127,8 +129,9 @@ class SpkBasahTest extends CIUnitTestCase
     public function testGenerateOnMonthEndIncludesOnlyRequestedDate(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-31', 80);
+        $this->createDailyPatient($writeToken, '2026-03-31', 80);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -156,8 +159,9 @@ class SpkBasahTest extends CIUnitTestCase
     {
         $dapurToken = $this->login('dapur');
         $adminToken = $this->login('admin');
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($dapurToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $baseline = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')
@@ -234,8 +238,9 @@ class SpkBasahTest extends CIUnitTestCase
     {
         $token = $this->login('dapur');
         $db = Database::connect();
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
         $db->table('dish_compositions')->where('dish_id', 1)->delete();
 
         $beforeHeaderCount = $db->table('spk_calculations')->countAllResults();
@@ -260,8 +265,9 @@ class SpkBasahTest extends CIUnitTestCase
     {
         $token = $this->login('dapur');
         $db = Database::connect();
+        $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($token, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
         $beforeCount = $db->table('stock_transactions')->countAllResults();
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
@@ -297,10 +303,6 @@ class SpkBasahTest extends CIUnitTestCase
     public function testMenuCalendarProjectionMatchesCanonicalResolverForMonthAndRangeModes(): void
     {
         $token = $this->login('admin');
-
-        if (! function_exists('cal_days_in_month')) {
-            $this->markTestSkipped('calendar extension is unavailable in this runtime.');
-        }
 
         $month = '2026-03';
         $canonicalMonthResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])

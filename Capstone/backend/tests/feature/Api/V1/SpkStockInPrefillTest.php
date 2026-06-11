@@ -35,8 +35,9 @@ class SpkStockInPrefillTest extends CIUnitTestCase
         $db = Database::connect();
         $dapurToken = $this->login('dapur');
         $adminToken = $this->login('admin');
+        $gudangToken = $this->login('gudang');
 
-        $this->createDailyPatient($dapurToken, '2026-03-01', 100);
+        $this->createDailyPatient($gudangToken, '2026-03-01', 100);
 
         $generated = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')
@@ -131,7 +132,7 @@ class SpkStockInPrefillTest extends CIUnitTestCase
         $dapurToken = $this->login('dapur');
         $gudangToken = $this->login('gudang');
 
-        $this->createDailyPatient($dapurToken, '2026-03-01', 100);
+        $this->createDailyPatient($gudangToken, '2026-03-01', 100);
 
         $generated = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')

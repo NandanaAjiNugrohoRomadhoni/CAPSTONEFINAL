@@ -67,7 +67,7 @@ class DashboardAggregateService
             ],
             default => [
                 'current_menu_cycle'       => $currentMenuCycle,
-                'current_menu_composition' => $this->buildCurrentMenuComposition($currentMenuCycle['menu_id'] ?? null),
+                'current_menu_composition' => $this->buildCurrentMenuComposition($currentMenuCycle['assignments'] ?? []),
                 'latest_spk_history'       => $latestSpkHistory,
                 'stock_summary'            => $stockSummary,
                 'dry_stock_status'         => $dryStockStatus,
@@ -183,35 +183,51 @@ class DashboardAggregateService
 
         if (! ($resolved['success'] ?? false)) {
             return [
-                'date'     => $date,
-                'menu_id'  => null,
-                'menu_name' => null,
+                'date'        => $date,
+                'menu_id'     => null,
+                'menu_name'   => null,
+                'assignments' => [],
             ];
         }
 
         $data = $resolved['data'];
+        $assignments = $data['assignments'] ?? [];
+
+        // For backward compatibility, use first assignment if available
+        $firstMenuId = null;
+        $firstMenuName = null;
+
+        if (! empty($assignments)) {
+            $firstMenuId = (int) $assignments[0]['menu_id'];
+            $menuRow = $this->db->table('menus')->select('name')->where('id', $firstMenuId)->get()->getRowArray();
+            $firstMenuName = $menuRow['name'] ?? ('Paket ' . $firstMenuId);
+        }
 
         return [
-            'date'      => $data['date'] ?? $date,
-            'menu_id'   => isset($data['menu_id']) ? (int) $data['menu_id'] : null,
-            'menu_name' => $data['menu_name'] ?? null,
+            'date'        => $data['date'] ?? $date,
+            'menu_id'     => $firstMenuId,
+            'menu_name'   => $firstMenuName,
+            'assignments' => $assignments,
         ];
     }
 
-    private function buildCurrentMenuComposition(?int $menuId): array
+    private function buildCurrentMenuComposition(array $assignments): array
     {
-        if ($menuId === null) {
+        if (empty($assignments)) {
             return [];
         }
 
+        $menuIds = array_map(static fn(array $a): int => (int) $a['menu_id'], $assignments);
+
         $rows = $this->db
             ->table('menu_dishes md')
-            ->select('mt.name AS meal_time, d.id AS dish_id, d.name AS dish_name, dc.item_id, i.name AS item_name, dc.qty_per_patient')
+            ->select('mt.name AS meal_time, d.id AS dish_id, d.name AS dish_name, dc.item_id, i.name AS item_name, dc.qty_per_patient, m.name AS menu_name')
             ->join('meal_times mt', 'mt.id = md.meal_time_id', 'inner')
             ->join('dishes d', 'd.id = md.dish_id', 'inner')
+            ->join('menus m', 'm.id = md.menu_id', 'inner')
             ->join('dish_compositions dc', 'dc.dish_id = d.id', 'left')
             ->join('items i', 'i.id = dc.item_id', 'left')
-            ->where('md.menu_id', $menuId)
+            ->whereIn('md.menu_id', $menuIds)
             ->orderBy('md.meal_time_id', 'ASC')
             ->orderBy('d.id', 'ASC')
             ->get()
@@ -224,6 +240,7 @@ class DashboardAggregateService
             'item_id'         => $row['item_id'] !== null ? (int) $row['item_id'] : null,
             'item_name'       => $row['item_name'],
             'qty_per_patient' => $row['qty_per_patient'] !== null ? (float) $row['qty_per_patient'] : null,
+            'menu_name'       => $row['menu_name'],
         ], $rows);
     }
 

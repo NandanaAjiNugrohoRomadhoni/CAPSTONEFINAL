@@ -5,6 +5,7 @@ export interface ReportSummary {
     total_qty?: number;
     total_rows?: number;
     total_spk?: number;
+    total_days?: number;
     planned_total_qty?: number;
     realization_total_qty?: number;
     variance_total_qty?: number;
@@ -26,7 +27,13 @@ export interface CompatibilityProjection {
 /** Shared `data` shape used by `/reports/stocks`, `/reports/transactions`, `/reports/spk-history`, and `/reports/evaluation`. */
 export interface ReportData {
     report_type: string;
+    period?: {
+        start: string;
+        end: string;
+    };
+    filters?: Record<string, unknown>;
     summary: ReportSummary;
+    periode?: string;
     rows: ReportRow[];
     compatibility_projection?: CompatibilityProjection;
 }

@@ -400,14 +400,14 @@ class DashboardTest extends CIUnitTestCase
         $calendarJson = json_decode($calendarResult->getJSON(), true);
 
         $this->assertSame($today, $calendarJson['data']['date'] ?? null);
-        $this->assertSame(
-            [
-                'date' => $calendarJson['data']['date'] ?? null,
-                'menu_id' => $calendarJson['data']['menu_id'] ?? null,
-                'menu_name' => $calendarJson['data']['menu_name'] ?? null,
-            ],
-            $json['data']['aggregates']['current_menu_cycle']
-        );
+        
+        $currentMenu = $json['data']['aggregates']['current_menu_cycle'];
+        $this->assertSame($calendarJson['data']['date'] ?? null, $currentMenu['date']);
+        $this->assertSame($calendarJson['data']['assignments'] ?? [], $currentMenu['assignments']);
+        
+        if (!empty($currentMenu['assignments'])) {
+            $this->assertEquals($currentMenu['assignments'][0]['menu_id'], $currentMenu['menu_id']);
+        }
     }
 
     public function testDeactivatedDishIsRemovedFromDapurCurrentMenuComposition(): void

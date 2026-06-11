@@ -6,6 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -20,6 +21,7 @@ type IngredientRow = {
   compositionId?: number;
   item_id: number | null;
   qty_per_patient: string;
+  unit_convert?: string;
   unit?: string;
 };
 
@@ -48,6 +50,7 @@ type ItemRecord = {
   id: number;
   name: string;
   unit_base: string;
+  unit_convert: string;
 };
 
 const MENU_DESCRIPTION_STORAGE_KEY = "menu-manual-descriptions";
@@ -175,6 +178,7 @@ async function loadAvailableItems() {
     id: Number(item.id),
     name: item.name,
     unit_base: item.unit_base,
+    unit_convert: item.unit_convert ?? item.unit_base,
   })) satisfies ItemRecord[];
 }
 
@@ -259,12 +263,15 @@ export default function AdminMenuManagementPage() {
 
     try {
       const [dishesResponse, availableItems] = await Promise.all([
-        sdk.dishes.list({ perPage: 100, sortBy: "name", sortDir: "ASC" }),
+        listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
+          sortBy: "name",
+          sortDir: "ASC",
+        }),
         loadAvailableItems(),
       ]);
 
       const descriptionMap = readMenuDescriptions();
-      const nextMenus = (dishesResponse.data ?? []).map((dish) => {
+      const nextMenus = dishesResponse.map((dish) => {
         const dishId = Number(dish.id);
         const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
 
@@ -296,7 +303,7 @@ export default function AdminMenuManagementPage() {
       items.map((item) => ({
         id: item.id,
         label: item.name,
-        unit: item.unit_base,
+        unit: item.unit_convert,
       })),
     [items],
   );
@@ -326,17 +333,41 @@ export default function AdminMenuManagementPage() {
 
   async function fetchCompositionsForDish(dishId: number) {
     try {
-      const response = await sdk.dishCompositions.list({ dish_id: dishId, perPage: 100 });
-      const compositions = response.data ?? [];
+      const compositions = await listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+        dish_id: dishId,
+        sortBy: "id",
+        sortDir: "ASC",
+      });
       const itemMap = new Map(items.map((item) => [Number(item.id), item]));
 
-      const nextIngredients: IngredientRow[] = compositions.map((comp) => ({
-        localId: comp.id,
-        compositionId: comp.id,
-        item_id: comp.item_id,
-        qty_per_patient: comp.qty_per_patient,
-        unit: itemMap.get(Number(comp.item_id))?.unit_base ?? comp.item?.unit_base ?? undefined,
-      }));
+      const nextIngredients: IngredientRow[] = compositions.map((comp) => {
+        const compositionItem = comp.item as
+          | { unit_convert?: string; unit_base?: string }
+          | null
+          | undefined;
+        const relatedItem = itemMap.get(Number(comp.item_id));
+
+        return {
+          localId: comp.id,
+          compositionId: comp.id,
+          item_id: comp.item_id,
+          qty_per_patient: comp.qty_per_patient,
+          // Backend item payload can include unit_convert even when the generated type omits it.
+          // Use a narrow local cast so the UI can prefer the smallest unit without changing API shape.
+          unit_convert:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
+          unit:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
+        };
+      });
 
       setMenus((current) =>
         current.map((menu) =>
@@ -435,9 +466,12 @@ export default function AdminMenuManagementPage() {
     const previousMenus = menus;
 
     try {
-      const validRows = ingredients.filter(
-        (row) => row.item_id !== null && Number(row.qty_per_patient) > 0,
-      );
+      const selectedRows = ingredients.filter((row) => row.item_id !== null);
+      if (selectedRows.some((row) => Number(row.qty_per_patient) <= 0)) {
+        throw new Error("Qty bahan tidak boleh 0. Silakan ubah qty bahan terlebih dahulu.");
+      }
+
+      const validRows = selectedRows.filter((row) => Number(row.qty_per_patient) > 0);
 
       if (menuName.trim() === "") throw new Error("Nama menu wajib diisi.");
       if (validRows.length === 0) throw new Error("Minimal satu komposisi bahan harus diisi.");
@@ -655,15 +689,6 @@ export default function AdminMenuManagementPage() {
                         className="min-w-[82px] justify-center"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openDetailModal(menu);
-                        }}
-                      >
-                        Detail
-                      </MiniActionButton>
-                      <MiniActionButton
-                        className="min-w-[82px] justify-center"
-                        onClick={(event) => {
-                          event.stopPropagation();
                           openEditModal(menu);
                         }}
                       >
@@ -757,6 +782,12 @@ export default function AdminMenuManagementPage() {
                 <X size={22} />
               </button>
             </div>
+
+            {modalMode !== "detail" && error ? (
+              <div className="mx-6 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            ) : null}
 
             <div className="space-y-5 overflow-y-auto px-6 py-6">
               <div className="space-y-2">
@@ -917,6 +948,7 @@ export default function AdminMenuManagementPage() {
 
       <DeleteConfirmModal
         open={modalMode === "delete"}
+        purpose="toggle"
         title={selectedMenu?.isActive ? "Nonaktifkan Menu Makanan" : "Aktifkan Menu Makanan"}
         headline={selectedMenu?.isActive ? "Menu akan dinonaktifkan" : "Menu akan diaktifkan kembali"}
         description={
@@ -932,6 +964,7 @@ export default function AdminMenuManagementPage() {
         onConfirm={toggleMenuActive}
         submitting={saving || loadingLinkedPackages}
         confirmLabel={selectedMenu?.isActive ? "Nonaktifkan" : "Aktifkan"}
+        tone={selectedMenu?.isActive ? "danger" : "neutral"}
       />
 
       <SuccessModal

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CapstoneSdk } from "..";
-import type { MenuCalendarResponse } from "../types";
+import type { MenuCalendarRangeResponse, MenuCalendarResponse } from "../types";
 
 describe("Menu domain resources", () => {
   it("calls the dishes endpoints with backend query names and response envelopes", async () => {
@@ -186,7 +186,7 @@ describe("Menu domain resources", () => {
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { date: "2024-02-29", day_of_month: 29, menu_id: 9, menu_name: "Paket 9" } }), {
+        new Response(JSON.stringify({ data: { date: "2024-02-29", day_of_month: 29, assignments: [{ menu_id: 9, patient_count: null }] } }), {
           status: 200,
           headers: { "content-type": "application/json" }
         })
@@ -300,12 +300,13 @@ describe("Menu domain resources", () => {
   it("keeps the menu-calendar response envelope typed for date and range projections", () => {
     const calendarResponse: MenuCalendarResponse = {
       data: [
-        { date: "2026-03-31", day_of_month: 31, menu_id: 11, menu_name: "Paket 11" }
+        { date: "2026-03-31", day_of_month: 31, assignments: [{ menu_id: 11, patient_count: 50 }] }
       ],
       meta: { start_date: "2026-03-01", end_date: "2026-03-31", total: 31 }
-    };
+    } as MenuCalendarRangeResponse;
 
-    expect(calendarResponse.data[30]).toBeUndefined();
-    expect(calendarResponse.meta.total).toBe(31);
+    const rangeResponse = calendarResponse as MenuCalendarRangeResponse;
+    expect(rangeResponse.data[0]!.assignments[0]!.menu_id).toBe(11);
+    expect(rangeResponse.meta.total).toBe(31);
   });
 });
