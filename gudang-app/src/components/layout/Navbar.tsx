@@ -187,8 +187,10 @@ export default function Navbar({
     };
 
     const intervalId = window.setInterval(() => {
-      void loadNotifications(true);
-    }, 20000);
+      if (document.visibilityState === "visible") {
+        void loadNotifications(true);
+      }
+    }, 60000);
 
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);

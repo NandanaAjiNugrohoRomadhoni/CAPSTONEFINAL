@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import sdk from "@/lib";
 import { formatLongDate, normaliseMealLabel } from "@/lib/admin-utils";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import {
   AdminPageHeading,
   OutlineAction,
@@ -81,8 +82,14 @@ export default function Page() {
       try {
         const [calendarResponse, menuResponse, slotResponse] = await Promise.all([
           sdk.menuSchedules.calendarProjection({ month }),
-          sdk.menus.list(),
-          sdk.menus.slots(),
+          listAllPaginatedRows<MenuRow>(sdk.menus.list.bind(sdk.menus), {
+            sortBy: "id",
+            sortDir: "ASC",
+          }),
+          listAllPaginatedRows<SlotRow>(sdk.menus.slots.bind(sdk.menus), {
+            sortBy: "id",
+            sortDir: "ASC",
+          }),
         ]);
 
         if (cancelled) return;
@@ -94,8 +101,8 @@ export default function Page() {
             : [];
 
         setCalendarEntries(calendarData);
-        setMenuPackages(sortMenuPackages(menuResponse.data ?? []));
-        setSlots(slotResponse.data ?? []);
+        setMenuPackages(sortMenuPackages(menuResponse));
+        setSlots(slotResponse);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Gagal memuat kalender menu.");

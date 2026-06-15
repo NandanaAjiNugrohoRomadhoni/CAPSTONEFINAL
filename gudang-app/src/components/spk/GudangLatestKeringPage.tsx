@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import { AdminPageHeading, ExportButton, SurfaceCard } from "@/components/admin/ui";
 
 type RecommendationRow = Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>["data"]["items"][number];
@@ -12,6 +18,71 @@ export default function GudangLatestKeringPage() {
   const [targetMonth, setTargetMonth] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  function handleExport() {
+    if (typeof window === "undefined" || rows.length === 0) return;
+
+    const summaryRows = [
+      { label: "Periode Target", value: targetMonth ?? "-" },
+      { label: "Total Item", value: formatSpreadsheetNumber(rows.length, 0) },
+    ];
+
+    const tableRows = rows
+      .map(
+        (row, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.item_name ?? "-")}</td>
+            <td>${escapeSpreadsheetHtml(getItemCategory(row))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.required_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.current_stock_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.final_recommended_qty, row.item_unit_base))}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "SPS - REKOMENDASI BELANJA KERING & PENGEMAS",
+      subtitle: "Hasil rekomendasi belanja kering & pengemas terbaru dari backend.",
+      body: `
+        <table class="section-gap">
+          <tr class="no-border">
+            <td class="title" colspan="6">SPS - REKOMENDASI BELANJA KERING & PENGEMAS</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="6">Hasil rekomendasi belanja kering & pengemas terbaru dari backend.</td>
+          </tr>
+        </table>
+
+        <table class="section-gap">
+          <tr><td class="section" colspan="2">RINGKASAN</td></tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>Nama Bahan</th>
+            <th>Jenis Bahan</th>
+            <th>Pemakaian Bulan Lalu</th>
+            <th>Stok Saat Ini</th>
+            <th>Rekomendasi Beli</th>
+          </tr>
+          ${tableRows || `<tr><td class="muted" colspan="6">Belum ada SPK kering & pengemas yang bisa diexport.</td></tr>`}
+        </table>
+      `,
+    });
+
+    downloadSpreadsheetHtml(`SPS-Rekomendasi-Belanja-Kering-Pengemas-${targetMonth ?? "latest"}.xls`, html);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +148,7 @@ export default function GudangLatestKeringPage() {
       <SurfaceCard className="overflow-hidden">
         <div className="flex items-center justify-between border-b bg-[#F8FAFC] px-5 py-4">
           <h3 className="text-base font-semibold text-[#16213E]">Hasil Rekomendasi</h3>
-          <ExportButton>Export Rekomendasi</ExportButton>
+          <ExportButton onClick={handleExport}>Export Rekomendasi</ExportButton>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -148,4 +219,12 @@ function aggregateRecommendationRows<T extends {
   });
 
   return [...grouped.values()];
+}
+
+function getItemCategory(row: RecommendationRow) {
+  return (
+    (row as { category_name?: string | null }).category_name ??
+    (row as { item_category_name?: string | null }).item_category_name ??
+    "-"
+  );
 }

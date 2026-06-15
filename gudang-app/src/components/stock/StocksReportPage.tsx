@@ -3,13 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
-import { listAllItems } from "@/lib/items";
 import {
   formatNumber,
   formatQuantity,
   getErrorMessage,
   getStockTone,
 } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import {
   AdminPageHeading,
   ExportButton,
@@ -20,7 +25,6 @@ import {
   ThemedSelect,
 } from "@/components/admin/ui";
 
-type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type StockReportRow = Awaited<ReturnType<typeof sdk.reports.getStocks>>["data"]["rows"][number];
 
 type StockTableRow = {
@@ -93,7 +97,6 @@ function normalizeFilterValue(value: string) {
 }
 
 export default function StocksReportPage() {
-  const [items, setItems] = useState<ItemRecord[]>([]);
   const [reportRows, setReportRows] = useState<StockReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,31 +113,20 @@ export default function StocksReportPage() {
       setError(null);
 
       try {
-        const [itemsResponse, reportResponse] = await Promise.allSettled([
-          listAllItems({
-            perPage: 100,
-            sortBy: "id",
-            sortDir: "ASC",
-          }),
+        const [reportResponse] = await Promise.allSettled([
           sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
         ]);
 
         if (cancelled) return;
 
-        const nextItems = itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
         const nextReportRows =
           reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
 
-        setItems(nextItems);
         setReportRows(nextReportRows);
 
-        if (nextItems.length === 0 && nextReportRows.length === 0) {
+        if (nextReportRows.length === 0) {
           const loadError =
-            itemsResponse.status === "rejected"
-              ? itemsResponse.reason
-              : reportResponse.status === "rejected"
-                ? reportResponse.reason
-                : null;
+            reportResponse.status === "rejected" ? reportResponse.reason : null;
 
           if (loadError) {
             setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
@@ -166,68 +158,6 @@ export default function StocksReportPage() {
       ]),
     );
 
-    if (items.length > 0) {
-      const rowsFromItems = items.map((item) => {
-        const matchingReportRow = reportRowMap.get(item.id);
-        const qty = matchingReportRow
-          ? firstNumber(
-              matchingReportRow,
-              ["qty", "current_stock", "stock", "stock_qty", "quantity"],
-              Number(item.qty ?? 0),
-            )
-          : Number(item.qty ?? 0);
-        const minimumQty = Number(item.conversion_base ?? 0) || 1;
-        const stock = getStockTone(qty, minimumQty);
-        const categoryName = item.category?.name ?? "-";
-        const itemName = item.name ?? `Item ${item.id}`;
-        const unitBase = item.unit_base ?? "";
-
-        return {
-          idLabel: `BR-${String(item.id).padStart(4, "0")}`,
-          itemId: item.id,
-          itemName,
-          categoryName,
-          qty,
-          qtyLabel: formatQuantity(qty, unitBase),
-          minimumQty,
-          minimumLabel: formatQuantity(minimumQty, unitBase),
-          tone: stock.tone,
-          label: stock.label,
-        };
-      });
-
-      const missingReportRows = reportRows
-        .filter(
-          (row, index) =>
-            !items.some(
-              (item) => item.id === firstNumber(row, ["item_id", "id"], index + 1),
-            ),
-        )
-        .map((row, index) => {
-          const itemId = firstNumber(row, ["item_id", "id"], index + 1);
-          const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
-          const minimumQty =
-            firstNumber(row, ["minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1) || 1;
-          const unit = firstString(row, ["unit", "satuan", "unit_base"], "");
-          const stock = getStockTone(qty, minimumQty);
-
-          return {
-            idLabel: `BR-${String(itemId).padStart(4, "0")}`,
-            itemId,
-            itemName: firstString(row, ["item_name", "name", "nama_bahan"], `Item ${itemId}`),
-            categoryName: firstString(row, ["category_name", "jenis_bahan", "kategori_bahan"]),
-            qty,
-            qtyLabel: formatQuantity(qty, unit),
-            minimumQty,
-            minimumLabel: formatQuantity(minimumQty, unit),
-            tone: stock.tone,
-            label: stock.label,
-          };
-        });
-
-      return [...rowsFromItems, ...missingReportRows].sort((left, right) => left.itemId - right.itemId);
-    }
-
     return reportRows.map((row, index) => {
       const itemId = firstNumber(row, ["item_id", "id"], index + 1);
       const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
@@ -248,7 +178,7 @@ export default function StocksReportPage() {
         label: stock.label,
       };
     });
-  }, [items, reportRows]);
+  }, [reportRows]);
 
   const categoryOptions = useMemo(
     () =>
@@ -318,28 +248,77 @@ export default function StocksReportPage() {
       return;
     }
 
-    const header = ["ID Barang", "Nama Bahan", "Jenis Bahan", "Stok Saat Ini", "Minimal Stok", "Status"];
-    const lines = filteredRows.map((row) =>
-      [
-        row.idLabel,
-        row.itemName,
-        row.categoryName,
-        row.qtyLabel,
-        row.minimumLabel,
-        row.label,
-      ]
-        .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-        .join(","),
-    );
+    const summaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Total Item Ditampilkan</td><td class="summary-value">${filteredRows.length} item</td></tr>
+        <tr><td class="summary-label">Stok Aman</td><td class="summary-value">${formatSpreadsheetNumber(counts.safe, 0)} item</td></tr>
+        <tr><td class="summary-label">Stok Menipis</td><td class="summary-value">${formatSpreadsheetNumber(counts.warning, 0)} item</td></tr>
+        <tr><td class="summary-label">Stok Kritis</td><td class="summary-value">${formatSpreadsheetNumber(counts.critical, 0)} item</td></tr>
+        <tr><td class="summary-label">Stok Habis</td><td class="summary-value">${formatSpreadsheetNumber(counts.danger, 0)} item</td></tr>
+      </table>
+    `;
 
-    const csvContent = [header.join(","), ...lines].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = window.URL.createObjectURL(blob);
-    const link = window.document.createElement("a");
-    link.href = url;
-    link.download = "stok-bahan.csv";
-    link.click();
-    window.URL.revokeObjectURL(url);
+    const rowsHtml = filteredRows
+      .map(
+        (row, index) => `
+        <tr>
+          <td class="rank">${index + 1}</td>
+          <td class="text-strong">${escapeSpreadsheetHtml(row.idLabel)}</td>
+          <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
+          <td>${escapeSpreadsheetHtml(row.categoryName)}</td>
+          <td class="number">${escapeSpreadsheetHtml(row.qtyLabel)}</td>
+          <td class="number">${escapeSpreadsheetHtml(row.minimumLabel)}</td>
+          <td>${escapeSpreadsheetHtml(row.idLabel ? row.qtyLabel.split(" ").slice(1).join(" ") || "-" : "-")}</td>
+          <td class="${row.tone === "safe" ? "safe" : row.tone === "warning" ? "warning" : "danger"}">${escapeSpreadsheetHtml(row.label)}</td>
+        </tr>`,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "LAPORAN DATA STOK BAHAN INSTALASI GIZI RSD BALUNG",
+      subtitle: "Detail data stok bahan berdasarkan filter aktif pada sistem.",
+      body: `
+        <div class="title">LAPORAN DATA STOK BAHAN INSTALASI GIZI RSD BALUNG</div>
+        <div class="subtitle">Laporan stok bahan, minimal stok, dan status ketersediaan bahan pada sistem.</div>
+
+        <table class="no-border section-gap">
+          <tr>
+            <td style="width: 36%; padding: 0 12px 12px 0;">${summaryHtml}</td>
+            <td style="width: 64%; padding: 0 0 12px 0;">
+              <table>
+                <tr><td class="section" colspan="4">RINGKASAN STATUS STOK</td></tr>
+                <tr class="head">
+                  <th>Status</th>
+                  <th>Jumlah</th>
+                  <th>Keterangan</th>
+                  <th>Nilai</th>
+                </tr>
+                <tr><td>Aman</td><td class="rank">${counts.safe}</td><td>Bahan masih aman</td><td class="safe">${counts.safe}</td></tr>
+                <tr><td>Menipis</td><td class="rank">${counts.warning}</td><td>Perlu pemantauan</td><td class="warning">${counts.warning}</td></tr>
+                <tr><td>Kritis</td><td class="rank">${counts.critical}</td><td>Perlu restock cepat</td><td class="danger">${counts.critical}</td></tr>
+                <tr><td>Habis</td><td class="rank">${counts.danger}</td><td>Stok kosong</td><td class="danger">${counts.danger}</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>ID Barang</th>
+            <th>Nama Bahan</th>
+            <th>Jenis Bahan</th>
+            <th>Stok Saat Ini</th>
+            <th>Minimal Stok</th>
+            <th>Satuan</th>
+            <th>Status</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      `,
+    });
+
+    downloadSpreadsheetHtml("laporan-data-stok-bahan.xls", html);
   }
 
   return (

@@ -178,7 +178,16 @@ function SearchableIngredientSelect({
   );
 }
 
-async function loadAvailableItems(mode: "admin" | "dapur") {
+async function loadAvailableItems(
+  mode: "admin" | "dapur",
+  preloaded?: {
+    compositions?: Array<{
+      item_id?: number | string | null;
+      item?: { name?: string | null; unit_base?: string | null; unit_convert?: string | null } | null;
+    }>;
+    stocks?: StockReportRow[];
+  },
+) {
   if (mode === "admin") {
     const itemsResponse = await listAllItems({
       sortBy: "name",
@@ -194,13 +203,15 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
     })) satisfies ItemRecord[];
   }
 
-  const [allCompositions, stocksResponse] = await Promise.all([
-    listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+  const allCompositions =
+    preloaded?.compositions ??
+    (await listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
       sortBy: "id",
       sortDir: "ASC",
-    }),
-    sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
-  ]);
+    }));
+  const stockRows =
+    preloaded?.stocks ??
+    ((await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD)).data.rows as StockReportRow[] ?? []);
 
   const mergedItems = new Map<number, ItemRecord>();
   for (const composition of allCompositions) {
@@ -222,7 +233,6 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
     });
   }
 
-  const stockRows = (stocksResponse.data.rows as StockReportRow[]) ?? [];
   for (const row of stockRows) {
     const itemId = Number(row.item_id);
     if (!Number.isFinite(itemId)) continue;
@@ -309,7 +319,7 @@ export default function GiziMenuManagementPage() {
     setError(null);
 
     try {
-      const [dishesResponse, firstCompositionResponse, availableItems] = await Promise.all([
+      const [dishesResponse, firstCompositionResponse, stocksResponse] = await Promise.all([
         listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
           sortBy: "name",
           sortDir: "ASC",
@@ -318,8 +328,13 @@ export default function GiziMenuManagementPage() {
           sortBy: "id",
           sortDir: "ASC",
         }),
-        loadAvailableItems("dapur"),
+        sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
       ]);
+
+      const availableItems = await loadAvailableItems("dapur", {
+        compositions: firstCompositionResponse,
+        stocks: (stocksResponse.data.rows as StockReportRow[]) ?? [],
+      });
 
       const itemMap = new Map(availableItems.map((item) => [Number(item.id), item]));
       const compositionMap = new Map<number, IngredientRow[]>();

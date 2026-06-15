@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatDate, formatNumber, formatQuantity, getErrorMessage } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import { AdminPageHeading, ExportButton, SurfaceCard } from "@/components/admin/ui";
 
 type RecommendationRow = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"]["items"][number];
@@ -12,6 +18,74 @@ export default function GudangLatestBasahPage() {
   const [meta, setMeta] = useState<{ targetDates: string[]; estimatedPatients: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  function handleExport() {
+    if (typeof window === "undefined" || rows.length === 0) return;
+
+    const summaryRows = [
+      { label: "Tanggal Belanja", value: meta?.targetDates.length ? meta.targetDates.map((date) => formatDate(date)).join(" / ") : "-" },
+      { label: "Estimasi Pasien", value: meta ? `${formatNumber(meta.estimatedPatients)} orang` : "-" },
+      { label: "Total Item", value: formatSpreadsheetNumber(rows.length, 0) },
+    ];
+
+    const tableRows = rows
+      .map(
+        (row, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.item_name ?? "-")}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.current_stock_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.required_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.final_recommended_qty, row.item_unit_base))}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "SPS - REKOMENDASI BELANJA BASAH",
+      subtitle: "Hasil rekomendasi belanja basah terbaru dari backend.",
+      body: `
+        <table class="section-gap">
+          <tr class="no-border">
+            <td class="title" colspan="5">SPS - REKOMENDASI BELANJA BASAH</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="5">Hasil rekomendasi belanja basah terbaru dari backend.</td>
+          </tr>
+        </table>
+
+        <table class="section-gap">
+          <tr><td class="section" colspan="2">RINGKASAN</td></tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>Nama Bahan</th>
+            <th>Stok Saat Ini</th>
+            <th>Kebutuhan</th>
+            <th>Rekomendasi Beli</th>
+          </tr>
+          ${tableRows || `<tr><td class="muted" colspan="5">Belum ada SPK basah yang bisa diexport.</td></tr>`}
+        </table>
+      `,
+    });
+
+    const dateLabel =
+      meta?.targetDates.length
+        ? `${meta.targetDates[0]}${meta.targetDates.length > 1 ? `-sd-${meta.targetDates[meta.targetDates.length - 1]}` : ""}`
+        : "latest";
+    downloadSpreadsheetHtml(`SPS-Rekomendasi-Belanja-${dateLabel}.xls`, html);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +170,7 @@ export default function GudangLatestBasahPage() {
       <SurfaceCard className="overflow-hidden">
         <div className="flex items-center justify-between border-b bg-[#F8FAFC] px-5 py-4">
           <h3 className="text-base font-semibold text-[#16213E]">Hasil Rekomendasi</h3>
-          <ExportButton>Export Rekomendasi</ExportButton>
+          <ExportButton onClick={handleExport}>Export Rekomendasi</ExportButton>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

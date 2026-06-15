@@ -185,7 +185,16 @@ function SearchableIngredientSelect({
   );
 }
 
-async function loadAvailableItems(mode: "admin" | "dapur") {
+async function loadAvailableItems(
+  mode: "admin" | "dapur",
+  preloaded?: {
+    compositions?: Array<{
+      item_id?: number | string | null;
+      item?: { name?: string | null; unit_base?: string | null; unit_convert?: string | null } | null;
+    }>;
+    stocks?: StockReportRow[];
+  },
+) {
   if (mode === "admin") {
     const itemsResponse = await listAllItems({
       sortBy: "name",
@@ -193,21 +202,23 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
       is_active: true,
     });
 
-  return itemsResponse.map((item) => ({
-    id: Number(item.id),
-    name: item.name,
-    unit_base: item.unit_base,
-    unit_convert: item.unit_convert ?? item.unit_base,
-  })) satisfies ItemRecord[];
-}
+    return itemsResponse.map((item) => ({
+      id: Number(item.id),
+      name: item.name,
+      unit_base: item.unit_base,
+      unit_convert: item.unit_convert ?? item.unit_base,
+    })) satisfies ItemRecord[];
+  }
 
-  const [allCompositions, stocksResponse] = await Promise.all([
-    listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+  const allCompositions =
+    preloaded?.compositions ??
+    (await listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
       sortBy: "id",
       sortDir: "ASC",
-    }),
-    sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
-  ]);
+    }));
+  const stockRows =
+    preloaded?.stocks ??
+    ((await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD)).data.rows as StockReportRow[] ?? []);
 
   const mergedItems = new Map<number, ItemRecord>();
   for (const composition of allCompositions) {
@@ -229,7 +240,6 @@ async function loadAvailableItems(mode: "admin" | "dapur") {
     });
   }
 
-  const stockRows = (stocksResponse.data.rows as StockReportRow[]) ?? [];
   for (const row of stockRows) {
     const itemId = Number(row.item_id);
     if (!Number.isFinite(itemId)) continue;
@@ -316,25 +326,81 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     setError(null);
 
     try {
-      const [dishesResponse, availableItems] = await Promise.all([
+      const [dishesResponse, allCompositions, stocksResponse] = await Promise.all([
         listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
           sortBy: "name",
           sortDir: "ASC",
         }),
-        loadAvailableItems(mode),
+        listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+          sortBy: "id",
+          sortDir: "ASC",
+        }),
+        sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
       ]);
+
+      const availableItems = await loadAvailableItems(mode, {
+        compositions: allCompositions,
+        stocks: (stocksResponse.data.rows as StockReportRow[]) ?? [],
+      });
+
+      const itemMap = new Map(availableItems.map((item) => [Number(item.id), item]));
+      const compositionsResult = await Promise.allSettled(
+        dishesResponse.map(async (dish) => {
+          const compositions = allCompositions.filter((composition) => Number(composition.dish_id) === Number(dish.id));
+
+          const nextIngredients: IngredientRow[] = compositions.map((comp) => {
+            const compositionItem = comp.item as
+              | { unit_convert?: string; unit_base?: string }
+              | null
+              | undefined;
+            const relatedItem = itemMap.get(Number(comp.item_id));
+
+            return {
+              localId: comp.id,
+              compositionId: comp.id,
+              item_id: comp.item_id,
+              qty_per_patient: comp.qty_per_patient,
+              unit:
+                relatedItem?.unit_convert ??
+                compositionItem?.unit_convert ??
+                relatedItem?.unit_base ??
+                compositionItem?.unit_base ??
+                undefined,
+            };
+          });
+
+          return {
+            dishId: Number(dish.id),
+            ingredients: nextIngredients,
+            summary: buildCompositionSummary(nextIngredients, itemMap),
+          };
+        }),
+      );
+
+      const compositionMap = new Map(
+        compositionsResult
+          .filter(
+            (result): result is PromiseFulfilledResult<{
+              dishId: number;
+              ingredients: IngredientRow[];
+              summary: string;
+            }> => result.status === "fulfilled",
+          )
+          .map((result) => [result.value.dishId, result.value] as const),
+      );
 
       const descriptionMap = readMenuDescriptions();
       const nextMenus = dishesResponse.map((dish) => {
         const dishId = Number(dish.id);
         const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
+        const composition = compositionMap.get(dishId);
 
         return {
           id: dishId,
           name: dish.name,
           description: descriptionMap[String(dishId)] ?? "",
-          compositionSummary: "Klik detail untuk melihat komposisi bahan.",
-          ingredients: [],
+          compositionSummary: composition?.summary ?? "Belum ada komposisi bahan.",
+          ingredients: composition?.ingredients ?? [],
           isActive,
         };
       });

@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/ui";
 import sdk from "@/lib";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 
 type ModalMode = "add" | "edit" | "delete" | null;
 
@@ -30,6 +31,8 @@ type SuccessState = {
   headline: string;
   message: string;
 } | null;
+
+type ItemCategoryRow = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (
@@ -69,8 +72,15 @@ export default function JenisBahanPage() {
     setPageError(null);
 
     try {
-      const response = await sdk.itemCategories.list();
-      setItems(response.data as ItemCategory[]);
+      const response = await listAllPaginatedRows<ItemCategoryRow>(
+        sdk.itemCategories.list.bind(sdk.itemCategories),
+        {
+          sortBy: "name",
+          sortDir: "ASC",
+        },
+        100,
+      );
+      setItems(response as ItemCategory[]);
     } catch (error) {
       setPageError(getErrorMessage(error, "Gagal memuat data jenis bahan."));
     } finally {

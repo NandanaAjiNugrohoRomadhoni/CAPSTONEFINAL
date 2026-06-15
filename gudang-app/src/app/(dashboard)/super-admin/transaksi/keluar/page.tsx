@@ -5,12 +5,14 @@ import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage, toIsoDate } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import { refreshStockAdjustmentNotifications } from "@/lib/stock-adjustment-notifications";
 import CommonSearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
 import SuccessModal from "@/components/feedback/SuccessModal";
 
 type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type MealTimeRow = Awaited<ReturnType<typeof sdk.mealTimes.list>>["data"][number];
+type DailyPatientRow = Awaited<ReturnType<typeof sdk.dailyPatients.list>>["data"][number];
 type PreviewItem = Awaited<
   ReturnType<typeof sdk.spk.operationalStockPreview>
 >["data"]["items"][number];
@@ -713,8 +715,15 @@ export default function BarangKeluarPage() {
 }
 
 async function ensureDailyPatientForDate(serviceDate: string, totalPatients: number) {
-  const existingResponse = await sdk.dailyPatients.list();
-  const existing = (existingResponse.data ?? []).find((row) => row.service_date === serviceDate);
+  const existingRows = await listAllPaginatedRows<DailyPatientRow>(
+    sdk.dailyPatients.list.bind(sdk.dailyPatients),
+    {
+      sortBy: "service_date",
+      sortDir: "DESC",
+    },
+    100,
+  );
+  const existing = existingRows.find((row) => row.service_date === serviceDate);
 
   if (existing) {
     return existing;

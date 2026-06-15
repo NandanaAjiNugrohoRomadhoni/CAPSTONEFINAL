@@ -21,14 +21,18 @@ class MenuScheduleSeeder extends Seeder
         // These are day-of-month values (1-31) and do not depend on BASELINE_DATE.
         $rows = [
             ['day_of_month' => 1, 'menu_id' => 1],
+            ['day_of_month' => 1, 'menu_id' => 12], // Day 1 gets Paket 1 + Supplement
             ['day_of_month' => 5, 'menu_id' => 5],
+            ['day_of_month' => 5, 'menu_id' => 12], // Day 5 gets Paket 5 + Supplement
             ['day_of_month' => 10, 'menu_id' => 10],
             ['day_of_month' => 11, 'menu_id' => 11],
             ['day_of_month' => 15, 'menu_id' => 4],
+            ['day_of_month' => 15, 'menu_id' => 12], // Day 15 gets Paket 4 + Supplement
             ['day_of_month' => 20, 'menu_id' => 8],
             ['day_of_month' => 25, 'menu_id' => 2],
             ['day_of_month' => 30, 'menu_id' => 6],
             ['day_of_month' => 31, 'menu_id' => 11],
+            ['day_of_month' => 31, 'menu_id' => 12], // Day 31 gets Paket 11 + Supplement
         ];
 
         $builder->insertBatch($rows);

@@ -10,10 +10,10 @@ class MenuSeeder extends Seeder
     {
         $builder = $this->db->table('menus');
 
-        for ($id = 1; $id <= 11; $id++) {
+        for ($id = 1; $id <= 12; $id++) {
             $builder->replace([
                 'id'   => $id,
-                'name' => 'Paket ' . $id,
+                'name' => ($id === 12) ? 'Suplemen Extra' : ('Paket ' . $id),
             ]);
         }
     }

@@ -14,8 +14,15 @@ import {
 } from "@/components/admin/ui";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import { formatDate, formatNumber, getCurrentMonthPeriod, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { listAllItems } from "@/lib/items";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import { useAuthStore } from "@/store/authStore";
 import {
   refreshStockAdjustmentNotifications,
@@ -84,10 +91,12 @@ type StockAdjustmentTableRow = {
   createdByLabel: string;
   itemName: string;
   categoryName: string;
+  unit: string;
   systemQtyLabel: string;
   countedQtyLabel: string;
   variance: number;
   varianceLabel: string;
+  reason: string;
 };
 
 function readHistoryIds(storageKey: string) {
@@ -278,8 +287,19 @@ async function fetchStockOpnamesByIds(ids: number[]) {
   const uniqueIds = Array.from(new Set(ids)).filter((id) => Number.isFinite(id) && id > 0);
   if (uniqueIds.length === 0) return [] as OpnameData[];
 
-  const responses = await Promise.allSettled(uniqueIds.slice(0, 25).map((id) => sdk.stockOpnames.get(id)));
+  const responses = await Promise.allSettled(uniqueIds.map((id) => sdk.stockOpnames.get(id)));
   return responses.flatMap((response) => (response.status === "fulfilled" && response.value.data ? [response.value.data] : []));
+}
+
+async function loadAllUsersSortedByCreatedAt(): Promise<UserRow[]> {
+  const response = await sdk.users.list({
+    page: 1,
+    perPage: 25,
+    sortBy: "created_at",
+    sortDir: "DESC",
+  });
+
+  return response.data ?? [];
 }
 
 function sortOpnames(opnames: OpnameData[]) {
@@ -524,19 +544,16 @@ export default function StockAdjustmentPage({
     async function loadBackground() {
       setMetadataLoading(true);
       try {
-        const [itemsResponse, activeItemsResponse, usersResponse] = await Promise.all([
+        const [itemsResponse, usersResponse] = await Promise.all([
           listAllItems({ sortBy: "name", sortDir: "ASC" }),
-          listAllItems({ sortBy: "name", sortDir: "ASC", is_active: true }),
-          sdk.users
-            .list({ perPage: 100, sortBy: "created_at", sortDir: "DESC" })
-            .catch(() => ({ data: [] as UserRow[] })),
+          loadAllUsersSortedByCreatedAt().catch(() => [] as UserRow[]),
         ]);
 
         if (cancelled) return;
 
         const nextItems = itemsResponse;
-        const nextActiveItems = activeItemsResponse;
-        const nextUsers = usersResponse.data ?? [];
+        const nextActiveItems = nextItems.filter((item) => item.is_active !== false);
+        const nextUsers = usersResponse ?? [];
 
         setItems(nextItems);
         setActiveItems(nextActiveItems);
@@ -709,10 +726,16 @@ export default function StockAdjustmentPage({
             String(relatedStockRow?.category_name ?? "") ||
             cachedMeta?.categoryName ||
             "-",
+          unit:
+            String(relatedItem?.unit_base ?? "") ||
+            String(relatedStockRow?.unit_base ?? "") ||
+            selectedItem?.unit_base ||
+            "-",
           systemQtyLabel: formatNumber(systemQty, Number.isInteger(systemQty) ? 0 : 1),
           countedQtyLabel: formatNumber(countedQtyValue, Number.isInteger(countedQtyValue) ? 0 : 1),
           variance,
           varianceLabel: formatNumber(variance, Number.isInteger(variance) ? 0 : 1),
+          reason: detail.notes ?? opname.header.notes ?? opname.header.rejection_reason ?? "-",
         };
       }),
     );
@@ -798,43 +821,93 @@ export default function StockAdjustmentPage({
       return;
     }
 
-    const header = [
-      "ID Penyesuaian Stok",
-      "Tanggal",
-      "User",
-      "Nama Bahan",
-      "Jenis Bahan",
-      "Stok Sistem",
-      "Stok Fisik",
-      "Selisih",
-      "Status",
-    ];
+    const totalHeaders = new Set(filteredRows.map((row) => row.headerId)).size;
+    const summaryCounts = filteredRows.reduce(
+      (acc, row) => {
+        if (row.state === "APPROVED" || row.state === "POSTED") acc.approved += 1;
+        if (row.state === "REJECTED") acc.rejected += 1;
+        if ((row.categoryName ?? "").toUpperCase().includes("BASAH")) acc.basah += 1;
+        else if ((row.categoryName ?? "").toUpperCase().includes("KERING")) acc.kering += 1;
+        else if ((row.categoryName ?? "").toUpperCase().includes("PENGEMAS")) acc.pengemas += 1;
+        return acc;
+      },
+      { approved: 0, rejected: 0, basah: 0, kering: 0, pengemas: 0 },
+    );
 
-    const lines = filteredRows.map((row) => [
-      `PS-${String(row.headerId).padStart(4, "0")}`,
-      formatDate(row.opnameDate),
-      row.createdByLabel,
-      row.itemName,
-      row.categoryName,
-      row.systemQtyLabel,
-      row.countedQtyLabel,
-      `${row.variance > 0 ? "+" : ""}${row.varianceLabel}`,
-      row.stateLabel,
-    ]);
+    const rowsHtml = filteredRows
+      .map(
+        (row, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td>${escapeSpreadsheetHtml(formatDate(row.opnameDate))}</td>
+            <td class="text-strong">PS-${String(row.headerId).padStart(4, "0")}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
+            <td>${escapeSpreadsheetHtml(row.categoryName)}</td>
+            <td>${escapeSpreadsheetHtml(row.unit)}</td>
+            <td class="number">${escapeSpreadsheetHtml(row.systemQtyLabel)} ${escapeSpreadsheetHtml(row.unit)}</td>
+            <td class="number">${escapeSpreadsheetHtml(row.countedQtyLabel)} ${escapeSpreadsheetHtml(row.unit)}</td>
+            <td class="${row.variance > 0 ? "safe" : row.variance < 0 ? "danger" : "muted"}">
+              ${row.variance > 0 ? "+" : ""}${escapeSpreadsheetHtml(row.varianceLabel)} ${escapeSpreadsheetHtml(row.unit)}
+            </td>
+            <td>${escapeSpreadsheetHtml(row.reason)}</td>
+            <td class="${row.state === "REJECTED" ? "danger" : row.state === "SUBMITTED" ? "warning" : "safe"}">
+              ${escapeSpreadsheetHtml(row.stateLabel)}
+            </td>
+            <td>${escapeSpreadsheetHtml(row.createdByLabel)}</td>
+          </tr>`,
+      )
+      .join("");
 
-    const csv = [header, ...lines]
-      .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
+    const html = buildSpreadsheetDocument({
+      title: "LAPORAN PENYESUAIAN STOK INSTALASI GIZI RSD BALUNG",
+      subtitle: "Rekap detail penyesuaian stok berdasarkan filter aktif pada sistem.",
+      body: `
+        <div class="title">LAPORAN PENYESUAIAN STOK INSTALASI GIZI RSD BALUNG</div>
+        <div class="subtitle">Laporan ini menampilkan histori penyesuaian stok, selisih, dan status verifikasi.</div>
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `riwayat-penyesuaian-stok-${toIsoDate(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        <table class="no-border section-gap">
+          <tr>
+            <td style="width: 38%; padding: 0 12px 12px 0;">
+              <table class="summary">
+                <tr><td class="summary-label">Total Penyesuaian</td><td class="summary-value">${totalHeaders} dokumen</td></tr>
+                <tr><td class="summary-label">Total Barang Disesuaikan</td><td class="summary-value">${filteredRows.length} item</td></tr>
+                <tr><td class="summary-label">Disetujui</td><td class="summary-value">${summaryCounts.approved} item</td></tr>
+                <tr><td class="summary-label">Ditolak</td><td class="summary-value">${summaryCounts.rejected} item</td></tr>
+              </table>
+            </td>
+            <td style="width: 62%; padding: 0 0 12px 0;">
+              <table>
+                <tr><td class="section" colspan="4">RINGKASAN KATEGORI</td></tr>
+                <tr class="head"><th>Kategori</th><th>Jumlah</th><th>Keterangan</th><th>Persentase</th></tr>
+                <tr><td>BASAH</td><td class="rank">${summaryCounts.basah}</td><td>Penyesuaian bahan basah</td><td class="rank">${formatSpreadsheetNumber(filteredRows.length ? (summaryCounts.basah / filteredRows.length) * 100 : 0, 1)}%</td></tr>
+                <tr><td>KERING</td><td class="rank">${summaryCounts.kering}</td><td>Penyesuaian bahan kering</td><td class="rank">${formatSpreadsheetNumber(filteredRows.length ? (summaryCounts.kering / filteredRows.length) * 100 : 0, 1)}%</td></tr>
+                <tr><td>PENGEMAS</td><td class="rank">${summaryCounts.pengemas}</td><td>Penyesuaian bahan pengemas</td><td class="rank">${formatSpreadsheetNumber(filteredRows.length ? (summaryCounts.pengemas / filteredRows.length) * 100 : 0, 1)}%</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>Tanggal</th>
+            <th>ID Penyesuaian</th>
+            <th>Nama Bahan</th>
+            <th>Kategori</th>
+            <th>Satuan</th>
+            <th>Stok Sistem</th>
+            <th>Stok Fisik</th>
+            <th>Selisih</th>
+            <th>Alasan Penyesuaian</th>
+            <th>Status</th>
+            <th>Petugas</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      `,
+    });
+
+    downloadSpreadsheetHtml(`riwayat-penyesuaian-stok-${toIsoDate(new Date())}.xls`, html);
   }
 
   async function handleCreateOpname() {

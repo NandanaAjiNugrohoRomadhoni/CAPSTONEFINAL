@@ -65,7 +65,6 @@ export interface MenuSchedule {
   id: number;
   day_of_month: number;
   menu_id: number;
-  patient_count: number | null;
   created_at: string;
   updated_at: string;
   menu: {
@@ -76,7 +75,6 @@ export interface MenuSchedule {
 
 export interface MenuAssignment {
   menu_id: number;
-  patient_count: number | null;
 }
 
 export interface CalendarDay {

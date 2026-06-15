@@ -1503,6 +1503,8 @@ The `/api/v1/menu-calendar` endpoint requires exactly one of these query paramet
    - Days 11-20 map to Package % 10 (e.g., 14 -> Package 4, 20 -> Package 10).
    - Days 21-30 map to Package % 10 (e.g., 27 -> Package 7, 30 -> Package 10).
 
+**Additive Model Note:** The system uses an additive model. `patient_count` is removed from assignments as it is resolved at the daily patient level.
+
 **Example Response:**
 ```json
 {
@@ -1511,8 +1513,8 @@ The `/api/v1/menu-calendar` endpoint requires exactly one of these query paramet
       "date": "2026-06-01",
       "day_of_month": 1,
       "assignments": [
-        { "menu_id": 1, "patient_count": 50 },
-        { "menu_id": 2, "patient_count": null }
+        { "menu_id": 1 },
+        { "menu_id": 2 }
       ]
     }
   ]

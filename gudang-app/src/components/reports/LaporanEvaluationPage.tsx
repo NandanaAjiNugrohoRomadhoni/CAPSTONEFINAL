@@ -13,8 +13,6 @@ import {
   YAxis,
 } from "recharts";
 import sdk from "@/lib";
-import { listAllItems } from "@/lib/items";
-import type { Item } from "@/sdk/types";
 import {
   formatDate,
   formatQuantity,
@@ -22,6 +20,12 @@ import {
   getErrorMessage,
   toIsoDate,
 } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import {
   AdminPageHeading,
   ExportButton,
@@ -109,7 +113,6 @@ export default function LaporanEvaluationPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [stockRows, setStockRows] = useState<StockReportRow[]>([]);
-  const [itemMasterRows, setItemMasterRows] = useState<Item[]>([]);
   const [tableTransactions, setTableTransactions] = useState<TransactionReportRow[]>([]);
   const [tableSpkHistory, setTableSpkHistory] = useState<SpkHistoryReportRow[]>([]);
   const [chartTransactions, setChartTransactions] = useState<TransactionReportRow[]>([]);
@@ -136,7 +139,6 @@ export default function LaporanEvaluationPage() {
             : getYearPeriod(selectedYear);
 
         const [
-          itemsResult,
           stocksResult,
           tableTransactionsResult,
           tableSpkResult,
@@ -144,11 +146,6 @@ export default function LaporanEvaluationPage() {
           chartSpkResult,
         ] =
           await Promise.allSettled([
-            listAllItems({
-              perPage: 100,
-              sortBy: "id",
-              sortDir: "ASC",
-            }),
             sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
             sdk.reports.getTransactions(tablePeriod),
             sdk.reports.getSpkHistory(tablePeriod),
@@ -162,10 +159,6 @@ export default function LaporanEvaluationPage() {
 
         if (cancelled) return;
 
-        const nextItemMasterRows =
-          itemsResult.status === "fulfilled" && Array.isArray(itemsResult.value)
-            ? itemsResult.value
-            : [];
         const nextStockRows =
           stocksResult.status === "fulfilled"
             ? ((stocksResult.value.data.rows as StockReportRow[]) ?? [])
@@ -191,7 +184,6 @@ export default function LaporanEvaluationPage() {
               : []
             : nextTableSpkHistory;
 
-        setItemMasterRows(nextItemMasterRows);
         setStockRows(nextStockRows);
         setTableTransactions(nextTableTransactions);
         setTableSpkHistory(nextTableSpkHistory);
@@ -199,7 +191,6 @@ export default function LaporanEvaluationPage() {
         setChartSpkHistory(nextChartSpkHistory);
 
         const failureMessages = [
-          itemsResult.status === "rejected" ? "master item" : null,
           stocksResult.status === "rejected" ? "stok" : null,
           tableTransactionsResult.status === "rejected" ? "transaksi" : null,
           tableSpkResult.status === "rejected" ? "riwayat SPK" : null,
@@ -229,16 +220,15 @@ export default function LaporanEvaluationPage() {
   }, [periodMode, selectedYear]);
 
   const categoryOptions = useMemo(() => {
-    const categories = new Set<string>();
-
-    itemMasterRows.forEach((row) => {
-      const category = String(row.category?.name ?? "").trim();
-      if (category) categories.add(category);
-    });
-
     return [
       { value: "all", label: "Semua Jenis" },
-      ...Array.from(categories)
+      ...Array.from(
+        new Set(
+          stockRows
+            .map((row) => String(row.category_name ?? "").trim())
+            .filter((value) => value !== ""),
+        ),
+      )
         .sort((left, right) => left.localeCompare(right, "id-ID"))
         .map((value) => ({ value, label: value })),
     ];
@@ -258,39 +248,19 @@ export default function LaporanEvaluationPage() {
       }
     >();
 
-    itemMasterRows.forEach((row) => {
-      itemMap.set(row.id, {
-        itemId: row.id,
-        itemName: row.name,
-        categoryName: row.category?.name ?? "-",
-        unit: row.unit_base || row.item_unit_base?.name || "",
-        spkQty: 0,
-        incomingQty: 0,
-        outgoingQty: 0,
-      });
-    });
-
     stockRows.forEach((row) => {
       const itemId = Number(row.item_id ?? 0);
       if (!itemId) return;
 
-      const fallbackMaster = itemMap.get(itemId);
-      if (!fallbackMaster) {
-        itemMap.set(itemId, {
-          itemId,
-          itemName: String(row.item_name ?? `Item #${itemId}`),
-          categoryName: String(row.category_name ?? "-"),
-          unit: String(row.unit_base ?? ""),
-          spkQty: 0,
-          incomingQty: 0,
-          outgoingQty: 0,
-        });
-        return;
-      }
-
-      fallbackMaster.itemName = String(row.item_name ?? fallbackMaster.itemName);
-      fallbackMaster.categoryName = String(row.category_name ?? fallbackMaster.categoryName);
-      fallbackMaster.unit = String(row.unit_base ?? fallbackMaster.unit);
+      itemMap.set(itemId, {
+        itemId,
+        itemName: String(row.item_name ?? `Item #${itemId}`),
+        categoryName: String(row.category_name ?? "-"),
+        unit: String(row.unit_base ?? ""),
+        spkQty: 0,
+        incomingQty: 0,
+        outgoingQty: 0,
+      });
     });
 
     tableTransactions.forEach((row) => {
@@ -356,7 +326,7 @@ export default function LaporanEvaluationPage() {
         left.categoryName.localeCompare(right.categoryName, "id-ID") ||
         left.itemName.localeCompare(right.itemName, "id-ID"),
       );
-  }, [itemMasterRows, stockRows, tableTransactions, tableSpkHistory]);
+  }, [stockRows, tableTransactions, tableSpkHistory]);
 
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -484,18 +454,209 @@ export default function LaporanEvaluationPage() {
   function handleExport() {
     if (exportDisabled) return;
 
-    const rows = filteredRows.map((row) => ({
-      "Nama Bahan": row.itemName,
-      "Jenis Bahan": row.categoryName,
-      SPK: formatQuantity(row.spkQty, row.unit),
-      "Bahan Masuk": formatQuantity(row.incomingQty, row.unit),
-      "Bahan Keluar": formatQuantity(row.outgoingQty, row.unit),
-      "SPK-Bahan Masuk": formatQuantity(row.spkMinusIncoming, row.unit),
-      "Bahan Masuk-Keluar": formatQuantity(row.incomingMinusOutgoing, row.unit),
-    }));
+    const filename = `laporan-evaluasi-spk-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}-${periodMode === "MONTHLY" ? formatMonthKey(new Date()) : selectedYear}.xls`;
+    const printedAt = formatDate(new Date().toISOString());
+    const reportRows = filteredRows.map((row, index) => {
+      const accuracy = calculateEvaluationAccuracy(row.spkQty, row.incomingQty);
 
-    const filename = `laporan-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}-${periodMode === "MONTHLY" ? formatMonthKey(new Date()) : selectedYear}.csv`;
-    downloadCsv(rows, filename);
+      return {
+        no: index + 1,
+        itemName: row.itemName,
+        categoryName: row.categoryName,
+        recommendationQty: row.spkQty,
+        realizationQty: row.incomingQty,
+        usageQty: row.outgoingQty,
+        diffSpkVsRealization: row.incomingQty - row.spkQty,
+        diffRealizationVsUsage: row.outgoingQty - row.incomingQty,
+        accuracy,
+        unit: row.unit,
+      };
+    });
+
+    const totalRecommended = reportRows.reduce((sum, row) => sum + row.recommendationQty, 0);
+    const totalRealization = reportRows.reduce((sum, row) => sum + row.realizationQty, 0);
+    const totalUsage = reportRows.reduce((sum, row) => sum + row.usageQty, 0);
+    const averageAccuracy =
+      reportRows.length === 0
+        ? 0
+        : reportRows.reduce((sum, row) => sum + row.accuracy, 0) / reportRows.length;
+
+    const analysisRows = Array.from(new Set(reportRows.map((row) => row.categoryName || "-")))
+      .sort((left, right) => left.localeCompare(right, "id-ID"))
+      .map((categoryName) => {
+        const rows = reportRows.filter((row) => row.categoryName === categoryName);
+        const categoryRecommendation = rows.reduce((sum, row) => sum + row.recommendationQty, 0);
+        const categoryRealization = rows.reduce((sum, row) => sum + row.realizationQty, 0);
+        const categoryUsage = rows.reduce((sum, row) => sum + row.usageQty, 0);
+        const categoryAccuracy = rows.length === 0 ? 0 : rows.reduce((sum, row) => sum + row.accuracy, 0) / rows.length;
+
+        return {
+          categoryName,
+          categoryRecommendation,
+          categoryRealization,
+          categoryUsage,
+          categoryAccuracy,
+        };
+      });
+
+    const summaryRows = [
+      { label: "Mode Evaluasi", value: periodMode === "MONTHLY" ? "Bulanan" : "Tahunan" },
+      { label: "Periode", value: periodLabel },
+      { label: "Tanggal Cetak", value: printedAt },
+      { label: "Total Jenis Bahan Dievaluasi", value: formatSpreadsheetNumber(reportRows.length, 0) },
+      { label: "Total Rekomendasi SPK", value: formatQuantity(totalRecommended) },
+      { label: "Total Realisasi Pembelian", value: formatQuantity(totalRealization) },
+      { label: "Total Penggunaan Aktual", value: formatQuantity(totalUsage) },
+      { label: "Rata-rata Akurasi SPK", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
+    ];
+
+    const filterRows = [
+      { label: "Periode Tanggal", value: periodLabel },
+      { label: "Kategori Bahan", value: categoryFilter === "all" ? "Semua Jenis" : categoryFilter },
+      { label: "Nama Bahan", value: searchTerm.trim() || "Semua Bahan" },
+      { label: "Item Grafik", value: selectedItemLabel },
+    ];
+
+    const htmlRows = reportRows
+      .map(
+        (row) => `
+          <tr>
+            <td class="rank">${row.no}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
+            <td>${escapeSpreadsheetHtml(row.categoryName)}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.recommendationQty, row.unit))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.realizationQty, row.unit))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.usageQty, row.unit))}</td>
+            <td class="number ${row.diffSpkVsRealization > 0 ? "safe" : row.diffSpkVsRealization < 0 ? "danger" : ""}">${escapeSpreadsheetHtml(formatSignedQuantity(row.diffSpkVsRealization, row.unit))}</td>
+            <td class="number ${row.diffRealizationVsUsage > 0 ? "safe" : row.diffRealizationVsUsage < 0 ? "danger" : ""}">${escapeSpreadsheetHtml(formatSignedQuantity(row.diffRealizationVsUsage, row.unit))}</td>
+            <td class="number ${row.accuracy >= 95 ? "safe" : row.accuracy >= 85 ? "warning" : "danger"}">${escapeSpreadsheetHtml(`${formatSpreadsheetNumber(row.accuracy, 2)}%`)}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    const analysisHtmlRows = analysisRows
+      .map(
+        (row) => `
+          <tr>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.categoryName)}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.categoryRecommendation))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.categoryRealization))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.categoryUsage))}</td>
+            <td class="number ${row.categoryAccuracy >= 95 ? "safe" : row.categoryAccuracy >= 85 ? "warning" : "danger"}">${escapeSpreadsheetHtml(`${formatSpreadsheetNumber(row.categoryAccuracy, 2)}%`)}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "LAPORAN EVALUASI SPK VS PEMBELIAN VS PENGGUNAAN BAHAN INSTALASI GIZI RSD BALUNG",
+      subtitle: "Dokumen evaluasi SPK berdasarkan perbandingan rekomendasi sistem, realisasi pembelian, dan penggunaan aktual bahan.",
+      body: `
+        <table class="section-gap">
+          <tr class="no-border">
+            <td class="title" colspan="9">LAPORAN EVALUASI SPK VS PEMBELIAN VS PENGGUNAAN BAHAN INSTALASI GIZI RSD BALUNG</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="9">Periode : ${escapeSpreadsheetHtml(periodLabel)} | Tanggal Cetak : ${escapeSpreadsheetHtml(printedAt)}</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="9">Tujuan: Laporan ini digunakan untuk mengevaluasi tingkat akurasi rekomendasi SPK dengan membandingkan rekomendasi pembelian, realisasi pembelian bahan, dan penggunaan aktual bahan makanan selama periode tertentu.</td>
+          </tr>
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section" colspan="2">FILTER LAPORAN</td>
+          </tr>
+          ${filterRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section" colspan="9">DATA EVALUASI</td>
+          </tr>
+          <tr class="head">
+            <th>No</th>
+            <th>Nama Bahan</th>
+            <th>Kategori</th>
+            <th>Rekomendasi SPK</th>
+            <th>Realisasi Pembelian</th>
+            <th>Penggunaan Aktual</th>
+            <th>Selisih SPK vs Pembelian</th>
+            <th>Selisih Pembelian vs Penggunaan</th>
+            <th>Tingkat Akurasi (%)</th>
+          </tr>
+          ${htmlRows || `<tr><td class="muted" colspan="9">Belum ada data laporan pada periode ini.</td></tr>`}
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section" colspan="2">RINGKASAN EVALUASI</td>
+          </tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section" colspan="5">ANALISIS EFISIENSI</td>
+          </tr>
+          <tr class="head">
+            <th>Kategori</th>
+            <th>Total Rekomendasi</th>
+            <th>Total Pembelian</th>
+            <th>Total Penggunaan</th>
+            <th>Akurasi</th>
+          </tr>
+          ${analysisHtmlRows || `<tr><td class="muted" colspan="5">Belum ada data analisis pada periode ini.</td></tr>`}
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section">KETERANGAN</td>
+          </tr>
+          <tr>
+            <td class="muted">Rekomendasi SPK diperoleh dari hasil generate sistem berdasarkan rumus yang berlaku.</td>
+          </tr>
+          <tr>
+            <td class="muted">Realisasi Pembelian diperoleh dari transaksi barang masuk.</td>
+          </tr>
+          <tr>
+            <td class="muted">Penggunaan Aktual diperoleh dari transaksi barang keluar.</td>
+          </tr>
+          <tr>
+            <td class="muted">Tingkat Akurasi digunakan untuk mengukur kesesuaian antara hasil rekomendasi sistem dengan kebutuhan aktual di lapangan.</td>
+          </tr>
+          <tr>
+            <td class="muted">Semakin kecil selisih antara rekomendasi, pembelian, dan penggunaan, maka semakin baik performa sistem dalam membantu perencanaan kebutuhan bahan makanan.</td>
+          </tr>
+        </table>
+      `,
+      extraStyles: `
+        .title { font-size: 24px; text-transform: uppercase; }
+        .subtitle { font-size: 13px; }
+        .section { background: #DFF7E6; color: #166534; font-size: 14px; }
+        .head th { text-align: center; font-size: 12px; }
+        .summary-label { width: 270px; }
+        .summary-value { font-weight: 700; }
+      `,
+    });
+
+    downloadSpreadsheetHtml(filename, html);
   }
 
   return (
@@ -739,6 +900,24 @@ function formatSignedQuantity(value: number, unit?: string) {
   return `${prefix}${formatQuantity(value, unit)}`;
 }
 
+function calculateEvaluationAccuracy(recommendationQty: number, realizationQty: number) {
+  const left = Math.abs(Number(recommendationQty) || 0);
+  const right = Math.abs(Number(realizationQty) || 0);
+
+  if (left === 0 && right === 0) {
+    return 100;
+  }
+
+  const larger = Math.max(left, right);
+  const smaller = Math.min(left, right);
+
+  if (larger === 0) {
+    return 0;
+  }
+
+  return (smaller / larger) * 100;
+}
+
 function normalizeTransactionType(value?: string | null) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized.includes("masuk") || normalized === "in") return "masuk";
@@ -826,29 +1005,4 @@ function formatDateRangeLabel(start: string, end: string) {
   }
 
   return `${formatDate(startDate.toISOString())} - ${formatDate(endDate.toISOString())}`;
-}
-
-function downloadCsv(rows: Record<string, string>[], filename: string) {
-  const headers = Object.keys(rows[0] ?? {});
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      headers
-        .map((header) => {
-          const value = row[header] ?? "";
-          return `"${String(value).replaceAll('"', '""')}"`;
-        })
-        .join(","),
-    ),
-  ].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }

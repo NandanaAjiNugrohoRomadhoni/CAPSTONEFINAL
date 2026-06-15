@@ -21,21 +21,22 @@ class MenuDishSeeder extends Seeder
 
         $mealTimeIds = array_column($mealTimes, 'id');
         $dishCount   = count($dishes);
-        $menuCount   = 11;
+        $menuCount   = 12; // Increased to 12
 
         if (count($mealTimeIds) !== 3) {
             throw new RuntimeException('MenuDishSeeder requires exactly 3 seeded meal times before assigning menu slots.');
         }
 
-        if ($dishCount < $menuCount * count($mealTimeIds)) {
-            throw new RuntimeException('MenuDishSeeder requires at least 33 seeded dishes to cover all menu slots.');
+        if ($dishCount < 33) {
+            throw new RuntimeException('MenuDishSeeder requires at least 33 seeded dishes.');
         }
 
         $rows = [];
 
-        for ($menuId = 1; $menuId <= $menuCount; $menuId++) {
+        // 1. Standard 1:1 mapping for Paket 1-11
+        for ($menuId = 1; $menuId <= 11; $menuId++) {
             foreach ($mealTimeIds as $slotIndex => $mealTimeId) {
-                $dishIndex = $slotIndex * $menuCount + ($menuId - 1);
+                $dishIndex = $slotIndex * 11 + ($menuId - 1);
                 $dishId    = $dishes[$dishIndex % $dishCount]['id'];
 
                 $rows[] = [
@@ -45,6 +46,27 @@ class MenuDishSeeder extends Seeder
                 ];
             }
         }
+
+        // 2. Add an EXTRA dish to Paket 1 Siang (Test Multiple Dishes per Slot)
+        // Assume mealTimeIds[1] is Siang
+        $rows[] = [
+            'menu_id'      => 1,
+            'meal_time_id' => $mealTimeIds[1],
+            'dish_id'      => $dishes[30]['id'], // Use another dish
+        ];
+
+        // 3. Setup Suplemen Extra (Menu 12)
+        // Only Pagi and Sore have supplements
+        $rows[] = [
+            'menu_id'      => 12,
+            'meal_time_id' => $mealTimeIds[0], // Pagi
+            'dish_id'      => $dishes[33]['id'], // Susu Supplement
+        ];
+        $rows[] = [
+            'menu_id'      => 12,
+            'meal_time_id' => $mealTimeIds[2], // Sore
+            'dish_id'      => $dishes[33]['id'], // Susu Supplement
+        ];
 
         $this->db->table('menu_dishes')->insertBatch($rows);
     }

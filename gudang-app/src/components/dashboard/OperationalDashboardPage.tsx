@@ -13,6 +13,7 @@ import {
   normaliseMealLabel,
   toIsoDate,
 } from "@/lib/admin-utils";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import { MiniActionButton, StatusPill, SurfaceCard } from "@/components/admin/ui";
 import type {
   DailyPatient,
@@ -100,6 +101,8 @@ type SpkPanelDetail = {
   detail: SpkBasahDetail | SpkKeringPengemasDetail | null;
 };
 
+type DailyPatientRow = Awaited<ReturnType<typeof sdk.dailyPatients.list>>["data"][number];
+
 export default function OperationalDashboardPage({ mode }: Readonly<{ mode: DashboardMode }>) {
   const [dashboard, setDashboard] = useState<DashboardState>({});
   const [dailyPatients, setDailyPatients] = useState<DailyPatient[]>([]);
@@ -131,7 +134,10 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           menuCalendarResponse,
         ] = await Promise.all([
           sdk.dashboard.getAggregate(),
-          sdk.dailyPatients.list(),
+          listAllPaginatedRows<DailyPatientRow>(sdk.dailyPatients.list.bind(sdk.dailyPatients), {
+            sortBy: "service_date",
+            sortDir: "ASC",
+          }),
           sdk.reports.getTransactions(period),
           sdk.reports.getStocks(period),
           sdk.menus.slots(),
@@ -141,7 +147,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
         if (cancelled) return;
 
         const dashboardData = (dashboardResponse.data?.aggregates ?? {}) as DashboardState;
-        const patientRows = ((patientsResponse.data ?? []) as DailyPatient[])
+        const patientRows = (patientsResponse as DailyPatient[])
           .slice()
           .sort((a, b) => a.service_date.localeCompare(b.service_date));
 
@@ -158,34 +164,16 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           });
         }
 
-        const dishCompositionsPages: DishComposition[] = [];
-        const firstDishCompositionsResponse = await sdk.dishCompositions.list({
-          page: 1,
-          perPage: 100,
-          sortBy: "id",
-          sortDir: "ASC",
-        });
-        dishCompositionsPages.push(...((firstDishCompositionsResponse.data ?? []) as DishComposition[]));
+        const dishCompositionsRows = await listAllPaginatedRows<DishComposition>(
+          sdk.dishCompositions.list.bind(sdk.dishCompositions),
+          {
+            sortBy: "id",
+            sortDir: "ASC",
+          },
+          100,
+        );
 
-        const totalDishCompositionPages = Number(firstDishCompositionsResponse.meta?.totalPages ?? 1);
-        if (totalDishCompositionPages > 1) {
-          const remainingResponses = await Promise.all(
-            Array.from({ length: totalDishCompositionPages - 1 }, (_, index) =>
-              sdk.dishCompositions.list({
-                page: index + 2,
-                perPage: 100,
-                sortBy: "id",
-                sortDir: "ASC",
-              }),
-            ),
-          );
-
-          remainingResponses.forEach((response) => {
-            dishCompositionsPages.push(...((response.data ?? []) as DishComposition[]));
-          });
-        }
-
-        setDishCompositionRows(dishCompositionsPages);
+        setDishCompositionRows(dishCompositionsRows);
 
         const basahId = dashboardData.latest_spk_history?.basah?.id ?? null;
         const keringId = dashboardData.latest_spk_history?.kering_pengemas?.id ?? null;

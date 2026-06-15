@@ -194,36 +194,11 @@ class SpkBasahGenerationService
                 ];
             }
 
-            // Calculate unassigned patients
-            $allocatedPatients = 0;
-            foreach ($assignments as $assignment) {
-                if (isset($assignment['patient_count'])) {
-                    $allocatedPatients += (int) $assignment['patient_count'];
-                }
-            }
-
-            $remainingPatients      = max(0, $adjustedPatients - $allocatedPatients);
-            $nullCountAssignments   = array_filter($assignments, fn ($a) => ! isset($a['patient_count']));
-            $nullCountCount         = count($nullCountAssignments);
-            $defaultPatientsPerNull = $nullCountCount > 0 ? (int) floor($remainingPatients / $nullCountCount) : 0;
-            $remainder              = $nullCountCount > 0 ? $remainingPatients % $nullCountCount : 0;
-
-            $firstNullHandled = false;
             foreach ($assignments as $assignment) {
                 $menuId = (int) $assignment['menu_id'];
-                if (isset($assignment['patient_count'])) {
-                    $patientsForThisMenu = (int) $assignment['patient_count'];
-                } else {
-                    $patientsForThisMenu = $defaultPatientsPerNull;
-                    if (! $firstNullHandled) {
-                        $patientsForThisMenu += $remainder;
-                        $firstNullHandled = true;
-                    }
-                }
-
-                if ($patientsForThisMenu <= 0) {
-                    continue;
-                }
+                
+                // Every patient receives every menu in the schedule (Additive model)
+                $patientsForThisMenu = $adjustedPatients;
 
                 $menuDishes = $this->db
                     ->table('menu_dishes')

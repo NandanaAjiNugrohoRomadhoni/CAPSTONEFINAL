@@ -22,6 +22,12 @@ import {
   resolveDetailItemName,
   resolveDetailUnit,
 } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import { listAllItems } from "@/lib/items";
 import { getDateRangeQuery } from "@/lib/date-range";
 import { listAllPaginatedRows } from "@/lib/pagination";
@@ -34,7 +40,6 @@ type ItemUnitRow = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number
 type LookupRow = Awaited<ReturnType<typeof sdk.transactionTypes.list>>["data"][number];
 type StatusRow = Awaited<ReturnType<typeof sdk.approvalStatuses.list>>["data"][number];
 type StockTransactionListQuery = NonNullable<Parameters<typeof sdk.stockTransactions.list>[0]>;
-type ItemGetResponse = Awaited<ReturnType<typeof sdk.items.get>>;
 
 type DetailState = {
   transaction: TransactionRow;
@@ -95,6 +100,13 @@ function pickLatestTransactionByParent(rows: TransactionRow[], statusMap: Map<nu
 function isLegacyTransactionRow(row: TransactionRow) {
   const transactionId = normalizeTransactionId(row.parent_transaction_id) || normalizeTransactionId(row.id);
   return transactionId === 1;
+}
+
+function normalizeTransactionDirection(label: string) {
+  const normalized = label.trim().toUpperCase();
+  if (normalized.includes("MASUK") || normalized === "IN") return "IN";
+  if (normalized.includes("KELUAR") || normalized === "OUT") return "OUT";
+  return "MIXED";
 }
 
 
@@ -171,7 +183,6 @@ export default function GudangTransactionHistoryPage() {
           sortDir: "DESC",
         };
 
-        if (search.trim()) params.search = search.trim();
         Object.assign(params, getDateRangeQuery(dateRange));
         if (selectedType) params.type_id = Number(selectedType);
 
@@ -213,7 +224,7 @@ export default function GudangTransactionHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [dateRange, search, selectedType, statuses]);
+  }, [dateRange, selectedType, statuses]);
 
   const typeMap = useMemo(() => new Map(types.map((type) => [type.id, type.name])), [types]);
   const statusMap = useMemo(() => new Map(statuses.map((status) => [status.id, status.name])), [statuses]);
@@ -251,11 +262,38 @@ export default function GudangTransactionHistoryPage() {
     });
   }, [transactions, detailMap, statusMap, currentUser?.id, currentUser?.name, typeMap]);
 
-  const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return derivedRows.filter((row) => {
+      if (query.length === 0) return true;
+
+      const transactionId = `TR-${String(
+        normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id),
+      ).padStart(4, "0")}`.toLowerCase();
+      const isoDate = String(row.transaction.transaction_date ?? "").slice(0, 10).toLowerCase();
+      const prettyDate = formatDate(row.transaction.transaction_date).toLowerCase();
+      const transactionLabel = row.transactionLabel.toLowerCase();
+      const categoryLabel = row.categoryLabel.toLowerCase();
+      const userLabel = row.userLabel.toLowerCase();
+      const statusLabel = row.statusLabel.toLowerCase();
+
+      return (
+        transactionId.includes(query) ||
+        isoDate.includes(query) ||
+        prettyDate.includes(query) ||
+        transactionLabel.includes(query) ||
+        categoryLabel.includes(query) ||
+        userLabel.includes(query) ||
+        statusLabel.includes(query)
+      );
+    });
+  }, [derivedRows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const paginatedRows = useMemo(() => {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
-    return derivedRows.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [currentPage, derivedRows]);
+    return filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [currentPage, filteredRows]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -275,49 +313,48 @@ export default function GudangTransactionHistoryPage() {
         .map((row) => row.transaction.id)
         .filter((id) => !detailMap[id]);
 
-      for (const id of missingIds) {
-        if (cancelled) break;
-        try {
-          const detailResponse = await sdk.stockTransactions.details(id);
-          if (cancelled) break;
-          setDetailMap((prev) => ({ ...prev, [id]: detailResponse.data ?? [] }));
-        } catch {
-          if (cancelled) break;
-          setDetailMap((prev) => ({ ...prev, [id]: [] }));
-        }
+      const nextEntries = await Promise.allSettled(
+        missingIds.map(async (id) => [id, (await sdk.stockTransactions.details(id)).data ?? []] as const),
+      );
+
+      if (cancelled) {
+        return;
       }
+
+      const resolvedEntries = nextEntries
+        .map((entry) => (entry.status === "fulfilled" ? entry.value : null))
+        .filter((entry): entry is readonly [number, DetailRow[]] => entry !== null);
+
+      if (resolvedEntries.length === 0) {
+        return;
+      }
+
+      setDetailMap((prev) => {
+        const next = { ...prev };
+        for (const [id, details] of resolvedEntries) {
+          next[id] = details;
+        }
+        return next;
+      });
     }
 
     void fetchMissingDetails();
     return () => {
       cancelled = true;
     };
-  }, [paginatedRows, detailMap]);
+  }, [paginatedRows.map((row) => row.transaction.id).join(",")]);
 
   // Fetch detail transaksi on-demand (hanya saat modal dibuka)
   async function getDetails(transactionId: number) {
     const detailResponse = await sdk.stockTransactions.details(transactionId);
     const details = detailResponse.data ?? [];
-    setDetailMap((prev) => ({ ...prev, [transactionId]: details }));
-
-    // Fetch hanya item yang dibutuhkan untuk detail ini
-    const itemIds = Array.from(new Set(details.map((d) => d.item_id)));
-    const itemResponses = await Promise.allSettled(
-      itemIds.map((id) => sdk.items.get(id))
-    );
-    const fetchedItems: ItemRow[] = itemResponses
-      .filter((r): r is PromiseFulfilledResult<ItemGetResponse> => r.status === "fulfilled")
-      .map((r) => r.value.data)
-      .filter(Boolean);
-
-    const resolvedItemMap = new Map(fetchedItems.map((item) => [item.id, item]));
-
-    return { details, resolvedItemMap };
+    return { details, resolvedItemMap: new Map<number, ItemRow>() };
   }
 
   async function openDetail(transaction: TransactionRow) {
     try {
       const { details, resolvedItemMap } = await getDetails(transaction.id);
+      setDetailMap((prev) => ({ ...prev, [transaction.id]: details }));
       setDetailState({ transaction, details, resolvedItemMap });
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat detail transaksi."));
@@ -340,6 +377,7 @@ export default function GudangTransactionHistoryPage() {
           originalQty: Number(detail.input_qty ?? detail.qty ?? 0),
         })),
       );
+      setDetailMap((prev) => ({ ...prev, [transaction.id]: details }));
       setRevisionState({ transaction, details, resolvedItemMap });
 
       // Muat daftar semua item untuk SearchableItemSelect (hanya sekali)
@@ -435,30 +473,205 @@ export default function GudangTransactionHistoryPage() {
     }
   }
 
-  function handleExport() {
-    const lines = [
-      ["ID Transaksi", "Tanggal", "User", "Transaksi", "Kategori Bahan", "Status"],
-      ...derivedRows.map((row) => [
-        `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
-        formatDate(row.transaction.transaction_date),
-        row.userLabel,
-        row.transactionLabel,
-        row.categoryLabel,
-        row.statusLabel,
-      ]),
+  async function handleExport() {
+    if (typeof window === "undefined" || filteredRows.length === 0) {
+      setError("Belum ada data riwayat transaksi yang bisa diexport dari hasil filter saat ini.");
+      return;
+    }
+
+    const exportRows = filteredRows;
+    const exportMode =
+      exportRows.every((row) => row.transactionLabel === "Masuk")
+        ? "IN"
+        : exportRows.every((row) => row.transactionLabel === "Keluar")
+          ? "OUT"
+          : "MIXED";
+
+    const missingIds = exportRows
+      .map((row) => row.transaction.id)
+      .filter((id) => !detailMap[id]);
+
+    const resolvedEntries = await Promise.allSettled(
+      missingIds.map(async (id) => [id, (await sdk.stockTransactions.details(id)).data ?? []] as const),
+    );
+    const fetchedDetails = resolvedEntries
+      .map((entry) => (entry.status === "fulfilled" ? entry.value : null))
+      .filter((entry): entry is readonly [number, DetailRow[]] => entry !== null);
+    const nextDetailMap = { ...detailMap };
+    for (const [id, details] of fetchedDetails) {
+      nextDetailMap[id] = details;
+    }
+
+    const allItems = await loadAllItemsSortedByName();
+    const resolvedItemMap = new Map<number, ItemRow>(allItems.map((item) => [item.id, item]));
+
+    const detailRows = exportRows.flatMap((row) => {
+      const details = nextDetailMap[row.transaction.id] ?? [];
+      const transactionMeta = row.transaction as {
+        reason?: string | null;
+        notes?: string | null;
+        description?: string | null;
+        patient_count?: unknown;
+        jumlah_pasien?: unknown;
+      };
+      const keterangan = transactionMeta.reason ?? transactionMeta.notes ?? transactionMeta.description ?? "-";
+      const patientCountRaw = transactionMeta.patient_count ?? transactionMeta.jumlah_pasien ?? null;
+      const patientCount =
+        patientCountRaw === null || patientCountRaw === undefined || patientCountRaw === ""
+          ? "-"
+          : formatSpreadsheetNumber(Number(patientCountRaw), 0);
+
+      if (details.length === 0) {
+        return [{
+          id: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
+          date: formatDate(row.transaction.transaction_date),
+          name: "-",
+          category: row.categoryLabel,
+          unit: "-",
+          inQty: "-",
+          outQty: "-",
+          patientCount,
+          keterangan,
+          petugas: row.userLabel,
+        }];
+      }
+
+      return details.map((detail) => {
+        const resolvedItem = resolvedItemMap.get(detail.item_id);
+        const unit = resolveDetailUnit(detail, resolvedItem, unitMap);
+        const qty = Number(detail.input_qty ?? detail.qty ?? 0);
+        const rowDirection = normalizeTransactionDirection(row.transactionLabel);
+        return {
+          id: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
+          date: formatDate(row.transaction.transaction_date),
+          name: resolveDetailItemName(detail, resolvedItem),
+          category: resolveDetailItemCategory(detail, resolvedItem),
+          unit,
+          inQty: rowDirection === "IN" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
+          outQty: rowDirection === "OUT" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
+          patientCount: rowDirection === "OUT" ? patientCount : "-",
+          keterangan,
+          petugas: row.userLabel,
+        };
+      });
+    });
+
+    const summaryRows = [
+      { label: "Total Transaksi", value: formatSpreadsheetNumber(exportRows.length, 0) },
+      { label: "Total Detail Bahan", value: formatSpreadsheetNumber(detailRows.length, 0) },
+      { label: "Jenis Ekspor", value: exportMode === "IN" ? "Barang Masuk" : exportMode === "OUT" ? "Barang Keluar" : "Gabungan" },
     ];
 
-    const csv = lines
-      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
+    const title =
+      exportMode === "OUT"
+        ? "LAPORAN BARANG KELUAR INSTALASI GIZI RSD BALUNG"
+        : exportMode === "IN"
+          ? "LAPORAN BARANG MASUK INSTALASI GIZI RSD BALUNG"
+          : "LAPORAN RIWAYAT TRANSAKSI BARANG INSTALASI GIZI RSD BALUNG";
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "riwayat-transaksi-gudang.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    const subtitle =
+      exportMode === "OUT"
+        ? "Rekapitulasi transaksi barang keluar berdasarkan filter riwayat transaksi saat ini."
+        : exportMode === "IN"
+          ? "Rekapitulasi transaksi barang masuk berdasarkan filter riwayat transaksi saat ini."
+          : "Rekapitulasi seluruh transaksi barang berdasarkan filter riwayat transaksi saat ini.";
+
+    const headerColumns =
+      exportMode === "OUT"
+        ? ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Keluar", "Jumlah Pasien", "Keterangan", "Petugas"]
+        : exportMode === "IN"
+          ? ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Keterangan", "Petugas"]
+          : ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Jumlah Keluar", "Keterangan", "Petugas"];
+
+    const bodyRows = detailRows.map((row, index) => {
+      const cells =
+        exportMode === "OUT"
+          ? [
+              index + 1,
+              row.date,
+              row.id,
+              row.name,
+              row.category,
+              row.unit,
+              row.outQty,
+              row.patientCount,
+              row.keterangan,
+              row.petugas,
+            ]
+          : exportMode === "IN"
+            ? [
+                index + 1,
+                row.date,
+                row.id,
+                row.name,
+                row.category,
+                row.unit,
+                row.inQty,
+                row.keterangan,
+                row.petugas,
+              ]
+            : [
+                index + 1,
+                row.date,
+                row.id,
+                row.name,
+                row.category,
+                row.unit,
+                row.inQty,
+                row.outQty,
+                row.keterangan,
+                row.petugas,
+              ];
+
+      return `<tr>${cells
+        .map((cell, cellIndex) => `<td${cellIndex === 0 ? ' class="rank"' : ''}>${escapeSpreadsheetHtml(cell)}</td>`)
+        .join("")}</tr>`;
+    }).join("");
+
+    const html = buildSpreadsheetDocument({
+      title,
+      subtitle,
+      body: `
+        <table class="section-gap">
+          <tr class="no-border">
+            <td class="title" colspan="4">${escapeSpreadsheetHtml(title)}</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="4">${escapeSpreadsheetHtml(subtitle)}</td>
+          </tr>
+        </table>
+
+        <table class="section-gap">
+          <tr>
+            <td class="section" colspan="2">RINGKASAN</td>
+          </tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table>
+          <tr class="head">
+            ${headerColumns.map((column) => `<th>${escapeSpreadsheetHtml(column)}</th>`).join("")}
+          </tr>
+          ${bodyRows || `<tr><td colspan="${headerColumns.length}" class="muted">Belum ada data untuk diexport.</td></tr>`}
+        </table>
+      `,
+    });
+
+    const filename =
+      exportMode === "OUT"
+        ? "laporan-barang-keluar.xls"
+        : exportMode === "IN"
+          ? "laporan-barang-masuk.xls"
+          : "riwayat-transaksi-barang.xls";
+
+    downloadSpreadsheetHtml(filename, html);
   }
 
   return (

@@ -16,7 +16,6 @@ import { X } from "lucide-react";
 
 type TransactionRow = Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number];
 type DetailRow = Awaited<ReturnType<typeof sdk.stockTransactions.details>>["data"][number];
-type ItemRow = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type ItemUnitRow = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
 type TransactionTypeRow = Awaited<ReturnType<typeof sdk.transactionTypes.list>>["data"][number];
 type StatusRow = Awaited<ReturnType<typeof sdk.approvalStatuses.list>>["data"][number];
@@ -55,7 +54,6 @@ export default function TransactionRevisionPage({
       changed: boolean;
     }>
   >([]);
-  const [itemMap, setItemMap] = useState<Map<number, ItemRow>>(new Map());
   const [unitMap, setUnitMap] = useState<Map<number, string>>(new Map());
   const [typeMap, setTypeMap] = useState<Map<number, string>>(new Map());
   const [statuses, setStatuses] = useState<StatusRow[]>([]);
@@ -177,35 +175,18 @@ export default function TransactionRevisionPage({
       const rows = revisionResponse.data ?? [];
       const parentRows = parentResponse.data ?? [];
 
-      // Enrich items
-      const itemIds = Array.from(new Set([...rows, ...parentRows].map((d) => d.item_id)));
-      const missingIds = itemIds.filter((id) => !itemMap.has(id));
-      if (missingIds.length > 0) {
-        const itemResponses = await Promise.all(
-          missingIds.map((id) => sdk.items.get(id).catch(() => null))
-        );
-        setItemMap((prev) => {
-          const next = new Map(prev);
-          itemResponses.forEach((res) => {
-            if (res?.data) next.set(res.data.id, res.data);
-          });
-          return next;
-        });
-      }
-
       const parentQtyMap = new Map<number, number>();
       parentRows.forEach((detail) => {
         parentQtyMap.set(detail.item_id, Number(detail.input_qty ?? detail.qty ?? 0));
       });
 
       const comparisonRows = rows.map((detail) => {
-        const item = itemMap.get(detail.item_id);
         const previousQty = parentQtyMap.get(detail.item_id) ?? 0;
         const revisedQty = Number(detail.input_qty ?? detail.qty ?? 0);
         return {
           itemId: detail.item_id,
-          itemName: resolveDetailItemName(detail, item),
-          unit: resolveDetailUnit(detail, item, unitMap),
+          itemName: resolveDetailItemName(detail),
+          unit: resolveDetailUnit(detail, undefined, unitMap),
           previousQty,
           revisedQty,
           changed: previousQty !== revisedQty,
@@ -231,24 +212,6 @@ export default function TransactionRevisionPage({
 
       const revisionDetails = revisionDetailResponse.data ?? [];
       const parentDetails = parentDetailResponse.data ?? [];
-      const allItemIds = Array.from(
-        new Set(
-          [...revisionDetails, ...parentDetails].map((detail) => detail.item_id),
-        ),
-      );
-      const missingIds = allItemIds.filter((id) => !itemMap.has(id));
-      if (missingIds.length > 0) {
-        const itemResponses = await Promise.all(
-          missingIds.map((id) => sdk.items.get(id).catch(() => null)),
-        );
-        setItemMap((prev) => {
-          const next = new Map(prev);
-          itemResponses.forEach((res) => {
-            if (res?.data) next.set(res.data.id, res.data);
-          });
-          return next;
-        });
-      }
 
       const parentQtyMap = new Map<number, number>();
       parentDetails.forEach((detail) => {
@@ -256,11 +219,10 @@ export default function TransactionRevisionPage({
       });
 
       const rows = revisionDetails.map((detail) => {
-        const item = itemMap.get(detail.item_id);
         return {
           itemId: detail.item_id,
-          itemName: resolveDetailItemName(detail, item),
-          unit: resolveDetailUnit(detail, item, unitMap),
+          itemName: resolveDetailItemName(detail),
+          unit: resolveDetailUnit(detail, undefined, unitMap),
           previousQty: parentQtyMap.get(detail.item_id) ?? 0,
           revisedQty: Number(detail.input_qty ?? detail.qty ?? 0),
         };

@@ -29,6 +29,9 @@ type DishOption = {
   isActive: boolean;
 };
 
+type MenuRow = Awaited<ReturnType<typeof sdk.menus.list>>["data"][number];
+type MenuSlotRow = Awaited<ReturnType<typeof sdk.menus.slots>>["data"][number];
+
 type MealTimeOption = {
   id: number;
   name: string;
@@ -381,14 +384,12 @@ export default function PackagesManagerPage() {
   async function loadPackages() {
     setLoading(true);
     try {
-      const [menusResponse, slotsResponse] = await Promise.all([
-        sdk.menus.list(),
-        sdk.menus.slots(),
-      ]);
-      const menusData = menusResponse.data ?? [];
-      const slotsData = slotsResponse.data ?? [];
-      setMenuSlots(slotsData);
-      setPackages(buildPackageCards(menusData, slotsData));
+      const menusResponse = await listAllPaginatedRows<MenuRow>(sdk.menus.list.bind(sdk.menus), {
+        sortBy: "id",
+        sortDir: "ASC",
+      });
+      const menusData = menusResponse;
+      setPackages(buildPackageCards(menusData, []));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat data paket menu."));
     } finally {
@@ -656,7 +657,8 @@ export default function PackagesManagerPage() {
 
       await Promise.all(requests);
 
-      await Promise.all([loadPackages(), loadSlots()]);
+      await loadPackages();
+      await loadSlots();
       router.refresh();
 
       setSuccessState({

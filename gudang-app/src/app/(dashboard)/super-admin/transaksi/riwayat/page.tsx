@@ -21,6 +21,12 @@ import {
   resolveDetailItemName,
   resolveDetailUnit,
 } from "@/lib/admin-utils";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import { listAllItems } from "@/lib/items";
 import { getDateRangeQuery } from "@/lib/date-range";
 import { listAllPaginatedRows } from "@/lib/pagination";
@@ -94,6 +100,13 @@ function isLegacyTransactionRow(row: TransactionRow) {
   return transactionId === 1;
 }
 
+function normalizeTransactionDirection(label: string) {
+  const normalized = label.trim().toUpperCase();
+  if (normalized.includes("MASUK") || normalized === "IN") return "IN";
+  if (normalized.includes("KELUAR") || normalized === "OUT") return "OUT";
+  return "MIXED";
+}
+
 const PAGE_SIZE = 10;
 
 async function loadAllTransactions(query: Omit<StockTransactionListQuery, "page" | "perPage">) {
@@ -106,6 +119,17 @@ async function loadAllTransactions(query: Omit<StockTransactionListQuery, "page"
 
 async function loadAllItemsSortedByName(): Promise<ItemRow[]> {
   return listAllItems({ sortBy: "name", sortDir: "ASC" });
+}
+
+async function loadAllUsersSortedByCreatedAt(): Promise<UserRow[]> {
+  const response = await sdk.users.list({
+    page: 1,
+    perPage: 25,
+    sortBy: "created_at",
+    sortDir: "DESC",
+  });
+
+  return response.data ?? [];
 }
 
 export default function Page() {
@@ -158,11 +182,11 @@ export default function Page() {
       try {
         const [itemResponse, usersResponse] = await Promise.all([
           loadAllItemsSortedByName(),
-          sdk.users.list({ perPage: 100, sortBy: "created_at", sortDir: "DESC" }),
+          loadAllUsersSortedByCreatedAt(),
         ]);
         if (cancelled) return;
         setItems(itemResponse ?? []);
-        setUsers(usersResponse.data ?? []);
+        setUsers(usersResponse ?? []);
       } catch (err) {
         console.error("Failed to load transaction metadata:", err);
       }
@@ -184,7 +208,6 @@ export default function Page() {
           sortDir: "DESC",
         };
 
-        if (search.trim()) params.search = search.trim();
         Object.assign(params, getDateRangeQuery(dateRange));
         if (selectedType) params.type_id = Number(selectedType);
 
@@ -226,9 +249,8 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [dateRange, search, selectedType, statuses]);
+  }, [dateRange, selectedType, statuses]);
 
-  const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
   const typeMap = useMemo(() => new Map(types.map((type) => [type.id, type.name])), [types]);
   const statusMap = useMemo(() => new Map(statuses.map((status) => [status.id, status.name])), [statuses]);
@@ -241,7 +263,7 @@ export default function Page() {
         Array.from(
           new Set(
             details
-              .map((detail) => resolveDetailItemCategory(detail, itemMap.get(detail.item_id)))
+              .map((detail) => resolveDetailItemCategory(detail, undefined))
               .filter((value) => value && value !== "-"),
           ),
         ).join(", ") || "-";
@@ -258,13 +280,40 @@ export default function Page() {
         statusLabel,
       }];
     });
-  }, [transactions, detailMap, itemMap, statusMap, userMap, currentUser?.id, currentUser?.name, typeMap]);
+  }, [transactions, detailMap, statusMap, userMap, currentUser?.id, currentUser?.name, typeMap]);
 
-  const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return derivedRows.filter((row) => {
+      if (query.length === 0) return true;
+
+      const transactionId = `TR-${String(
+        normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id),
+      ).padStart(4, "0")}`.toLowerCase();
+      const isoDate = String(row.transaction.transaction_date ?? "").slice(0, 10).toLowerCase();
+      const prettyDate = formatDate(row.transaction.transaction_date).toLowerCase();
+      const transactionLabel = row.transactionLabel.toLowerCase();
+      const categoryLabel = row.categoryLabel.toLowerCase();
+      const userLabel = row.userLabel.toLowerCase();
+      const statusLabel = row.statusLabel.toLowerCase();
+
+      return (
+        transactionId.includes(query) ||
+        isoDate.includes(query) ||
+        prettyDate.includes(query) ||
+        transactionLabel.includes(query) ||
+        categoryLabel.includes(query) ||
+        userLabel.includes(query) ||
+        statusLabel.includes(query)
+      );
+    });
+  }, [derivedRows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const paginatedRows = useMemo(() => {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
-    return derivedRows.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [currentPage, derivedRows]);
+    return filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [currentPage, filteredRows]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -276,7 +325,6 @@ export default function Page() {
     }
   }, [currentPage, totalPages]);
 
-  // Fetch detail secara berurutan (1 per 1) agar server tidak kewalahan
   useEffect(() => {
     let cancelled = false;
     async function fetchMissingDetails() {
@@ -284,10 +332,29 @@ export default function Page() {
         .map((row) => row.transaction.id)
         .filter((id) => !detailMap[id]);
 
-      for (const id of missingIds) {
-        if (cancelled) break;
-        await getDetails(id);
+      const settled = await Promise.allSettled(
+        missingIds.map(async (id) => [id, (await sdk.stockTransactions.details(id)).data ?? []] as const),
+      );
+
+      if (cancelled) {
+        return;
       }
+
+      const resolvedEntries = settled
+        .map((entry) => (entry.status === "fulfilled" ? entry.value : null))
+        .filter((entry): entry is readonly [number, DetailRow[]] => entry !== null);
+
+      if (resolvedEntries.length === 0) {
+        return;
+      }
+
+      setDetailMap((prev) => {
+        const next = { ...prev };
+        for (const [id, details] of resolvedEntries) {
+          next[id] = details;
+        }
+        return next;
+      });
     }
     void fetchMissingDetails();
     return () => { cancelled = true; };
@@ -300,40 +367,17 @@ export default function Page() {
       cachedDetails ??
       (await sdk.stockTransactions.details(transactionId).then((response) => response.data ?? []));
 
-    // Fetch hanya item yang belum ada
-    const neededIds = Array.from(new Set(details.map((d) => d.item_id)));
-    const fetchedItems: ItemRow[] = [];
-    for (const itemId of neededIds) {
-      if (items.some((i) => i.id === itemId)) continue;
-      try {
-        const res = await sdk.items.get(itemId);
-        if (res.data) fetchedItems.push(res.data);
-      } catch { /* skip */ }
-    }
-
-    // Functional update: merge tanpa duplikasi
-    if (fetchedItems.length > 0) {
-      setItems((prev) => {
-        const existingIds = new Set(prev.map((i) => i.id));
-        const newItems = fetchedItems.filter((i) => !existingIds.has(i.id));
-        return newItems.length > 0 ? [...prev, ...newItems] : prev;
-      });
-    }
-
     if (!cachedDetails) {
       setDetailMap((current) => ({ ...current, [transactionId]: details }));
     }
 
-    // Build resolvedItemMap dari items terbaru + fetchedItems
-    const allItems = [...items, ...fetchedItems];
-    const resolvedItemMap = new Map(allItems.map((item) => [item.id, item]));
-
-    return { details, resolvedItemMap };
+    return { details, resolvedItemMap: new Map<number, ItemRow>() };
   }
 
   async function openDetail(transaction: TransactionRow) {
     try {
       const { details, resolvedItemMap } = await getDetails(transaction.id);
+      setDetailMap((prev) => ({ ...prev, [transaction.id]: details }));
       setDetailState({ transaction, details, resolvedItemMap });
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat detail transaksi."));
@@ -355,6 +399,7 @@ export default function Page() {
           isPersisted: true,
         })),
       );
+      setDetailMap((prev) => ({ ...prev, [transaction.id]: details }));
       setRevisionState({ transaction, details, resolvedItemMap });
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat form revisi transaksi."));
@@ -446,30 +491,214 @@ export default function Page() {
     }
   }
 
-  function handleExport() {
-    const lines = [
-      ["ID Transaksi", "Tanggal", "User", "Transaksi", "Kategori Bahan", "Status"],
-      ...paginatedRows.map((row) => [
-        `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
-        formatDate(row.transaction.transaction_date),
-        row.userLabel,
-        row.transactionLabel,
-        row.categoryLabel,
-        row.statusLabel,
-      ]),
-    ];
+  async function handleExport() {
+    if (typeof window === "undefined" || filteredRows.length === 0) {
+      setError("Belum ada data riwayat transaksi yang bisa diexport dari hasil filter saat ini.");
+      return;
+    }
 
-    const csv = lines
-      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
+    const exportSource = filteredRows;
+    const exportDetailMap = new Map<number, DetailRow[]>();
+    for (const [id, details] of Object.entries(detailMap)) {
+      exportDetailMap.set(Number(id), details);
+    }
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "riwayat-transaksi-admin.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    const missingIds = exportSource
+      .map((row) => row.transaction.id)
+      .filter((id) => !exportDetailMap.has(id));
+
+    if (missingIds.length > 0) {
+      const settled = await Promise.allSettled(
+        missingIds.map(async (id) => [id, (await sdk.stockTransactions.details(id)).data ?? []] as const),
+      );
+
+      settled
+        .map((entry) => (entry.status === "fulfilled" ? entry.value : null))
+        .filter((entry): entry is readonly [number, DetailRow[]] => entry !== null)
+        .forEach(([id, details]) => {
+          exportDetailMap.set(id, details);
+        });
+    }
+
+    const directionLabels = new Set(
+      exportSource.map((row) => normalizeTransactionDirection(row.transactionLabel)),
+    );
+    const selectedTypeLabel = selectedType ? typeMap.get(Number(selectedType)) ?? "" : "";
+    const selectedDirection = selectedTypeLabel ? normalizeTransactionDirection(selectedTypeLabel) : "MIXED";
+    const exportMode =
+      selectedDirection === "IN" || selectedDirection === "OUT"
+        ? selectedDirection
+        : directionLabels.size === 1
+          ? [...directionLabels][0]
+          : "MIXED";
+
+    const exportRows = exportSource.flatMap((row) => {
+      const details = exportDetailMap.get(row.transaction.id) ?? [];
+      const transactionId = `TR-${String(
+        normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id),
+      ).padStart(4, "0")}`;
+      const directionLabel = normalizeTransactionDirection(row.transactionLabel);
+      const keterangan = row.transaction.reason ?? "-";
+      const petugas = row.userLabel;
+      const patientCountRaw = (row.transaction as { patient_count?: unknown; jumlah_pasien?: unknown }).patient_count
+        ?? (row.transaction as { patient_count?: unknown; jumlah_pasien?: unknown }).jumlah_pasien
+        ?? null;
+      const patientCount =
+        typeof patientCountRaw === "number"
+          ? patientCountRaw
+          : Number(patientCountRaw ?? NaN);
+      const patientLabel = Number.isFinite(patientCount) && patientCount > 0
+        ? `${formatSpreadsheetNumber(patientCount, 0)} orang`
+        : "-";
+
+      if (details.length === 0) {
+        return [{
+          dateLabel: formatDate(row.transaction.transaction_date),
+          transactionId,
+          itemName: "-",
+          categoryName: row.categoryLabel,
+          unit: "-",
+          incomingQty: "-",
+          outgoingQty: "-",
+          keterangan,
+          petugas,
+          patientLabel,
+          directionLabel,
+        }];
+      }
+
+      return details.map((detail) => {
+        const quantity = Number(detail.input_qty ?? detail.qty ?? 0);
+        return {
+          dateLabel: formatDate(row.transaction.transaction_date),
+          transactionId,
+          itemName: resolveDetailItemName(detail),
+          categoryName: resolveDetailItemCategory(detail),
+          unit: resolveDetailUnit(detail, undefined, unitMap),
+          incomingQty: directionLabel === "IN" ? `${formatSpreadsheetNumber(quantity, Number.isInteger(quantity) ? 0 : 1)}` : "-",
+          outgoingQty: directionLabel === "OUT" ? `${formatSpreadsheetNumber(quantity, Number.isInteger(quantity) ? 0 : 1)}` : "-",
+          keterangan,
+          petugas,
+          patientLabel,
+          directionLabel,
+        };
+      });
+    });
+
+    const totalTransactions = exportSource.length;
+    const totalItems = exportRows.length;
+    const totalIncomingQty = exportRows.reduce((total, row) => total + (row.incomingQty === "-" ? 0 : Number(row.incomingQty)), 0);
+    const totalOutgoingQty = exportRows.reduce((total, row) => total + (row.outgoingQty === "-" ? 0 : Number(row.outgoingQty)), 0);
+
+    const summaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Total Transaksi</td><td class="summary-value">${totalTransactions} transaksi</td></tr>
+        <tr><td class="summary-label">Total Item</td><td class="summary-value">${totalItems} item</td></tr>
+        <tr><td class="summary-label">Total Barang Masuk</td><td class="summary-value">${formatSpreadsheetNumber(totalIncomingQty, 0)}</td></tr>
+        <tr><td class="summary-label">Total Barang Keluar</td><td class="summary-value">${formatSpreadsheetNumber(totalOutgoingQty, 0)}</td></tr>
+      </table>
+    `;
+
+    const bodyRows = exportRows
+      .map(
+        (row, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td>${escapeSpreadsheetHtml(row.dateLabel)}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.transactionId)}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
+            <td>${escapeSpreadsheetHtml(row.categoryName)}</td>
+            <td>${escapeSpreadsheetHtml(row.unit)}</td>
+            ${
+              exportMode === "OUT"
+                ? `<td class="number">${escapeSpreadsheetHtml(row.outgoingQty)}</td><td>${escapeSpreadsheetHtml(row.patientLabel)}</td>`
+                : exportMode === "IN"
+                  ? `<td class="number">${escapeSpreadsheetHtml(row.incomingQty)}</td>`
+                  : `<td class="number">${escapeSpreadsheetHtml(row.incomingQty)}</td><td class="number">${escapeSpreadsheetHtml(row.outgoingQty)}</td>`
+            }
+            <td>${escapeSpreadsheetHtml(row.keterangan)}</td>
+            <td>${escapeSpreadsheetHtml(row.petugas)}</td>
+          </tr>`,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: exportMode === "OUT"
+        ? "LAPORAN BARANG KELUAR INSTALASI GIZI RSD BALUNG"
+        : exportMode === "IN"
+          ? "LAPORAN BARANG MASUK INSTALASI GIZI RSD BALUNG"
+          : "LAPORAN RIWAYAT TRANSAKSI BARANG INSTALASI GIZI RSD BALUNG",
+      subtitle: exportMode === "OUT"
+        ? "Rekap barang keluar berdasarkan data transaksi pada sistem."
+        : exportMode === "IN"
+          ? "Rekap barang masuk berdasarkan data transaksi pada sistem."
+          : "Rekap riwayat transaksi barang masuk dan keluar berdasarkan data pada sistem.",
+      body: `
+        <div class="title">
+          ${
+            exportMode === "OUT"
+              ? "LAPORAN BARANG KELUAR INSTALASI GIZI RSD BALUNG"
+              : exportMode === "IN"
+                ? "LAPORAN BARANG MASUK INSTALASI GIZI RSD BALUNG"
+                : "LAPORAN RIWAYAT TRANSAKSI BARANG INSTALASI GIZI RSD BALUNG"
+          }
+        </div>
+        <div class="subtitle">
+          ${
+            exportMode === "OUT"
+              ? "Rekap barang keluar berdasarkan data transaksi pada sistem."
+              : exportMode === "IN"
+                ? "Rekap barang masuk berdasarkan data transaksi pada sistem."
+                : "Rekap riwayat transaksi barang masuk dan keluar berdasarkan data pada sistem."
+          }
+        </div>
+
+        <table class="no-border section-gap">
+          <tr>
+            <td style="width: 34%; padding: 0 12px 12px 0;">${summaryHtml}</td>
+            <td style="width: 66%; padding: 0 0 12px 0;">
+              <table>
+                <tr><td class="section" colspan="4">RINGKASAN FILTER</td></tr>
+                <tr class="head"><th>Jenis</th><th>Jumlah</th><th>Keterangan</th><th>Status</th></tr>
+                <tr><td>Periode</td><td class="rank">${exportSource.length} transaksi</td><td>${escapeSpreadsheetHtml(dateRange.startDate || dateRange.endDate ? "Tanggal difilter" : "Semua tanggal")}</td><td class="safe">Aktif</td></tr>
+                <tr><td>Jenis Transaksi</td><td class="rank">${selectedTypeLabel || "Semua Jenis"}</td><td>${escapeSpreadsheetHtml(exportMode === "MIXED" ? "Campuran" : "Satu jenis transaksi")}</td><td class="safe">Aktif</td></tr>
+                <tr><td>Petugas</td><td class="rank">${new Set(exportSource.map((row) => row.userLabel)).size}</td><td>Total user penginput</td><td class="safe">Aktif</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>Tanggal</th>
+            <th>ID Transaksi</th>
+            <th>Nama Bahan</th>
+            <th>Kategori</th>
+            <th>Satuan</th>
+            ${
+              exportMode === "OUT"
+                ? "<th>Jumlah Keluar</th><th>Jumlah Pasien</th>"
+                : exportMode === "IN"
+                  ? "<th>Jumlah Masuk</th>"
+                  : "<th>Jumlah Masuk</th><th>Jumlah Keluar</th>"
+            }
+            <th>Keterangan</th>
+            <th>Petugas</th>
+          </tr>
+          ${bodyRows}
+        </table>
+      `,
+    });
+
+    const filename =
+      exportMode === "OUT"
+        ? "laporan-barang-keluar.xls"
+        : exportMode === "IN"
+          ? "laporan-barang-masuk.xls"
+          : "riwayat-transaksi-barang.xls";
+
+    downloadSpreadsheetHtml(filename, html);
   }
 
   return (

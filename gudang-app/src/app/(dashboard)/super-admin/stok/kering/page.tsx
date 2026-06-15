@@ -6,6 +6,12 @@ import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, getStockTone } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
 import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
+import {
   AdminPageHeading,
   ExportButton,
   FilterSearch,
@@ -346,6 +352,75 @@ export default function Page() {
     return itemRows.filter((item) => normalizeFilterValue(item.label) === normalizedStatus);
   }, [itemRows, statusFilter]);
 
+  function handleExport() {
+    if (typeof window === "undefined" || filteredItems.length === 0) return;
+
+    const summaryRows = [
+      { label: "Total Item", value: formatSpreadsheetNumber(filteredItems.length, 0) },
+      { label: "Stok Menipis", value: formatSpreadsheetNumber(counts.warning, 0) },
+      { label: "Stok Kritis", value: formatSpreadsheetNumber(counts.critical, 0) },
+      { label: "Stok Habis", value: formatSpreadsheetNumber(counts.danger, 0) },
+    ];
+
+    const tableRows = filteredItems
+      .map(
+        (item, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(item.idLabel)}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(item.name)}</td>
+            <td>${escapeSpreadsheetHtml(item.category)}</td>
+            <td class="number">${escapeSpreadsheetHtml(item.qtyLabel)}</td>
+            <td class="number">${escapeSpreadsheetHtml(item.minimumLabel)}</td>
+            <td class="pill">${escapeSpreadsheetHtml(item.label)}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "LAPORAN DATA STOK BAHAN INSTALASI GIZI RSD BALUNG",
+      subtitle: "Rekapitulasi data stok bahan kering berdasarkan filter stok bahan saat ini.",
+      body: `
+        <table class="section-gap">
+          <tr class="no-border">
+            <td class="title" colspan="7">LAPORAN DATA STOK BAHAN INSTALASI GIZI RSD BALUNG</td>
+          </tr>
+          <tr class="no-border">
+            <td class="subtitle" colspan="7">Rekapitulasi data stok bahan kering berdasarkan filter stok bahan saat ini.</td>
+          </tr>
+        </table>
+
+        <table class="section-gap">
+          <tr><td class="section" colspan="2">RINGKASAN</td></tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr class="summary">
+                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>ID Barang</th>
+            <th>Nama Bahan</th>
+            <th>Jenis Bahan</th>
+            <th>Stok Saat Ini</th>
+            <th>Minimal Stok</th>
+            <th>Status</th>
+          </tr>
+          ${tableRows || `<tr><td class="muted" colspan="7">Belum ada data stok kering.</td></tr>`}
+        </table>
+      `,
+    });
+
+    downloadSpreadsheetHtml("laporan-data-stok-bahan.xls", html);
+  }
+
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / 10));
   const visibleItems = useMemo(() => {
     const startIndex = (currentPage - 1) * 10;
@@ -448,7 +523,7 @@ export default function Page() {
             />
           </div>
           <div className="ml-auto">
-            <ExportButton />
+            <ExportButton onClick={handleExport}>Export Data</ExportButton>
           </div>
         </div>
 

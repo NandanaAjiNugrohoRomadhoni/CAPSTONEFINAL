@@ -262,25 +262,64 @@ export default function AdminMenuManagementPage() {
     setError(null);
 
     try {
-      const [dishesResponse, availableItems] = await Promise.all([
+      const [dishesResponse, allCompositions, availableItems] = await Promise.all([
         listAllPaginatedRows(sdk.dishes.list.bind(sdk.dishes), {
           sortBy: "name",
+          sortDir: "ASC",
+        }),
+        listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
+          sortBy: "id",
           sortDir: "ASC",
         }),
         loadAvailableItems(),
       ]);
 
+      const itemMap = new Map(availableItems.map((item) => [Number(item.id), item]));
+      const compositionMap = new Map<number, IngredientRow[]>();
+
+      for (const composition of allCompositions) {
+        const dishId = Number(composition.dish_id);
+        const itemId = Number(composition.item_id);
+        const group = compositionMap.get(dishId) ?? [];
+        const compositionItem = composition.item as
+          | { unit_convert?: string; unit_base?: string }
+          | null
+          | undefined;
+        const relatedItem = itemMap.get(itemId);
+
+        group.push({
+          localId: composition.id,
+          compositionId: composition.id,
+          item_id: itemId,
+          qty_per_patient: composition.qty_per_patient,
+          unit_convert:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
+          unit:
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
+            relatedItem?.unit_base ??
+            compositionItem?.unit_base ??
+            undefined,
+        });
+        compositionMap.set(dishId, group);
+      }
+
       const descriptionMap = readMenuDescriptions();
       const nextMenus = dishesResponse.map((dish) => {
         const dishId = Number(dish.id);
         const isActive = (dish as { is_active?: boolean | null }).is_active !== false;
+        const menuIngredients = compositionMap.get(dishId) ?? [];
 
         return {
           id: dishId,
           name: dish.name,
           description: descriptionMap[String(dishId)] ?? "",
-          compositionSummary: "Klik detail untuk melihat komposisi bahan.",
-          ingredients: [],
+          compositionSummary: buildCompositionSummary(menuIngredients, itemMap),
+          ingredients: menuIngredients,
           isActive,
         };
       });
@@ -333,6 +372,11 @@ export default function AdminMenuManagementPage() {
 
   async function fetchCompositionsForDish(dishId: number) {
     try {
+      const existingMenu = menus.find((menu) => menu.id === dishId);
+      if (existingMenu?.ingredients?.length) {
+        return existingMenu.ingredients;
+      }
+
       const compositions = await listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
         dish_id: dishId,
         sortBy: "id",
@@ -397,7 +441,7 @@ export default function AdminMenuManagementPage() {
 
   async function openDetailModal(menu: FoodMenu) {
     setLoading(true);
-    const dishIngredients = await fetchCompositionsForDish(menu.id);
+    const dishIngredients = menu.ingredients.length > 0 ? menu.ingredients : await fetchCompositionsForDish(menu.id);
     setSelectedMenu({ ...menu, ingredients: dishIngredients });
     setModalMode("detail");
     setLoading(false);
@@ -405,7 +449,7 @@ export default function AdminMenuManagementPage() {
 
   async function openEditModal(menu: FoodMenu) {
     setLoading(true);
-    const dishIngredients = await fetchCompositionsForDish(menu.id);
+    const dishIngredients = menu.ingredients.length > 0 ? menu.ingredients : await fetchCompositionsForDish(menu.id);
     setSelectedMenu({ ...menu, ingredients: dishIngredients });
     setMenuName(menu.name);
     setMenuDescription(menu.description);

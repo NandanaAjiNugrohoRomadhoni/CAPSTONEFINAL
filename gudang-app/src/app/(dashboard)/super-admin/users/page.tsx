@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import sdk from "@/lib";
@@ -36,6 +35,8 @@ type SuccessState = {
 } | null;
 
 type UsersListResponse = Awaited<ReturnType<typeof sdk.users.list>>;
+type UserRow = UsersListResponse["data"][number];
+type UsersListQuery = NonNullable<Parameters<typeof sdk.users.list>[0]>;
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("id-ID", {
@@ -103,14 +104,47 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState(false);
   const [refreshOnSuccessClose, setRefreshOnSuccessClose] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  async function loadData() {
+  async function loadData(page = currentPage) {
     setLoading(true);
     setPageError(null);
 
     try {
-      const usersResponse = await sdk.users.list();
-      setUsers(usersResponse.data as ManagedUser[]);
+      const query: UsersListQuery = {
+        page,
+        perPage: 10,
+        sortBy: "created_at",
+        sortDir: "DESC",
+      };
+
+      const keyword = search.trim();
+      if (keyword.length > 0) {
+        query.search = keyword;
+      }
+
+      if (roleFilter !== "all") {
+        const selectedRole = roles.find((role) => role.name === roleFilter);
+        if (selectedRole) {
+          query.role_id = selectedRole.id;
+        }
+      }
+
+      if (statusFilter === "active") {
+        query.is_active = true;
+      } else if (statusFilter === "inactive") {
+        query.is_active = false;
+      }
+
+      const usersResponse = await sdk.users.list(query);
+      const nextRows = (usersResponse.data ?? []) as ManagedUser[];
+      const visibleRows =
+        currentUser?.role?.name === "admin"
+          ? nextRows.filter((user) => user.role?.name !== "admin")
+          : nextRows;
+
+      setUsers(visibleRows);
+      setTotalRecords(usersResponse.meta?.total ?? visibleRows.length);
     } catch (error) {
       setPageError(getErrorMessage(error, "Gagal memuat data pengguna."));
     } finally {
@@ -133,7 +167,6 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
-    void loadData();
     void ensureRoles();
   }, []);
 
@@ -142,46 +175,21 @@ export default function UsersPage() {
     [currentUser?.role?.name, roles],
   );
 
-  const filteredUsers = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return users
-      .filter((user) => {
-        const isHiddenAdminRow =
-          currentUser?.role?.name === "admin" && user.role?.name === "admin";
-
-        const matchesSearch =
-          keyword.length === 0 ||
-          user.name.toLowerCase().includes(keyword) ||
-          user.username.toLowerCase().includes(keyword);
-
-        const matchesRole = roleFilter === "all" || user.role?.name === roleFilter;
-        const matchesStatus =
-          statusFilter === "all" ||
-          (statusFilter === "active" && user.is_active) ||
-          (statusFilter === "inactive" && !user.is_active);
-
-        return !isHiddenAdminRow && matchesSearch && matchesRole && matchesStatus;
-      })
-      .sort((left, right) => left.id - right.id);
-  }, [currentUser?.role?.name, roleFilter, search, statusFilter, users]);
-
   useEffect(() => {
     setCurrentPage(1);
   }, [search, roleFilter, statusFilter]);
 
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
-  const paginatedUsers = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredUsers.slice(startIndex, startIndex + pageSize);
-  }, [currentPage, filteredUsers]);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / 10));
 
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    void loadData(currentPage);
+  }, [currentPage, search, roleFilter, statusFilter]);
 
   async function openCreateModal() {
     setModalMode("create");
@@ -286,39 +294,9 @@ export default function UsersPage() {
       }
 
       setOpen(false);
-      await loadData();
+      await loadData(modalMode === "create" ? 1 : currentPage);
       router.refresh();
     } catch (error) {
-      if (modalMode === "create") {
-        try {
-          const usersResponse = (await sdk.users.list()) as UsersListResponse;
-          const refreshedUsers = usersResponse.data as ManagedUser[];
-          const hadUserBeforeSubmit = previousUsers.some(
-            (user) =>
-              user.username.trim().toLowerCase() === payload.username.trim().toLowerCase(),
-          );
-          const createdUser = refreshedUsers.find(
-            (user) =>
-              user.username.trim().toLowerCase() === payload.username.trim().toLowerCase(),
-          );
-
-          if (createdUser && !hadUserBeforeSubmit) {
-            setUsers(refreshedUsers);
-            setOpen(false);
-            setModalError(null);
-            setSuccessState({
-              headline: "Akun Berhasil Ditambahkan",
-              message: `Akun ${payload.name} berhasil ditambahkan ke daftar pengguna.`,
-            });
-            setRefreshOnSuccessClose(true);
-            router.refresh();
-            return;
-          }
-        } catch {
-          // Keep the original error handling below when verification fails.
-        }
-      }
-
       setUsers(previousUsers);
       setModalError(getErrorMessage(error, "Gagal menyimpan pengguna."));
     } finally {
@@ -349,7 +327,7 @@ export default function UsersPage() {
         });
       }
 
-      await loadData();
+      await loadData(currentPage);
       router.refresh();
     } catch (error) {
       setUsers(previousUsers);
@@ -384,7 +362,7 @@ export default function UsersPage() {
     try {
       const deletedName = deleteTarget.name;
       await sdk.users.delete(deleteTarget.id);
-      await loadData();
+      await loadData(currentPage);
       router.refresh();
       setSuccessState({
         headline: "Akun Berhasil Dihapus",
@@ -463,14 +441,14 @@ export default function UsersPage() {
                     Memuat data pengguna...
                   </td>
                 </tr>
-              ) : paginatedUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <tr>
                   <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={6}>
                     Tidak ada pengguna yang cocok dengan filter saat ini.
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((user) => (
+                users.map((user) => (
                   <tr
                     key={user.id}
                     className="border-t border-[#E2E8F0] transition hover:bg-[#F8FAFC]"
@@ -521,8 +499,8 @@ export default function UsersPage() {
           totalPages={totalPages}
           onPageChange={setCurrentPage}
           totalLabel={
-            filteredUsers.length > 0
-              ? `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, filteredUsers.length)} dari ${filteredUsers.length} pengguna`
+            totalRecords > 0
+              ? `${(currentPage - 1) * 10 + 1}-${Math.min(currentPage * 10, totalRecords)} dari ${totalRecords} pengguna`
               : "0 dari 0 pengguna"
           }
         />
@@ -559,7 +537,7 @@ export default function UsersPage() {
 
           if (refreshOnSuccessClose) {
             setRefreshOnSuccessClose(false);
-            void loadData();
+            void loadData(currentPage);
             router.refresh();
           }
         }}

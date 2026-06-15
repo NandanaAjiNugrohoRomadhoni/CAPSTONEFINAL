@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import { getSpkConflictId } from "@/lib/spk-conflicts";
 import { addDaysIsoDate, findExistingBasahSpk } from "@/lib/spk-recommendations";
 import {
@@ -21,6 +22,7 @@ type RecommendationRow = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"]["i
 type LatestPatient = { id: number; date: string; total: number };
 type RecommendationDetail = Awaited<ReturnType<typeof sdk.spk.getBasah>>["data"];
 type StockReportRow = Awaited<ReturnType<typeof sdk.reports.getStocks>>["data"]["rows"][number];
+type DailyPatientRow = Awaited<ReturnType<typeof sdk.dailyPatients.list>>["data"][number];
 
 const ALL_STOCK_REPORT_PERIOD = {
   period_start: "2000-01-01",
@@ -119,12 +121,15 @@ export default function Page() {
       setLoading(true);
       try {
         const [patientsResponse, categoriesResponse, stockResponse] = await Promise.all([
-          sdk.dailyPatients.list(),
+          listAllPaginatedRows<DailyPatientRow>(sdk.dailyPatients.list.bind(sdk.dailyPatients), {
+            sortBy: "service_date",
+            sortDir: "DESC",
+          }),
           sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
           sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } })),
         ]);
         if (cancelled) return;
-        const latest = [...(patientsResponse.data ?? [])].sort((a, b) => b.service_date.localeCompare(a.service_date))[0];
+        const latest = [...patientsResponse].sort((a, b) => b.service_date.localeCompare(a.service_date))[0];
         if (latest) {
           setLatestPatient({ id: latest.id, date: latest.service_date, total: latest.total_patients });
         }

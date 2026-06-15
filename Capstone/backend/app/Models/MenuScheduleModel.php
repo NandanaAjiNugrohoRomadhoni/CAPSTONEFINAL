@@ -8,7 +8,7 @@ class MenuScheduleModel extends Model
 {
     protected $table         = 'menu_schedules';
     protected $primaryKey    = 'id';
-    protected $allowedFields = ['day_of_month', 'menu_id', 'patient_count'];
+    protected $allowedFields = ['day_of_month', 'menu_id'];
     protected $useTimestamps = true;
     protected $returnType    = 'array';
 

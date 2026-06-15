@@ -77,35 +77,14 @@ class OperationalStockPreviewService
             ];
         }
 
-        // Distribute patients among assignments
-        $allocatedPatients = 0;
-        foreach ($assignments as $assignment) {
-            if (isset($assignment['patient_count'])) {
-                $allocatedPatients += (int) $assignment['patient_count'];
-            }
-        }
-
-        $remainingPatients      = max(0, $totalPatients - $allocatedPatients);
-        $nullCountAssignments   = array_filter($assignments, fn ($a) => ! isset($a['patient_count']));
-        $nullCountCount         = count($nullCountAssignments);
-        $defaultPatientsPerNull = $nullCountCount > 0 ? (int) floor($remainingPatients / $nullCountCount) : 0;
-        $remainder              = $nullCountCount > 0 ? $remainingPatients % $nullCountCount : 0;
-
         $requiredByItem = [];
         $menuInfo       = [];
 
-        $firstNullHandled = false;
         foreach ($assignments as $assignment) {
             $menuId = (int) $assignment['menu_id'];
-            if (isset($assignment['patient_count'])) {
-                $patientsForThisMenu = (int) $assignment['patient_count'];
-            } else {
-                $patientsForThisMenu = $defaultPatientsPerNull;
-                if (! $firstNullHandled) {
-                    $patientsForThisMenu += $remainder;
-                    $firstNullHandled = true;
-                }
-            }
+
+            // Additive model: all patients get all menus
+            $patientsForThisMenu = $totalPatients;
 
             if ($patientsForThisMenu <= 0) {
                 continue;
