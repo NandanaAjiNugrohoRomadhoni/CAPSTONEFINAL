@@ -18,6 +18,7 @@ import {
   escapeSpreadsheetHtml,
   formatSpreadsheetNumber,
 } from "@/lib/spreadsheet-export";
+import { buildExportFilename } from "@/lib/export-filename";
 import { X } from "lucide-react";
 
 type TransactionRow = Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number];
@@ -573,7 +574,7 @@ export default function TransactionRevisionPage({
     });
 
     downloadSpreadsheetHtml(
-      role === "admin" ? "moderasi-revisi-transaksi.xls" : "pengajuan-revisi-transaksi.xls",
+      buildExportFilename(role === "admin" ? "moderasi-revisi-transaksi" : "pengajuan-revisi-transaksi"),
       html,
     );
   }

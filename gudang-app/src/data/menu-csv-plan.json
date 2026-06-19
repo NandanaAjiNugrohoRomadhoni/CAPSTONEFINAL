@@ -1,0 +1,2096 @@
+{
+    "packageOrder":  [
+                         "I",
+                         "II",
+                         "III",
+                         "IV",
+                         "V",
+                         "VI",
+                         "VII",
+                         "VIII",
+                         "IX",
+                         "X",
+                         "XI"
+                     ],
+    "packages":  [
+                     {
+                         "key":  "I",
+                         "label":  "Paket I",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Telur Gulung (Daun Prei + Wortel)",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Telur",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "10",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Oseng Tahu Kecap",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Soto Wortel Labu Siam",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Labu Siam",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Chicken Katsu Saus Asam Manis",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Ayam",
+                                                                                    "qty":  "65",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Panir",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Terigu",
+                                                                                    "qty":  "2.5",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Saus Tomat",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "ml"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tahu Sakura Kukus",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tahu",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "ptg"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Cap Cay Kuah",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Bunga Kol",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Wortel",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Sawi Hijau",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Pisang Ambon",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Pisang Ambon",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "bh"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Tengiri Goreng Tepung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tengiri",
+                                                                                   "qty":  "40",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Terigu",
+                                                                                   "qty":  "2.5",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Bumbu",
+                                                                                   "qty":  "0.01",
+                                                                                   "unit":  "bks"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tempe Bacem Rebus",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Sayur Bening Daun Kelor",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Daun Kelor",
+                                                                                   "qty":  "50",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Semangka",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Semangka",
+                                                                                   "qty":  "125",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "II",
+                         "label":  "Paket II",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Ayam Bumbu Kecap",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "80",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Pepes Tahu",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Sup Gambas Wortel Suun",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Gambas",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Bihun",
+                                                                                   "qty":  "0.005",
+                                                                                   "unit":  "bks"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Rollade Daging Saus Asam Manis",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Daging Sapi",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "15",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Panir",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Kanji",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Saus Tomat",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "ml"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Orek Tempe",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Sup Wortel Jagung Manis Buncis",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Wortel",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Jagung Manis",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Buncis",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Melon",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Melon",
+                                                                                    "qty":  "125",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Pepes Tongkol",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "35",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Dadar Jagung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Jagung Manis",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Terigu",
+                                                                                   "qty":  "2.5",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Bening Bayam Labu Siam Kemangi",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Bayam",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Labu Siam",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Kemangi",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Pepaya",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Pepaya",
+                                                                                   "qty":  "125",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "III",
+                         "label":  "Paket III",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Oseng Bakso",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Bakso",
+                                                                                   "qty":  "4",
+                                                                                   "unit":  "bh"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tempe Goreng Tepung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Bumbu",
+                                                                                   "qty":  "0.01",
+                                                                                   "unit":  "bks"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Terigu",
+                                                                                   "qty":  "2.5",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Cah Sawi Putih Wortel",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Sawi Putih",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Bola Tongkol Goreng Panir",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tongkol",
+                                                                                    "qty":  "35",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Panir",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tepung Terigu",
+                                                                                    "qty":  "2.5",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tempe Bacem Rebus",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Asem Kacang Panjang Ketimun",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Kacang Panjang",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Ketimun",
+                                                                                    "qty":  "40",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Semangka",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Semangka",
+                                                                                    "qty":  "125",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Koloke Ayam Saus Asam Manis",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Terigu",
+                                                                                   "qty":  "5",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Bumbu",
+                                                                                   "qty":  "0.01",
+                                                                                   "unit":  "bks"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Saus Tomat",
+                                                                                   "qty":  "5",
+                                                                                   "unit":  "ml"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Perkedel Tahu",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Telur",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Sop Buncis Wortel Bunga Kol",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Buncis",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Bunga Kol",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "IV",
+                         "label":  "Paket IV",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Kare Tongkol",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tahu Krispi",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Bumbu",
+                                                                                   "qty":  "",
+                                                                                   "unit":  ""
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Tepung Terigu",
+                                                                                   "qty":  "",
+                                                                                   "unit":  ""
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tumis Buncis Wortel",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Buncis",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Ayam Panggang Bumbu Merah",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Ayam",
+                                                                                    "qty":  "85",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Dadar Jagung",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Jagung Manis",
+                                                                                    "qty":  "20",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Bening Bayam Labu Siam Kemangi",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Bayam",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Labu Siam",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Kemangi",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Sup Daging Kacang Merah Wortel",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Daging Sapi",
+                                                                                   "qty":  "40",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Kacang Merah",
+                                                                                   "qty":  "5",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "V",
+                         "label":  "Paket V",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Bakso Sayur",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Bakso",
+                                                                                   "qty":  "4",
+                                                                                   "unit":  "bh"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Sawi Hijau",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tahu Isi Ayam Giling",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Ayam Giling",
+                                                                                   "qty":  "10",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Telur Gulung Wortel Daun Prei",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "50",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Wortel",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Oseng Kentang Tempe Kecap",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Kentang",
+                                                                                    "qty":  "10",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "20",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Ayam Opor Putih",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "85",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tahu Krispi",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "VI",
+                         "label":  "Paket VI",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Soto Daging Kentang Taoge Pendek",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Daging Sapi",
+                                                                                   "qty":  "35",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Kentang",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Taoge Pendek",
+                                                                                   "qty":  "10",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Tongkol Suwir Kemangi Bumbu Kuning",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tongkol",
+                                                                                    "qty":  "35",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Kemangi",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tahu Sakura Goreng Telur",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tahu",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "ptg"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Chicken Katsu Saus Asam Manis",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Orek Tempe",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "VII",
+                         "label":  "Paket VII",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Tongkol Goreng Tepung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "35",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Kare Tempe",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Ayam Dadu Jagung Manis Bumbu Merah",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Ayam",
+                                                                                    "qty":  "65",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Jagung Manis",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tempe Bacem Goreng",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Telur Ceplok Cetak Bumbu Bali",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Telur",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "VIII",
+                         "label":  "Paket VIII",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Telur Cetak Bumbu Kare",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Telur",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tahu Bacem",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Daging Teriyaki",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Daging Sapi",
+                                                                                    "qty":  "40",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Perkedel Tahu",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tahu",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "ptg"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Ayam Suwir Bumbu Merah",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Orem Tempe",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "IX",
+                         "label":  "Paket IX",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Lapis Daging",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Daging Sapi",
+                                                                                   "qty":  "40",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Soto Ayam Kentang Taoge Pendek",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Ayam",
+                                                                                    "qty":  "65",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Kentang",
+                                                                                    "qty":  "30",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Taoge Pendek",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tempe Goreng Tepung",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Pepes Tongkol",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Kare Tahu",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "X",
+                         "label":  "Paket X",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Telur Cetak Bumbu Kecap",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Telur",
+                                                                                   "qty":  "65",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Rollade Ayam Saus Asam Manis",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Ayam",
+                                                                                    "qty":  "40",
+                                                                                    "unit":  "gr"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "15",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tumis Tempe",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tempe",
+                                                                                    "qty":  "25",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Tongkol Goreng Tepung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tahu Bacem Rebus",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     },
+                     {
+                         "key":  "XI",
+                         "label":  "Paket XI",
+                         "sessions":  {
+                                          "pagi":  [
+                                                       {
+                                                           "name":  "Kare Tongkol",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tongkol",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Cah Tahu Buncis Wortel",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tahu",
+                                                                                   "qty":  "1",
+                                                                                   "unit":  "ptg"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Buncis",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               },
+                                                                               {
+                                                                                   "name":  "Wortel",
+                                                                                   "qty":  "30",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ],
+                                          "siang":  [
+                                                        {
+                                                            "name":  "Bakso Iris Tumis Kecap",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Bakso",
+                                                                                    "qty":  "4",
+                                                                                    "unit":  "bh"
+                                                                                }
+                                                                            ]
+                                                        },
+                                                        {
+                                                            "name":  "Tahu Sakura Goreng Telur",
+                                                            "ingredients":  [
+                                                                                {
+                                                                                    "name":  "Tahu",
+                                                                                    "qty":  "1",
+                                                                                    "unit":  "ptg"
+                                                                                },
+                                                                                {
+                                                                                    "name":  "Telur",
+                                                                                    "qty":  "5",
+                                                                                    "unit":  "gr"
+                                                                                }
+                                                                            ]
+                                                        }
+                                                    ],
+                                          "sore":  [
+                                                       {
+                                                           "name":  "Ayam Saus Inggris",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Ayam",
+                                                                                   "qty":  "85",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       },
+                                                       {
+                                                           "name":  "Tempe Goreng Tepung",
+                                                           "ingredients":  [
+                                                                               {
+                                                                                   "name":  "Tempe",
+                                                                                   "qty":  "25",
+                                                                                   "unit":  "gr"
+                                                                               }
+                                                                           ]
+                                                       }
+                                                   ]
+                                      }
+                     }
+                 ],
+    "recipes":  [
+                    {
+                        "name":  "Asem Kacang Panjang Ketimun",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Kacang Panjang",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Ketimun",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Bumbu Kecap",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "80",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Dadu Jagung Manis Bumbu Merah",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Jagung Manis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Opor Putih",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "85",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Panggang Bumbu Merah",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "85",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Saus Inggris",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "85",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Ayam Suwir Bumbu Merah",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Bakso Iris Tumis Kecap",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Bakso",
+                                                "qty":  "4",
+                                                "unit":  "bh"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Bakso Sayur",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Bakso",
+                                                "qty":  "4",
+                                                "unit":  "bh"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Sawi Hijau",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Bening Bayam Labu Siam Kemangi",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Bayam",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Labu Siam",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Kemangi",
+                                                "qty":  "1",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Bola Tongkol Goreng Panir",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tongkol",
+                                                "qty":  "35",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Panir",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "2.5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Cah Sawi Putih Wortel",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Sawi Putih",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Cah Tahu Buncis Wortel",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Buncis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Cap Cay Kuah",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Bunga Kol",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Sawi Hijau",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Chicken Katsu Saus Asam Manis",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Panir",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "2.5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Saus Tomat",
+                                                "qty":  "5",
+                                                "unit":  "ml"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Dadar Jagung",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Jagung Manis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "2.5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Daging Teriyaki",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daging Sapi",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Kare Tahu",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Kare Tempe",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Kare Tongkol",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tongkol",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Koloke Ayam Saus Asam Manis",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Bumbu",
+                                                "qty":  "0.01",
+                                                "unit":  "bks"
+                                            },
+                                            {
+                                                "name":  "Saus Tomat",
+                                                "qty":  "5",
+                                                "unit":  "ml"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Lapis Daging",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daging Sapi",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Melon",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Melon",
+                                                "qty":  "125",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Orek Tempe",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Orem Tempe",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Oseng Bakso",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Bakso",
+                                                "qty":  "4",
+                                                "unit":  "bh"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Oseng Kentang Tempe Kecap",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Kentang",
+                                                "qty":  "10",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "20",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Oseng Tahu Kecap",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Pepaya",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Pepaya",
+                                                "qty":  "125",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Pepes Tahu",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Pepes Tongkol",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tongkol",
+                                                "qty":  "35",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Perkedel Tahu",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "1",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Pisang Ambon",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Pisang Ambon",
+                                                "qty":  "1",
+                                                "unit":  "bh"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Rollade Ayam Saus Asam Manis",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "15",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Rollade Daging Saus Asam Manis",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daging Sapi",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "15",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Panir",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Kanji",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Saus Tomat",
+                                                "qty":  "5",
+                                                "unit":  "ml"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Sayur Bening Daun Kelor",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daun Kelor",
+                                                "qty":  "50",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Semangka",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Semangka",
+                                                "qty":  "125",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Sop Buncis Wortel Bunga Kol",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Buncis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Bunga Kol",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Soto Ayam Kentang Taoge Pendek",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Ayam",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Kentang",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Taoge Pendek",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Soto Daging Kentang Taoge Pendek",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daging Sapi",
+                                                "qty":  "35",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Kentang",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Taoge Pendek",
+                                                "qty":  "10",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Soto Wortel Labu Siam",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Labu Siam",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Sup Daging Kacang Merah Wortel",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Daging Sapi",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Kacang Merah",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Sup Gambas Wortel Suun",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Gambas",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Bihun",
+                                                "qty":  "0.005",
+                                                "unit":  "bks"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Sup Wortel Jagung Manis Buncis",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Jagung Manis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Buncis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Bacem",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Bacem Rebus",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Isi Ayam Giling",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Ayam Giling",
+                                                "qty":  "10",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Krispi",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Tepung Bumbu",
+                                                "qty":  "",
+                                                "unit":  ""
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "",
+                                                "unit":  ""
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Sakura Goreng Telur",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tahu Sakura Kukus",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tahu",
+                                                "qty":  "1",
+                                                "unit":  "ptg"
+                                            },
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Telur Ceplok Cetak Bumbu Bali",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Telur Cetak Bumbu Kare",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Telur Cetak Bumbu Kecap",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Telur Gulung (Daun Prei + Wortel)",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "65",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "10",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Telur Gulung Wortel Daun Prei",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Telur",
+                                                "qty":  "50",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tempe Bacem Goreng",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tempe Bacem Rebus",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tempe Goreng Tepung",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Bumbu",
+                                                "qty":  "0.01",
+                                                "unit":  "bks"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "2.5",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tengiri Goreng Tepung",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tengiri",
+                                                "qty":  "40",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Terigu",
+                                                "qty":  "2.5",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Tepung Bumbu",
+                                                "qty":  "0.01",
+                                                "unit":  "bks"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tongkol Goreng Tepung",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tongkol",
+                                                "qty":  "35",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tongkol Suwir Kemangi Bumbu Kuning",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tongkol",
+                                                "qty":  "35",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Kemangi",
+                                                "qty":  "1",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tumis Buncis Wortel",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Buncis",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            },
+                                            {
+                                                "name":  "Wortel",
+                                                "qty":  "30",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    },
+                    {
+                        "name":  "Tumis Tempe",
+                        "ingredients":  [
+                                            {
+                                                "name":  "Tempe",
+                                                "qty":  "25",
+                                                "unit":  "gr"
+                                            }
+                                        ]
+                    }
+                ]
+}

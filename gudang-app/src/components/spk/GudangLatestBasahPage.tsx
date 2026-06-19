@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatDate, formatNumber, formatQuantity, getErrorMessage } from "@/lib/admin-utils";
+import { buildExportFilename } from "@/lib/export-filename";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -84,7 +85,7 @@ export default function GudangLatestBasahPage() {
       meta?.targetDates.length
         ? `${meta.targetDates[0]}${meta.targetDates.length > 1 ? `-sd-${meta.targetDates[meta.targetDates.length - 1]}` : ""}`
         : "latest";
-    downloadSpreadsheetHtml(`SPS-Rekomendasi-Belanja-${dateLabel}.xls`, html);
+    downloadSpreadsheetHtml(buildExportFilename("sps-rekomendasi-belanja-basah"), html);
   }
 
   useEffect(() => {

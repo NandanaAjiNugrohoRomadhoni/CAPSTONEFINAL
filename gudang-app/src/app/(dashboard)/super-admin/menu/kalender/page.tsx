@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import sdk from "@/lib";
 import { formatLongDate, normaliseMealLabel } from "@/lib/admin-utils";
 import { listAllPaginatedRows } from "@/lib/pagination";
+import { getCsvMenuPackageLabel } from "@/lib/menu-csv-plan";
 import {
   AdminPageHeading,
   OutlineAction,
@@ -25,18 +26,9 @@ const menuBadgePalette = [
   "bg-[#FCE7F3] text-[#BE185D]",
 ];
 const mealDisplayOrder = ["SIANG", "SORE", "PAGI"];
-function getPackageNumber(name: string | null | undefined) {
-  const match = String(name ?? "").match(/\d+/);
-  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
-}
 
 function sortMenuPackages(packages: MenuRow[]) {
-  return [...packages]
-    .sort((a, b) => {
-    const numberDiff = getPackageNumber(a.name) - getPackageNumber(b.name);
-    if (numberDiff !== 0) return numberDiff;
-    return a.id - b.id;
-  });
+  return [...packages].sort((a, b) => a.id - b.id);
 }
 
 function toLocalDateString(year: number, monthIndex: number, day: number) {
@@ -101,7 +93,14 @@ export default function Page() {
             : [];
 
         setCalendarEntries(calendarData);
-        setMenuPackages(sortMenuPackages(menuResponse));
+        setMenuPackages(
+          menuResponse.length > 0
+            ? sortMenuPackages(menuResponse)
+            : Array.from({ length: 11 }, (_, index) => ({
+                id: index + 1,
+                name: getCsvMenuPackageLabel(index),
+              } as MenuRow)),
+        );
         setSlots(slotResponse);
       } catch (loadError) {
         if (!cancelled) {
@@ -168,14 +167,19 @@ export default function Page() {
       const projected = projectedEntryMap.get(day);
       const cycleMenu = menuPackages.length > 0 ? menuPackages[(day - 1) % menuPackages.length] : null;
       if (cycleMenu) {
+        const packageLabel = getCsvMenuPackageLabel((day - 1) % menuPackages.length);
         map.set(day, {
           date: projected?.date ?? toLocalDateString(viewDate.getFullYear(), viewDate.getMonth(), day),
           day_of_month: day,
           menu_id: cycleMenu.id,
-          menu_name: cycleMenu.name,
+          menu_name: packageLabel,
         });
       } else if (projected) {
-        map.set(day, projected);
+        const packageIndex = menuPackages.findIndex((item) => item.id === projected.menu_id);
+        map.set(day, {
+          ...projected,
+          menu_name: packageIndex >= 0 ? getCsvMenuPackageLabel(packageIndex) : projected.menu_name,
+        });
       }
     }
 
@@ -195,6 +199,7 @@ export default function Page() {
       .map((slot) => {
         const label = normaliseMealLabel(slot.meal_time?.name);
         return {
+          slotId: slot.id,
           label,
           meal: slot.dish?.name ?? "-",
           tone: mealTone[label] ?? "bg-[#F8FAFC] text-[#475569]",
@@ -365,7 +370,7 @@ export default function Page() {
         <div className="grid gap-3 p-5 md:grid-cols-3">
           {selectedMeals.map((item) => (
             <button
-              key={item.label}
+              key={item.slotId}
               className={`rounded-[10px] px-4 py-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.10)] ${item.tone}`}
               onClick={() => setSelectedMealCard(item)}
               type="button"

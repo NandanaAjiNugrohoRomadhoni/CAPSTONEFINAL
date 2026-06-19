@@ -28,6 +28,7 @@ import {
   escapeSpreadsheetHtml,
   formatSpreadsheetNumber,
 } from "@/lib/spreadsheet-export";
+import { buildExportFilename } from "@/lib/export-filename";
 import { listAllItems } from "@/lib/items";
 import { getDateRangeQuery } from "@/lib/date-range";
 import { listAllPaginatedRows } from "@/lib/pagination";
@@ -771,12 +772,13 @@ export default function GudangTransactionHistoryPage() {
       `,
     });
 
-    const filename =
+    const filename = buildExportFilename(
       exportMode === "OUT"
-        ? "laporan-barang-keluar.xls"
+        ? "laporan-barang-keluar"
         : exportMode === "IN"
-          ? "laporan-barang-masuk.xls"
-          : "riwayat-transaksi-barang.xls";
+          ? "laporan-barang-masuk"
+          : "riwayat-transaksi-barang",
+    );
 
     downloadSpreadsheetHtml(filename, html);
   }

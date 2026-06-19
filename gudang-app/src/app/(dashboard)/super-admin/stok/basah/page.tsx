@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, getStockTone } from "@/lib/admin-utils";
+import { buildExportFilename } from "@/lib/export-filename";
 import { listAllItems } from "@/lib/items";
 import { isItemDeleteConstraintError } from "@/lib/item-delete-guards";
 import {
@@ -47,26 +48,26 @@ const statCards = [
     title: "STOK MENIPIS",
     note: "Bahan di bawah minimum",
     accent: "border-[#F59E0B]",
-    iconBg: "bg-[#FEF3C7]",
-    iconColor: "text-[#B45309]",
+    iconBg: "bg-[#FFF7CC]",
+    iconColor: "text-[#92400E]",
     icon: Zap,
   },
   {
     key: "critical",
     title: "STOK KRITIS",
     note: "Bahan mendekati habis",
-    accent: "border-[#FF6B6B]",
-    iconBg: "bg-[#FEE2E2]",
-    iconColor: "text-[#DC2626]",
+    accent: "border-[#FB7185]",
+    iconBg: "bg-[#FFE4E6]",
+    iconColor: "text-[#BE123C]",
     icon: AlertTriangle,
   },
   {
     key: "danger",
     title: "STOK HABIS",
     note: "Bahan habis",
-    accent: "border-[#CBD5E1]",
-    iconBg: "bg-[#E2E8F0]",
-    iconColor: "text-[#334155]",
+    accent: "border-[#818CF8]",
+    iconBg: "bg-[#E0E7FF]",
+    iconColor: "text-[#3730A3]",
     icon: PackageX,
   },
 ] as const;
@@ -381,7 +382,7 @@ export default function Page() {
             <td>${escapeSpreadsheetHtml(item.category)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.qtyLabel)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.minimumLabel)}</td>
-            <td class="pill">${escapeSpreadsheetHtml(item.label)}</td>
+            <td class="pill ${item.tone}">${escapeSpreadsheetHtml(item.label)}</td>
           </tr>
         `,
       )
@@ -427,7 +428,7 @@ export default function Page() {
       `,
     });
 
-    downloadSpreadsheetHtml("laporan-data-stok-bahan.xls", html);
+    downloadSpreadsheetHtml(buildExportFilename("laporan-data-stok-bahan"), html);
   }
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / 10));

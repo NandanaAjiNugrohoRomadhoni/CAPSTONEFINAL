@@ -16,7 +16,6 @@ import sdk from "@/lib";
 import {
   formatDate,
   formatQuantity,
-  getCurrentMonthPeriod,
   getErrorMessage,
   toIsoDate,
 } from "@/lib/admin-utils";
@@ -26,6 +25,7 @@ import {
   escapeSpreadsheetHtml,
   formatSpreadsheetNumber,
 } from "@/lib/spreadsheet-export";
+import { buildExportFilename } from "@/lib/export-filename";
 import {
   AdminPageHeading,
   ExportButton,
@@ -81,20 +81,24 @@ type ReportTableRow = {
   itemName: string;
   categoryName: string;
   unit: string;
+  openingStock: number;
   spkQty: number;
   incomingQty: number;
   outgoingQty: number;
-  spkMinusIncoming: number;
   incomingMinusOutgoing: number;
+  closingStock: number;
   accuracy: number;
 };
 
 type ChartPoint = {
   monthKey: string;
   label: string;
+  openingStock: number;
   spk: number;
   incoming: number;
   outgoing: number;
+  closingStock: number;
+  unit: string;
 };
 
 type ItemSelectOption = {
@@ -107,9 +111,13 @@ type SelectOption = {
   label: string;
 };
 
+const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_MONTH = new Date().getMonth() + 1;
+
 export default function LaporanEvaluationPage() {
   const [periodMode, setPeriodMode] = useState<PeriodMode>("MONTHLY");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -132,11 +140,11 @@ export default function LaporanEvaluationPage() {
       try {
         const tablePeriod =
           periodMode === "MONTHLY"
-            ? getCurrentMonthPeriod()
+            ? getMonthPeriod(CURRENT_YEAR, selectedMonth)
             : getYearPeriod(selectedYear);
         const chartPeriod =
           periodMode === "MONTHLY"
-            ? getLastFourMonthsPeriod()
+            ? getLastFourMonthsPeriod(CURRENT_YEAR, selectedMonth)
             : getYearPeriod(selectedYear);
 
         const [
@@ -218,7 +226,7 @@ export default function LaporanEvaluationPage() {
     return () => {
       cancelled = true;
     };
-  }, [periodMode, selectedYear]);
+  }, [periodMode, selectedMonth, selectedYear]);
 
   const categoryOptions = useMemo(() => {
     return [
@@ -233,6 +241,20 @@ export default function LaporanEvaluationPage() {
         .sort((left, right) => left.localeCompare(right, "id-ID"))
         .map((value) => ({ value, label: value })),
     ];
+  }, [stockRows]);
+
+  const stockQtyByItemId = useMemo(() => {
+    const map = new Map<number, number>();
+
+    stockRows.forEach((row, index) => {
+      const itemId = Number(row.item_id ?? 0);
+      if (!itemId) return;
+
+      const qty = Number(row.qty ?? 0) || 0;
+      map.set(itemId, qty);
+    });
+
+    return map;
   }, [stockRows]);
 
   const tableRows = useMemo<ReportTableRow[]>(() => {
@@ -320,15 +342,16 @@ export default function LaporanEvaluationPage() {
     return [...itemMap.values()]
       .map((row) => ({
         ...row,
-        spkMinusIncoming: row.spkQty - row.incomingQty,
+        openingStock: Math.max((stockQtyByItemId.get(row.itemId) ?? 0) - row.incomingQty + row.outgoingQty, 0),
         incomingMinusOutgoing: row.incomingQty - row.outgoingQty,
+        closingStock: stockQtyByItemId.get(row.itemId) ?? 0,
         accuracy: calculateEvaluationAccuracy(row.spkQty, row.outgoingQty),
       }))
       .sort((left, right) =>
         left.categoryName.localeCompare(right.categoryName, "id-ID") ||
         left.itemName.localeCompare(right.itemName, "id-ID"),
       );
-  }, [stockRows, tableTransactions, tableSpkHistory]);
+  }, [stockQtyByItemId, stockRows, tableTransactions, tableSpkHistory]);
 
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -357,7 +380,7 @@ export default function LaporanEvaluationPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, categoryFilter, periodMode, selectedYear]);
+  }, [searchTerm, categoryFilter, periodMode, selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -371,6 +394,12 @@ export default function LaporanEvaluationPage() {
       label: row.itemName,
     }));
   }, [tableRows]);
+
+  const selectedItemRow = useMemo(() => {
+    return tableRows.find((row) => String(row.itemId) === selectedItemId) ?? null;
+  }, [selectedItemId, tableRows]);
+
+  const selectedItemUnit = selectedItemRow?.unit ?? "";
 
   useEffect(() => {
     if (itemOptions.length === 0) {
@@ -387,10 +416,16 @@ export default function LaporanEvaluationPage() {
   }, [itemOptions, selectedItemId]);
 
   const chartRows = useMemo(() => {
-    const chartPeriod = periodMode === "MONTHLY" ? getLastFourMonthsPeriod() : getYearPeriod(selectedYear);
+    const chartPeriod = periodMode === "MONTHLY" ? getLastFourMonthsPeriod(CURRENT_YEAR, selectedMonth) : getYearPeriod(selectedYear);
     const monthKeys = buildMonthKeys(chartPeriod.period_start, chartPeriod.period_end);
-    const monthLookup = new Map(monthKeys.map((month) => [month.monthKey, { ...month, spk: 0, incoming: 0, outgoing: 0 }]));
+    const monthLookup = new Map(
+      monthKeys.map((month) => [
+        month.monthKey,
+        { ...month, openingStock: 0, spk: 0, incoming: 0, outgoing: 0, closingStock: 0, unit: "" },
+      ]),
+    );
     const selectedId = Number(selectedItemId || 0);
+    const selectedCurrentStock = stockQtyByItemId.get(selectedId) ?? 0;
 
     chartTransactions.forEach((row) => {
       const itemId = Number(row.item_id ?? 0);
@@ -429,26 +464,41 @@ export default function LaporanEvaluationPage() {
       });
     });
 
-    return [...monthLookup.values()];
-  }, [chartTransactions, chartSpkHistory, periodMode, selectedYear, selectedItemId]);
+    const orderedRows = [...monthLookup.values()];
+    const totalIncoming = orderedRows.reduce((sum, row) => sum + row.incoming, 0);
+    const totalOutgoing = orderedRows.reduce((sum, row) => sum + row.outgoing, 0);
+    let runningStock = Math.max(selectedCurrentStock - totalIncoming + totalOutgoing, 0);
+
+    return orderedRows.map((row) => {
+      const openingStock = runningStock;
+      const closingStock = Math.max(openingStock + row.incoming - row.outgoing, 0);
+      runningStock = closingStock;
+
+      return {
+        ...row,
+        openingStock,
+        closingStock,
+        unit: selectedItemUnit,
+      };
+    });
+  }, [chartTransactions, chartSpkHistory, periodMode, selectedYear, selectedItemId, selectedItemUnit, stockQtyByItemId]);
 
   const selectedItemLabel =
     itemOptions.find((option) => option.value === selectedItemId)?.label ?? "Pilih item";
 
-  const currentMonthPeriod = getCurrentMonthPeriod();
   const periodLabel =
     periodMode === "MONTHLY"
-      ? `Bulan berjalan ${formatDateRangeLabel(currentMonthPeriod.period_start, currentMonthPeriod.period_end)}`
+      ? `Bulan ${formatMonthLabel(selectedMonth)} ${CURRENT_YEAR}`
       : `Tahun ${selectedYear}`;
 
   const totalLabel = `${filteredRows.length === 0 ? 0 : pageStartIndex + 1}-${Math.min(filteredRows.length, pageStartIndex + pageSize)} dari ${filteredRows.length} item`;
   const chartTitle =
     periodMode === "MONTHLY"
-      ? "Laporan Evaluasi 4 Bulan Terakhir"
+      ? "Grafik Evaluasi 4 Bulan Terakhir"
       : `Laporan Evaluasi 12 Bulan Tahun ${selectedYear}`;
   const chartSubtitle =
     periodMode === "MONTHLY"
-      ? "Menampilkan tren SPK, barang masuk, dan barang keluar untuk item terpilih."
+      ? "Menampilkan tren SPK, stok awal, stok akhir, barang masuk, dan barang keluar untuk item terpilih."
       : "Menampilkan tren 12 bulan untuk item yang dipilih.";
 
   const exportDisabled = filteredRows.length === 0;
@@ -456,7 +506,9 @@ export default function LaporanEvaluationPage() {
   function handleExport() {
     if (exportDisabled) return;
 
-    const filename = `laporan-evaluasi-spk-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}-${periodMode === "MONTHLY" ? formatMonthKey(new Date()) : selectedYear}.xls`;
+    const filename = buildExportFilename(
+      `laporan-evaluasi-spk-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}`,
+    );
     const printedAt = formatDate(new Date().toISOString());
     const reportRows = filteredRows.map((row, index) => {
       const accuracy = calculateEvaluationAccuracy(row.spkQty, row.outgoingQty);
@@ -465,11 +517,12 @@ export default function LaporanEvaluationPage() {
         no: index + 1,
         itemName: row.itemName,
         categoryName: row.categoryName,
+        openingStock: row.openingStock,
         recommendationQty: row.spkQty,
         realizationQty: row.incomingQty,
         usageQty: row.outgoingQty,
-        diffSpkVsRealization: row.incomingQty - row.spkQty,
         diffRealizationVsUsage: row.outgoingQty - row.incomingQty,
+        closingStock: row.closingStock,
         accuracy,
         unit: row.unit,
       };
@@ -478,6 +531,8 @@ export default function LaporanEvaluationPage() {
     const totalRecommended = reportRows.reduce((sum, row) => sum + row.recommendationQty, 0);
     const totalRealization = reportRows.reduce((sum, row) => sum + row.realizationQty, 0);
     const totalUsage = reportRows.reduce((sum, row) => sum + row.usageQty, 0);
+    const totalOpeningStock = reportRows.reduce((sum, row) => sum + row.openingStock, 0);
+    const totalClosingStock = reportRows.reduce((sum, row) => sum + row.closingStock, 0);
     const averageAccuracy =
       reportRows.length === 0
         ? 0
@@ -506,9 +561,11 @@ export default function LaporanEvaluationPage() {
       { label: "Periode", value: periodLabel },
       { label: "Tanggal Cetak", value: printedAt },
       { label: "Total Bahan Dievaluasi", value: formatSpreadsheetNumber(reportRows.length, 0) },
+      { label: "Total Stok Awal", value: formatQuantity(totalOpeningStock) },
       { label: "Total SPK", value: formatQuantity(totalRecommended) },
       { label: "Total Barang Masuk", value: formatQuantity(totalRealization) },
       { label: "Total Barang Keluar", value: formatQuantity(totalUsage) },
+      { label: "Total Stok Akhir", value: formatQuantity(totalClosingStock) },
       { label: "Rata-rata Tingkat Akurasi", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
     ];
 
@@ -526,11 +583,12 @@ export default function LaporanEvaluationPage() {
             <td class="rank">${row.no}</td>
             <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
             <td>${escapeSpreadsheetHtml(row.categoryName)}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.openingStock, row.unit))}</td>
             <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.recommendationQty, row.unit))}</td>
             <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.realizationQty, row.unit))}</td>
             <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.usageQty, row.unit))}</td>
-            <td class="number ${row.diffSpkVsRealization > 0 ? "safe" : row.diffSpkVsRealization < 0 ? "danger" : ""}">${escapeSpreadsheetHtml(formatSignedQuantity(row.diffSpkVsRealization, row.unit))}</td>
             <td class="number ${row.diffRealizationVsUsage > 0 ? "safe" : row.diffRealizationVsUsage < 0 ? "danger" : ""}">${escapeSpreadsheetHtml(formatSignedQuantity(row.diffRealizationVsUsage, row.unit))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatQuantity(row.closingStock, row.unit))}</td>
             <td class="number ${row.accuracy >= 95 ? "safe" : row.accuracy >= 85 ? "warning" : "danger"}">${escapeSpreadsheetHtml(`${formatSpreadsheetNumber(row.accuracy, 2)}%`)}</td>
           </tr>
         `,
@@ -557,13 +615,13 @@ export default function LaporanEvaluationPage() {
       body: `
         <table class="section-gap">
           <tr class="no-border">
-            <td class="title" colspan="9">LAPORAN EVALUASI SPK VS PEMBELIAN VS PENGGUNAAN BAHAN INSTALASI GIZI RSD BALUNG</td>
+            <td class="title" colspan="10">LAPORAN EVALUASI SPK VS PEMBELIAN VS PENGGUNAAN BAHAN INSTALASI GIZI RSD BALUNG</td>
           </tr>
           <tr class="no-border">
-            <td class="subtitle" colspan="9">Periode : ${escapeSpreadsheetHtml(periodLabel)} | Tanggal Cetak : ${escapeSpreadsheetHtml(printedAt)}</td>
+            <td class="subtitle" colspan="10">Periode : ${escapeSpreadsheetHtml(periodLabel)} | Tanggal Cetak : ${escapeSpreadsheetHtml(printedAt)}</td>
           </tr>
           <tr class="no-border">
-            <td class="subtitle" colspan="9">Tujuan: Laporan ini digunakan untuk mengevaluasi tingkat akurasi rekomendasi SPK dengan membandingkan rekomendasi pembelian, realisasi pembelian bahan, dan penggunaan aktual bahan makanan selama periode tertentu.</td>
+            <td class="subtitle" colspan="10">Tujuan: Laporan ini digunakan untuk mengevaluasi tingkat akurasi rekomendasi SPK dengan membandingkan rekomendasi pembelian, realisasi pembelian bahan, dan penggunaan aktual bahan makanan selama periode tertentu.</td>
           </tr>
         </table>
 
@@ -583,20 +641,21 @@ export default function LaporanEvaluationPage() {
 
         <table class="section-gap">
           <tr>
-            <td class="section" colspan="9">DATA EVALUASI</td>
+            <td class="section" colspan="10">DATA EVALUASI</td>
           </tr>
           <tr class="head">
             <th>No</th>
             <th>Nama Bahan</th>
             <th>Kategori Bahan</th>
+            <th>Stok Awal</th>
             <th>SPK</th>
             <th>Bahan Masuk</th>
             <th>Bahan Keluar</th>
-            <th>SPK-Bahan Masuk</th>
             <th>Bahan Masuk-Keluar</th>
+            <th>Stok Akhir</th>
             <th>Tingkat Akurasi (%)</th>
           </tr>
-          ${htmlRows || `<tr><td class="muted" colspan="9">Belum ada data laporan pada periode ini.</td></tr>`}
+          ${htmlRows || `<tr><td class="muted" colspan="10">Belum ada data laporan pada periode ini.</td></tr>`}
         </table>
 
         <table class="section-gap">
@@ -696,7 +755,13 @@ export default function LaporanEvaluationPage() {
             <div className="min-w-[170px]">
               <ThemedSelect
                 value={periodMode}
-                onChange={(value) => setPeriodMode(value === "YEARLY" ? "YEARLY" : "MONTHLY")}
+                onChange={(value) => {
+                  const nextMode = value === "YEARLY" ? "YEARLY" : "MONTHLY";
+                  setPeriodMode(nextMode);
+                  if (nextMode === "MONTHLY") {
+                    setSelectedMonth(CURRENT_MONTH);
+                  }
+                }}
                 options={[
                   { value: "MONTHLY", label: "Evaluasi Bulanan" },
                   { value: "YEARLY", label: "Evaluasi Tahunan" },
@@ -704,6 +769,16 @@ export default function LaporanEvaluationPage() {
                 placeholder="Evaluasi Bulanan"
               />
             </div>
+            {periodMode === "MONTHLY" ? (
+              <div className="min-w-[170px]">
+                <ThemedSelect
+                  value={String(selectedMonth)}
+                  onChange={(value) => setSelectedMonth(Number(value) || CURRENT_MONTH)}
+                  options={buildMonthOptions(CURRENT_YEAR)}
+                  placeholder="Pilih Bulan"
+                />
+              </div>
+            ) : null}
             {periodMode === "YEARLY" ? (
               <div className="min-w-[140px]">
                 <ThemedSelect
@@ -725,13 +800,14 @@ export default function LaporanEvaluationPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-6 py-3">Nama Bahan</th>
-                <th className="px-6 py-3">Kategori Bahan</th>
-                <th className="px-6 py-3">SPK</th>
+            <th className="px-6 py-3">Nama Bahan</th>
+            <th className="px-6 py-3">Kategori Bahan</th>
+            <th className="px-6 py-3">Stok Awal</th>
+            <th className="px-6 py-3">SPK</th>
             <th className="px-6 py-3">Bahan Masuk</th>
             <th className="px-6 py-3">Bahan Keluar</th>
-            <th className="px-6 py-3">SPK-Bahan Masuk</th>
             <th className="px-6 py-3">Bahan Masuk-Keluar</th>
+            <th className="px-6 py-3">Stok Akhir</th>
             <th className="px-6 py-3">Tingkat Akurasi</th>
           </tr>
             </thead>
@@ -743,15 +819,14 @@ export default function LaporanEvaluationPage() {
                 >
                   <td className="px-6 py-4 font-semibold text-gray-900">{row.itemName}</td>
                   <td className="px-6 py-4 text-gray-600">{row.categoryName}</td>
+                  <td className="px-6 py-4">{formatQuantity(row.openingStock, row.unit)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.spkQty, row.unit)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.incomingQty, row.unit)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.outgoingQty, row.unit)}</td>
-                  <td className={diffToneClass(row.spkMinusIncoming)}>
-                    {formatSignedQuantity(row.spkMinusIncoming, row.unit)}
-                  </td>
                   <td className={diffToneClass(row.incomingMinusOutgoing)}>
                     {formatSignedQuantity(row.incomingMinusOutgoing, row.unit)}
                   </td>
+                  <td className="px-6 py-4">{formatQuantity(row.closingStock, row.unit)}</td>
                   <td className="px-6 py-4 font-semibold text-gray-700">
                     {formatSpreadsheetNumber(row.accuracy, 2)}%
                   </td>
@@ -760,7 +835,7 @@ export default function LaporanEvaluationPage() {
 
               {!loading && filteredRows.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-8 text-center text-gray-400" colSpan={8}>
+                  <td className="px-6 py-8 text-center text-gray-400" colSpan={9}>
                     Belum ada data laporan pada periode ini.
                   </td>
                 </tr>
@@ -822,18 +897,7 @@ export default function LaporanEvaluationPage() {
                     tick={{ fill: "#94A3B8", fontSize: 12 }}
                     width={48}
                   />
-                  <Tooltip
-                    formatter={(value, name) => [
-                      formatQuantity(Number(value ?? 0)),
-                      normalizeChartLegend(String(name)),
-                    ]}
-                    labelFormatter={(label) => `${label}`}
-                    contentStyle={{
-                      borderRadius: "14px",
-                      border: "1px solid #D7E0EE",
-                      boxShadow: "0 12px 32px rgba(15,23,42,0.12)",
-                    }}
-                  />
+                  <Tooltip content={EvaluationTooltip as never} />
                   <Legend
                     verticalAlign="bottom"
                     iconType="circle"
@@ -906,6 +970,26 @@ function formatSignedQuantity(value: number, unit?: string) {
   return `${prefix}${formatQuantity(value, unit)}`;
 }
 
+function EvaluationTooltip({ active, payload, label }: any) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const row = payload[0]?.payload as ChartPoint | undefined;
+  if (!row) return null;
+
+  return (
+    <div className="rounded-2xl border border-[#D7E0EE] bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
+      <div className="text-sm font-semibold text-[#16213E]">{label}</div>
+      <div className="mt-2 space-y-1 text-sm text-[#475569]">
+        <div>Stok awal: {formatQuantity(row.openingStock, row.unit)}</div>
+        <div>Bahan masuk: {formatQuantity(row.incoming, row.unit)}</div>
+        <div>Bahan keluar: {formatQuantity(row.outgoing, row.unit)}</div>
+        <div>SPK: {formatQuantity(row.spk, row.unit)}</div>
+        <div>Stok akhir: {formatQuantity(row.closingStock, row.unit)}</div>
+      </div>
+    </div>
+  );
+}
+
 function calculateEvaluationAccuracy(recommendationQty: number, realizationQty: number) {
   const left = Math.abs(Number(recommendationQty) || 0);
   const right = Math.abs(Number(realizationQty) || 0);
@@ -938,10 +1022,19 @@ function getYearPeriod(year: number) {
   };
 }
 
-function getLastFourMonthsPeriod() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+function getLastFourMonthsPeriod(year: number, month: number) {
+  const start = new Date(year, month - 4, 1);
+  const end = new Date(year, month, 0);
+
+  return {
+    period_start: toIsoDate(start),
+    period_end: toIsoDate(end),
+  };
+}
+
+function getMonthPeriod(year: number, month: number) {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
 
   return {
     period_start: toIsoDate(start),
@@ -970,9 +1063,12 @@ function buildMonthKeys(periodStart: string, periodEnd: string) {
     rows.push({
       monthKey,
       label,
+      openingStock: 0,
       spk: 0,
       incoming: 0,
       outgoing: 0,
+      closingStock: 0,
+      unit: "",
     });
 
     cursor.setMonth(cursor.getMonth() + 1);
@@ -987,6 +1083,23 @@ function formatMonthKey(date: Date) {
   return `${year}-${month}`;
 }
 
+function buildMonthOptions(year: number): SelectOption[] {
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    const date = new Date(year, index, 1);
+    const label = new Intl.DateTimeFormat("id-ID", {
+      month: "long",
+      year: "numeric",
+      timeZone: "Asia/Jakarta",
+    }).format(date);
+
+    return {
+      value: String(month),
+      label,
+    };
+  });
+}
+
 function buildYearOptions(): SelectOption[] {
   const currentYear = new Date().getFullYear();
   return [currentYear, currentYear - 1, currentYear - 2].map((year) => ({
@@ -995,10 +1108,20 @@ function buildYearOptions(): SelectOption[] {
   }));
 }
 
+function formatMonthLabel(month: number) {
+  const date = new Date(CURRENT_YEAR, month - 1, 1);
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    timeZone: "Asia/Jakarta",
+  }).format(date);
+}
+
 function normalizeChartLegend(value: string) {
   if (value === "spk") return "SPK";
   if (value === "incoming") return "Bahan Masuk";
   if (value === "outgoing") return "Bahan Keluar";
+  if (value === "openingStock") return "Stok Awal";
+  if (value === "closingStock") return "Stok Akhir";
   return value;
 }
 

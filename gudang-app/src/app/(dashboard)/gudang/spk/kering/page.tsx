@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage, toIsoMonth } from "@/lib/admin-utils";
+import { buildExportFilename } from "@/lib/export-filename";
 import { getSpkConflictId } from "@/lib/spk-conflicts";
 import { findExistingKeringSpk } from "@/lib/spk-recommendations";
 import { aggregateKeringRecommendationRows } from "@/lib/spk-kering";
@@ -135,7 +136,9 @@ export default function Page() {
     );
 
     downloadRecommendationSpreadsheet({
-      filename: `SPS-Rekomendasi-Belanja-SPK-${detailData?.id ? String(detailData.id).padStart(3, "0") : targetMonth}.xls`,
+      filename: buildExportFilename(
+        `sps-rekomendasi-belanja-spk-${detailData?.id ? String(detailData.id).padStart(3, "0") : targetMonth}`,
+      ),
       html,
     });
   }

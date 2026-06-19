@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage } from "@/lib/admin-utils";
+import { buildExportFilename } from "@/lib/export-filename";
 import { aggregateKeringRecommendationRows } from "@/lib/spk-kering";
 import {
   buildSpreadsheetDocument,
@@ -82,7 +83,7 @@ export default function GudangLatestKeringPage() {
       `,
     });
 
-    downloadSpreadsheetHtml(`SPS-Rekomendasi-Belanja-Kering-Pengemas-${targetMonth ?? "latest"}.xls`, html);
+    downloadSpreadsheetHtml(buildExportFilename("sps-rekomendasi-belanja-kering-pengemas"), html);
   }
 
   useEffect(() => {

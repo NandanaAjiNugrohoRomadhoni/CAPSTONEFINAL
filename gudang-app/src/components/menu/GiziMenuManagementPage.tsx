@@ -7,6 +7,7 @@ import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
 import { listAllPaginatedRows } from "@/lib/pagination";
+import { buildCsvRecipeMenus, normalizeCsvMenuName } from "@/lib/menu-csv-plan";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -22,6 +23,7 @@ type IngredientRow = {
   item_id: number | null;
   qty_per_patient: string;
   unit?: string;
+  fallbackName?: string;
 };
 
 type FoodMenu = {
@@ -31,6 +33,7 @@ type FoodMenu = {
   compositionSummary: string;
   ingredients: IngredientRow[];
   isActive: boolean;
+  isSynthetic?: boolean;
 };
 
 type ModalMode = "create" | "detail" | "edit" | "delete" | null;
@@ -255,6 +258,7 @@ function buildCompositionSummary(
 ) {
   const names = ingredients
     .map((row) => (row.item_id ? itemMap.get(Number(row.item_id))?.name : undefined))
+    .map((name, index) => name ?? ingredients[index]?.fallbackName)
     .filter((name): name is string => Boolean(name));
 
   if (names.length === 0) {
@@ -380,8 +384,13 @@ export default function GiziMenuManagementPage() {
         };
       });
 
+      const existingNames = new Set(nextMenus.map((menu) => normalizeCsvMenuName(menu.name)));
+      const csvFallbackMenus = buildCsvRecipeMenus().filter(
+        (menu) => !existingNames.has(normalizeCsvMenuName(menu.name)),
+      ) as FoodMenu[];
+
       setItems(availableItems);
-      setMenus(sortMenusByStatusAndName(nextMenus));
+      setMenus(sortMenusByStatusAndName([...nextMenus, ...csvFallbackMenus]));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat menu makanan."));
     } finally {
@@ -704,24 +713,30 @@ export default function GiziMenuManagementPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto flex flex-wrap gap-2 pt-5">
-                      <MiniActionButton
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEditModal(menu);
-                        }}
-                      >
-                        Edit
-                      </MiniActionButton>
-                      <MiniActionButton
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openDeleteModal(menu);
-                        }}
-                      >
-                        {menu.isActive ? "Nonaktifkan" : "Aktifkan"}
-                      </MiniActionButton>
-                    </div>
+                    {!menu.isSynthetic ? (
+                      <div className="mt-auto flex flex-wrap gap-2 pt-5">
+                        <MiniActionButton
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEditModal(menu);
+                          }}
+                        >
+                          Edit
+                        </MiniActionButton>
+                        <MiniActionButton
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDeleteModal(menu);
+                          }}
+                        >
+                          {menu.isActive ? "Nonaktifkan" : "Aktifkan"}
+                        </MiniActionButton>
+                      </div>
+                    ) : (
+                      <div className="mt-auto pt-5 text-xs font-medium text-[#94A3B8]">
+                        Data menu bawaan CSV
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>

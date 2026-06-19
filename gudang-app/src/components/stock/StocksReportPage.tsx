@@ -15,6 +15,7 @@ import {
   escapeSpreadsheetHtml,
   formatSpreadsheetNumber,
 } from "@/lib/spreadsheet-export";
+import { buildExportFilename } from "@/lib/export-filename";
 import {
   AdminPageHeading,
   ExportButton,
@@ -46,26 +47,26 @@ const statCards = [
     title: "STOK MENIPIS",
     note: "Bahan di bawah minimum",
     accent: "border-[#F59E0B]",
-    iconBg: "bg-[#FEF3C7]",
-    iconColor: "text-[#B45309]",
+    iconBg: "bg-[#FFF7CC]",
+    iconColor: "text-[#92400E]",
     icon: Zap,
   },
   {
     key: "critical",
     title: "STOK KRITIS",
     note: "Bahan mendekati habis",
-    accent: "border-[#FF6B6B]",
-    iconBg: "bg-[#FEE2E2]",
-    iconColor: "text-[#DC2626]",
+    accent: "border-[#FB7185]",
+    iconBg: "bg-[#FFE4E6]",
+    iconColor: "text-[#BE123C]",
     icon: AlertTriangle,
   },
   {
     key: "danger",
     title: "STOK HABIS",
     note: "Bahan habis",
-    accent: "border-[#CBD5E1]",
-    iconBg: "bg-[#E2E8F0]",
-    iconColor: "text-[#334155]",
+    accent: "border-[#818CF8]",
+    iconBg: "bg-[#E0E7FF]",
+    iconColor: "text-[#3730A3]",
     icon: PackageX,
   },
 ] as const;
@@ -269,7 +270,7 @@ export default function StocksReportPage() {
           <td class="number">${escapeSpreadsheetHtml(row.qtyLabel)}</td>
           <td class="number">${escapeSpreadsheetHtml(row.minimumLabel)}</td>
           <td>${escapeSpreadsheetHtml(row.idLabel ? row.qtyLabel.split(" ").slice(1).join(" ") || "-" : "-")}</td>
-          <td class="${row.tone === "safe" ? "safe" : row.tone === "warning" ? "warning" : "danger"}">${escapeSpreadsheetHtml(row.label)}</td>
+          <td class="pill ${row.tone}">${escapeSpreadsheetHtml(row.label)}</td>
         </tr>`,
       )
       .join("");
@@ -318,7 +319,7 @@ export default function StocksReportPage() {
       `,
     });
 
-    downloadSpreadsheetHtml("laporan-data-stok-bahan.xls", html);
+    downloadSpreadsheetHtml(buildExportFilename("laporan-data-stok-bahan"), html);
   }
 
   return (

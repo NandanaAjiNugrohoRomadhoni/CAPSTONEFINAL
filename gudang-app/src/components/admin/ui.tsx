@@ -328,14 +328,14 @@ export function StatusPill({
   tone?: "safe" | "warning" | "critical" | "danger";
 }>) {
   const palette: Record<string, string> = {
-    safe: "bg-[#DCFCE7] text-[#16A34A]",
-    warning: "bg-[#FEF3C7] text-[#F59E0B]",
-    critical: "bg-[#FEE2E2] text-[#EF4444]",
-    danger: "bg-[#E2E8F0] text-[#334155]",
+    safe: "border border-[#86EFAC] bg-[#DCFCE7] text-[#15803D]",
+    warning: "border border-[#FCD34D] bg-[#FEF3C7] text-[#D97706]",
+    critical: "border border-[#FDBA74] bg-[#FFF7ED] text-[#EA580C]",
+    danger: "border border-[#FCA5A5] bg-[#FEE2E2] text-[#DC2626]",
   };
 
   return (
-    <span
+      <span
       className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${palette[tone]}`}
     >
       {children}

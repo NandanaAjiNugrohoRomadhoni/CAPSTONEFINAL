@@ -3,16 +3,34 @@ export type IsoDateRange = {
   endDate: string;
 };
 
+export function normalizeIsoDateRange(range: IsoDateRange) {
+  const startDate = range.startDate.trim();
+  const endDate = range.endDate.trim();
+
+  if (!startDate && !endDate) {
+    return { startDate: "", endDate: "" };
+  }
+
+  if (startDate && endDate) {
+    return { startDate, endDate };
+  }
+
+  const onlyDate = startDate || endDate;
+  return { startDate: onlyDate, endDate: onlyDate };
+}
+
 export function isIsoDateInRange(value: string, range: IsoDateRange) {
-  if (!range.startDate && !range.endDate) {
+  const normalized = normalizeIsoDateRange(range);
+
+  if (!normalized.startDate && !normalized.endDate) {
     return true;
   }
 
-  if (range.startDate && value < range.startDate) {
+  if (normalized.startDate && value < normalized.startDate) {
     return false;
   }
 
-  if (range.endDate && value > range.endDate) {
+  if (normalized.endDate && value > normalized.endDate) {
     return false;
   }
 
@@ -20,8 +38,10 @@ export function isIsoDateInRange(value: string, range: IsoDateRange) {
 }
 
 export function getDateRangeQuery(range: IsoDateRange) {
+  const normalized = normalizeIsoDateRange(range);
+
   return {
-    ...(range.startDate ? { transaction_date_from: range.startDate } : {}),
-    ...(range.endDate ? { transaction_date_to: range.endDate } : {}),
+    ...(normalized.startDate ? { transaction_date_from: normalized.startDate } : {}),
+    ...(normalized.endDate ? { transaction_date_to: normalized.endDate } : {}),
   };
 }

@@ -6,6 +6,7 @@ import sdk from "@/lib";
 import { formatDate, formatQuantity, getCurrentMonthPeriod, getErrorMessage } from "@/lib/admin-utils";
 import { addDaysIsoDate } from "@/lib/spk-recommendations";
 import { isIsoDateInRange } from "@/lib/date-range";
+import { buildExportFilename } from "@/lib/export-filename";
 import {
   AdminPageHeading,
   FilterSearch,
@@ -679,7 +680,7 @@ function downloadSpkExport(detailState: SpkDetailState, rows: SpkExportRow[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `SPS-Rekomendasi-Belanja-SPK-${String(detail.id).padStart(4, "0")}.xls`;
+  link.download = buildExportFilename(`sps-rekomendasi-belanja-spk-${String(detail.id).padStart(4, "0")}`);
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -147,10 +147,10 @@ export default function Page() {
     );
 
     return [
-      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#16A34A]" },
-      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FEF3C7] text-[#D97706]" },
-      { label: "KRITIS", value: counts.critical, tone: "bg-[#FEE2E2] text-[#DC2626]" },
-      { label: "HABIS", value: counts.danger, tone: "bg-[#E2E8F0] text-[#334155]" },
+      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
+      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
+      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
+      { label: "HABIS", value: counts.danger, tone: "bg-[#E0E7FF] text-[#3730A3]" },
     ];
   }, [stockRows]);
   const stockFocusRows = useMemo(() => stockRows.slice(0, 6), [stockRows]);
@@ -281,25 +281,28 @@ export default function Page() {
           <div className="mt-5 flex h-[210px] items-end gap-3">
             {patientPoints.map((point) => {
               const highest = Math.max(...patientPoints.map((entry) => entry.total_patients), 1);
-              const height = `${Math.max((point.total_patients / highest) * 100, 18)}%`;
+              const barHeight = Math.max((point.total_patients / highest) * 150, 18);
 
               return (
                 <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="text-xs font-semibold text-[#94A3B8]">{formatNumber(point.total_patients)}</div>
-                  <div className="flex h-full w-full items-end">
-                    <div className="w-full rounded-t-xl bg-[#D9E7FF]" style={{ height }} />
+                  <div className="text-xs font-semibold text-[#111827]">{formatNumber(point.total_patients)}</div>
+                  <div className="flex h-[150px] w-full items-end">
+                    <div
+                      className="w-full rounded-t-xl bg-[#2155CD] shadow-[0_10px_24px_rgba(33,85,205,0.18)]"
+                      style={{ height: `${barHeight}px` }}
+                    />
                   </div>
-                  <div className="text-[11px] text-[#94A3B8]">{formatCompactDate(point.service_date)}</div>
+                  <div className="text-[11px] text-[#111827]">{formatCompactDate(point.service_date)}</div>
                 </div>
               );
             })}
             {!loading && patientPoints.length === 0 ? (
-              <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
+              <div className="flex h-full w-full items-center justify-center text-sm text-[#111827]">
                 Belum ada data pasien.
               </div>
             ) : null}
           </div>
-          <div className="mt-4 flex justify-between text-sm text-gray-400">
+          <div className="mt-4 flex justify-between text-sm text-[#111827]">
             <span>Rata-rata: {formatNumber(patientStats.average)}</span>
             <span>Tertinggi: {formatNumber(patientStats.highest)}</span>
             <span>Terendah: {formatNumber(patientStats.lowest)}</span>
@@ -311,7 +314,7 @@ export default function Page() {
         <SurfaceCard className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Ringkasan Stok Bahan</h3>
-            <MiniActionButton onClick={() => router.push("/super-admin/stok/riwayat")}>Detail</MiniActionButton>
+            <MiniActionButton onClick={() => router.push("/super-admin/stok/basah")}>Detail</MiniActionButton>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {stockSummaryBoxes.map((box) => (
@@ -349,17 +352,17 @@ export default function Page() {
         <SurfaceCard className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Peringatan Stok Bahan</h3>
-            <MiniActionButton onClick={() => router.push("/super-admin/stok/basah")}>Detail</MiniActionButton>
+            <MiniActionButton onClick={() => router.push("/super-admin/stok/riwayat")}>Detail</MiniActionButton>
           </div>
           <div className="space-y-3">
             {warningRows.map((row) => {
               const tone = getStockTone(Number(row.qty ?? 0), 1);
               const palette =
                 tone.tone === "danger"
-                  ? "border-red-200 bg-[#FFF1F2] text-[#DC2626]"
+                  ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"
                   : tone.tone === "critical"
-                    ? "border-[#FECACA] bg-[#FFF7F7] text-[#DC2626]"
-                    : "border-[#FDE68A] bg-[#FFFBEB] text-[#D97706]";
+                    ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
+                    : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";
 
               return (
                 <div key={row.item_id} className={`rounded-xl border px-4 py-3 ${palette}`}>

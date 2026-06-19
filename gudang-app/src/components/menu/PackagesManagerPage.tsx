@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import sdk from "@/lib";
 import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllPaginatedRows } from "@/lib/pagination";
+import { buildCsvPackageCards, getCsvMenuPackageLabel } from "@/lib/menu-csv-plan";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -107,6 +108,7 @@ function buildPackageCards(
     meal_time?: { id: number; name: string | null };
     dish?: { id: number; name: string | null };
   }>,
+  labels: string[] = [],
 ): PackageCard[] {
   const groupedSlots = new Map<number, Record<MealKey, string[]>>();
 
@@ -131,9 +133,9 @@ function buildPackageCards(
 
   return [...menus]
     .sort((left, right) => left.id - right.id)
-    .map((menu) => ({
+    .map((menu, index) => ({
       id: menu.id,
-      title: menu.name,
+      title: labels[index] ?? menu.name,
       meals: groupedSlots.get(menu.id) ?? {
         siang: [],
         sore: [],
@@ -388,7 +390,13 @@ export default function PackagesManagerPage() {
         sortDir: "ASC",
       });
       const menusData = menusResponse;
-      setPackages(buildPackageCards(menusData, []));
+      if (menusData.length === 0) {
+        setPackages(buildCsvPackageCards());
+        return;
+      }
+
+      const packageLabels = menusData.map((_, index) => getCsvMenuPackageLabel(index));
+      setPackages(buildPackageCards(menusData, [], packageLabels));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Gagal memuat data paket menu."));
     } finally {

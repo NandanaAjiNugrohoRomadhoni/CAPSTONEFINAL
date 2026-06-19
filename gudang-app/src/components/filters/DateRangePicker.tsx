@@ -203,7 +203,7 @@ export default function DateRangePicker({
           <div>
             <p className="text-sm font-semibold text-slate-700">Pilih rentang tanggal</p>
             <p className="mt-1 text-xs leading-5 text-slate-400">
-              Klik tanggal awal lalu tanggal akhir
+              Klik satu tanggal untuk filter harian, atau dua tanggal untuk rentang
             </p>
           </div>
           <button

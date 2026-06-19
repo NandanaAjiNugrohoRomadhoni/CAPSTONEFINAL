@@ -313,10 +313,10 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
     );
 
     return [
-      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#16A34A]" },
-      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FEF3C7] text-[#D97706]" },
-      { label: "KRITIS", value: counts.critical, tone: "bg-[#FEE2E2] text-[#DC2626]" },
-      { label: "HABIS", value: counts.danger, tone: "bg-[#E2E8F0] text-[#334155]" },
+      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
+      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
+      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
+      { label: "HABIS", value: counts.danger, tone: "bg-[#E0E7FF] text-[#3730A3]" },
     ];
   }, [stockRows]);
 
@@ -712,12 +712,12 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
                 .slice(0, 5)
                 .map((row) => {
                   const tone = getStockTone(Number(row.qty ?? 0), 1);
-                  const palette =
-                    tone.tone === "danger"
-                      ? "border-red-200 bg-[#FFF1F2] text-[#DC2626]"
-                      : tone.tone === "critical"
-                        ? "border-[#FECACA] bg-[#FFF7F7] text-[#DC2626]"
-                        : "border-[#FDE68A] bg-[#FFFBEB] text-[#D97706]";
+              const palette =
+                tone.tone === "danger"
+                  ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"
+                  : tone.tone === "critical"
+                    ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
+                    : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";
                   return (
                     <div key={row.item_id} className={`rounded-xl border px-4 py-3 ${palette}`}>
                       <div className="flex items-center justify-between gap-3">

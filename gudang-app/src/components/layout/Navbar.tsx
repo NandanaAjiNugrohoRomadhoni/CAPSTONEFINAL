@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
-  Settings,
   Search,
   ChevronDown,
   LogOut,
@@ -19,6 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { getRoleLabel, useAuthStore } from "@/store/authStore";
+import { hasUnreadActivityLog } from "@/data/activity-log";
 import {
   clearStockAdjustmentNotifications,
   listStockAdjustmentNotifications,
@@ -47,6 +47,7 @@ export default function Navbar({
   const currentNotificationRole = resolveNotificationRole(user?.role?.name);
   const [notifications, setNotifications] = useState<StockAdjustmentNotification[]>([]);
   const [notificationNow, setNotificationNow] = useState(() => Date.now());
+  const [hasUnreadActivity, setHasUnreadActivity] = useState(false);
   const notificationRequestRef = useRef<Promise<void> | null>(null);
   const lastNotificationLoadAtRef = useRef(0);
 
@@ -54,6 +55,7 @@ export default function Navbar({
     const titleMap: Record<string, string> = {
       "/super-admin": "Dashboard",
       "/super-admin/users": "Manajemen Pengguna",
+      "/super-admin/log-aktivitas": "Log Aktivitas",
       "/super-admin/master-data/jenis": "Data Jenis Bahan",
       "/super-admin/master-data/satuan": "Data Satuan",
       "/super-admin/transaksi/masuk": "Barang Masuk",
@@ -99,6 +101,7 @@ export default function Navbar({
     pathname === "/profil"
       ? "Pengaturan / Profil"
       : `${user?.role?.name ? getRoleLabel(user.role.name) : "Dashboard"} / ${pageTitle}`;
+  const isActivityLogPage = pathname === "/super-admin/log-aktivitas";
   const initials =
     user?.name
       ?.split(" ")
@@ -160,6 +163,25 @@ export default function Navbar({
 
     return unsubscribe;
   }, [loadNotifications]);
+
+  useEffect(() => {
+    const syncActivityBadge = () => {
+      setHasUnreadActivity(hasUnreadActivityLog());
+    };
+
+    syncActivityBadge();
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "capstone-activity-log-last-viewed-at") {
+        syncActivityBadge();
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -473,9 +495,23 @@ export default function Navbar({
           )}
         </div>
 
-        <button className="rounded-lg bg-gray-100 p-2 text-gray-700" type="button">
-          <Settings size={18} />
-        </button>
+        {user?.role?.name === "admin" ? (
+          <button
+            aria-label="Log aktivitas"
+            className={`relative flex h-10 w-10 items-center justify-center rounded-[14px] border transition-all duration-200 ${
+              isActivityLogPage
+                ? "border-[#AFC9FF] bg-white text-[#64748B] shadow-[0_10px_24px_rgba(33,85,205,0.10)]"
+                : "border-[#E5EAF2] bg-white text-[#64748B] hover:border-[#C9D7F4] hover:bg-[#F8FAFC]"
+            }`}
+            onClick={() => router.push("/super-admin/log-aktivitas")}
+            type="button"
+          >
+            <Clock3 size={18} className={isActivityLogPage ? "text-[#2155CD]" : "text-[#64748B]"} />
+            {hasUnreadActivity ? (
+              <span className="absolute right-1.5 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#EF4444]" />
+            ) : null}
+          </button>
+        ) : null}
 
         <div className="relative" ref={profileMenuRef}>
           <button

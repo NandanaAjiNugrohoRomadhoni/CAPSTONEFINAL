@@ -20,6 +20,7 @@ import {
   escapeSpreadsheetHtml,
   formatSpreadsheetNumber,
 } from "@/lib/spreadsheet-export";
+import { buildExportFilename } from "@/lib/export-filename";
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { listAllItems } from "@/lib/items";
 import { listAllPaginatedRows } from "@/lib/pagination";
@@ -483,11 +484,10 @@ export default function StockAdjustmentPage({
           })),
         ];
 
-        const invalidIds = readInvalidStockOpnameIds();
         const mergedIds = [
           ...readHistoryIds(historyStorageKey),
           ...stableAdditionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
-        ].filter((id) => !invalidIds.includes(id));
+        ];
 
         if (typeof window !== "undefined" && legacyLatestKey) {
           const legacyId = Number(window.sessionStorage.getItem(legacyLatestKey) ?? 0);
@@ -600,11 +600,10 @@ export default function StockAdjustmentPage({
 
     async function syncHistoryFromBackend() {
       const historyKeys = [historyStorageKey, ...stableAdditionalHistoryStorageKeys];
-      const invalidIds = readInvalidStockOpnameIds();
       const mergedIds = [
         ...readHistoryIds(historyStorageKey),
         ...stableAdditionalHistoryStorageKeys.flatMap((storageKey) => readHistoryIds(storageKey)),
-      ].filter((id) => !invalidIds.includes(id));
+      ];
       const uniqueIds = Array.from(new Set(mergedIds));
       if (uniqueIds.length === 0) return;
 
@@ -616,7 +615,6 @@ export default function StockAdjustmentPage({
         const missingIds = uniqueIds.filter((id) => !returnedIds.has(id));
 
         if (missingIds.length > 0) {
-          rememberInvalidStockOpnameIds(missingIds);
           for (const storageKey of historyKeys) {
             const retainedIds = readHistoryIds(storageKey).filter((id) => !missingIds.includes(id));
             writeHistoryIds(storageKey, retainedIds);
@@ -905,7 +903,7 @@ export default function StockAdjustmentPage({
       `,
     });
 
-    downloadSpreadsheetHtml(`riwayat-penyesuaian-stok-${toIsoDate(new Date())}.xls`, html);
+    downloadSpreadsheetHtml(buildExportFilename("riwayat-penyesuaian-stok"), html);
   }
 
   async function handleCreateOpname() {

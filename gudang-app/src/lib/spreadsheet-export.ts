@@ -40,7 +40,11 @@ export function buildSpreadsheetDocument({
     .summary { background: #F0FDF4; border: 1px solid #BBF7D0; }
     .summary-label { color: #14532D; font-weight: 700; width: 190px; font-size: 14px; }
     .summary-value { color: #111827; font-weight: 600; font-size: 14px; }
-    .pill { background: #DCFCE7; color: #166534; font-weight: 800; text-align: center; font-size: 14px; }
+    .pill { font-weight: 800; text-align: center; font-size: 14px; border: 1px solid transparent; }
+    .pill.safe { background: #DCFCE7; color: #15803D; border-color: #86EFAC; }
+    .pill.warning { background: #FEF3C7; color: #D97706; border-color: #FCD34D; }
+    .pill.critical { background: #FFF7ED; color: #EA580C; border-color: #FDBA74; }
+    .pill.danger { background: #FEE2E2; color: #DC2626; border-color: #FCA5A5; }
     .method { background: #ECFDF5; color: #166534; font-weight: 800; font-size: 22px; text-align: center; }
     .section { background: #DCFCE7; color: #14532D; font-weight: 800; font-size: 14px; }
     .head { background: #166534; color: #FFFFFF; font-weight: 800; text-align: center; font-size: 14px; }
