@@ -52,8 +52,8 @@ class SpkBasahGenerationService
         $requestedDate = new DateTimeImmutable($serviceDate);
         $targetDates   = $this->resolveBasahTargetDates($requestedDate);
 
-        $adjustedPatients = (int) ceil(((int) $dailyPatient['total_patients']) * 1.05);
-        $basahCategoryId  = $this->itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+        $estimatedPatients = (int) $dailyPatient['total_patients'];
+        $basahCategoryId   = $this->itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
 
         if ($basahCategoryId === null) {
             return [
@@ -65,7 +65,7 @@ class SpkBasahGenerationService
             ];
         }
 
-        $requirementsBuild = $this->buildPerDateRequirements($targetDates, $adjustedPatients, $basahCategoryId);
+        $requirementsBuild = $this->buildPerDateRequirements($targetDates, $estimatedPatients, $basahCategoryId);
         if (! $requirementsBuild['success']) {
             return $requirementsBuild;
         }
@@ -85,7 +85,7 @@ class SpkBasahGenerationService
             'daily_patient_id'   => (int) $dailyPatient['id'],
             'user_id'            => $userId,
             'category_id'        => $basahCategoryId,
-            'estimated_patients' => $adjustedPatients,
+            'estimated_patients' => $estimatedPatients,
             'is_finish'          => false,
             'regenerate'         => (bool) ($data['regenerate'] ?? false),
         ], $recommendations);
@@ -101,7 +101,7 @@ class SpkBasahGenerationService
                 'version'           => (int) $persisted['data']['version'],
                 'scope_key'         => (string) $persisted['data']['scope_key'],
                 'target_dates'      => $targetDates,
-                'estimated_patients' => $adjustedPatients,
+                'estimated_patients' => $estimatedPatients,
             ],
         ];
     }
@@ -166,7 +166,7 @@ class SpkBasahGenerationService
         return $dates;
     }
 
-    private function buildPerDateRequirements(array $targetDates, int $adjustedPatients, int $basahCategoryId): array
+    private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array
     {
         $requiredByDate   = [];
         $currentStockByItem = [];
@@ -198,7 +198,7 @@ class SpkBasahGenerationService
                 $menuId = (int) $assignment['menu_id'];
                 
                 // Every patient receives every menu in the schedule (Additive model)
-                $patientsForThisMenu = $adjustedPatients;
+                $patientsForThisMenu = $estimatedPatients;
 
                 $menuDishes = $this->db
                     ->table('menu_dishes')
@@ -294,10 +294,13 @@ class SpkBasahGenerationService
             $remainingStock = $initialStock;
 
             foreach ($targetDates as $targetDate) {
-                $requiredQty = (float) ($requiredByDate[$targetDate][$itemId] ?? 0.0);
-                if ($requiredQty <= 0.0) {
+                $rawRequiredQty = (float) ($requiredByDate[$targetDate][$itemId] ?? 0.0);
+                if ($rawRequiredQty <= 0.0) {
                     continue;
                 }
+
+                // Apply 5% safety buffer to total weight requirement and round to whole gram
+                $requiredQty = (float) ceil($rawRequiredQty * 1.05);
 
                 $systemRecommended = max(0.0, $requiredQty - $remainingStock);
                 $remainingStock    = max(0.0, $remainingStock - $requiredQty);

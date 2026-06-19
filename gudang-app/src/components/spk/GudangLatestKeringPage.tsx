@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage } from "@/lib/admin-utils";
+import { aggregateKeringRecommendationRows } from "@/lib/spk-kering";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -36,7 +37,7 @@ export default function GudangLatestKeringPage() {
             <td>${escapeSpreadsheetHtml(getItemCategory(row))}</td>
             <td>${escapeSpreadsheetHtml(formatQuantity(row.required_qty, row.item_unit_base))}</td>
             <td>${escapeSpreadsheetHtml(formatQuantity(row.current_stock_qty, row.item_unit_base))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.final_recommended_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base))}</td>
           </tr>
         `,
       )
@@ -102,7 +103,7 @@ export default function GudangLatestKeringPage() {
         const detail = await sdk.spk.getKeringPengemas(latest.id);
         if (cancelled) return;
 
-        setRows(aggregateRecommendationRows(detail.data.items ?? []) as RecommendationRow[]);
+        setRows(aggregateKeringRecommendationRows(detail.data.items ?? []) as RecommendationRow[]);
         setTargetMonth(detail.data.print_ready.target_month ?? null);
       } catch (loadError) {
         if (!cancelled) {
@@ -136,7 +137,7 @@ export default function GudangLatestKeringPage() {
       <SurfaceCard className="bg-[#DCEAFE] px-4 py-3 text-[13px] text-[#16213E]">
         <p className="font-semibold">Rumus SPK Bahan Kering & Pengemas</p>
         <p className="mt-2 font-mono text-[12px]">
-          Total Pengeluaran Bulan Lalu x 10% - Sisa Stok Saat Ini
+          Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini
         </p>
       </SurfaceCard>
 
@@ -166,7 +167,7 @@ export default function GudangLatestKeringPage() {
                   <td className="px-6 py-4 font-medium text-gray-900">{row.item_name ?? "-"}</td>
                   <td className="px-6 py-4">{formatQuantity(row.current_stock_qty, row.item_unit_base)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.required_qty, row.item_unit_base)}</td>
-                  <td className="px-6 py-4">{formatQuantity(row.final_recommended_qty, row.item_unit_base)}</td>
+                  <td className="px-6 py-4">{formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base)}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 ? (
@@ -182,43 +183,6 @@ export default function GudangLatestKeringPage() {
       </SurfaceCard>
     </div>
   );
-}
-
-function aggregateRecommendationRows<T extends {
-  item_id?: number | null;
-  item_name?: string | null;
-  current_stock_qty?: unknown;
-  required_qty?: unknown;
-  final_recommended_qty?: unknown;
-  item_unit_base?: string | null;
-}>(rows: T[]) {
-  const grouped = new Map<string, T & {
-    current_stock_qty: number;
-    required_qty: number;
-    final_recommended_qty: number;
-  }>();
-
-  rows.forEach((row) => {
-    const recommendedQty = Number(row.final_recommended_qty ?? 0);
-    if (!Number.isFinite(recommendedQty) || recommendedQty <= 0) return;
-
-    const key = String(row.item_id ?? row.item_name ?? grouped.size);
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.required_qty = (Number(existing.required_qty ?? 0) || 0) + (Number(row.required_qty ?? 0) || 0);
-      existing.final_recommended_qty = (Number(existing.final_recommended_qty ?? 0) || 0) + recommendedQty;
-      return;
-    }
-
-    grouped.set(key, {
-      ...row,
-      current_stock_qty: Number(row.current_stock_qty ?? 0) || 0,
-      required_qty: Number(row.required_qty ?? 0) || 0,
-      final_recommended_qty: recommendedQty,
-    });
-  });
-
-  return [...grouped.values()];
 }
 
 function getItemCategory(row: RecommendationRow) {

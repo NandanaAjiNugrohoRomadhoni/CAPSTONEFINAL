@@ -41,13 +41,12 @@ class TestSeeder extends Seeder
 
         // === PHASE 3: Domain Entities (depend on Phase 1) ===
         // Dishes are independent; menu dishes depend on menus and meal times.
-        $this->call("DishSeeder"); // Base dish master rows
-        $this->call("CsvDishSeeder"); // Additional dish master rows imported from the uploaded CSV
+        $this->call("DishSeeder"); // Dishes: 33 named dishes
 
         // === PHASE 4: Composed Entities (depend on Phase 2 & 3) ===
         // Compositions and menu assignments depend on items, dishes, and menus.
         $this->call("DishCompositionSeeder"); // Dish compositions: item assignments per dish
-        $this->call("CsvMenuDishSeeder"); // Menu dishes imported from the uploaded CSV standard portion sheet
+        $this->call("MenuDishSeeder"); // Menu dishes: meal-time slots per menu
 
         // === PHASE 5: Operational Baseline (depend on all above) ===
         // Schedules, patients, transactions, opnames, and SPK depend on the full baseline.

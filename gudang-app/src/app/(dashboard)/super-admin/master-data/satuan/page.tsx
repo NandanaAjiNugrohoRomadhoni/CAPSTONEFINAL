@@ -1,9 +1,9 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -25,8 +25,11 @@ type Unit = {
 };
 
 type SuccessState = {
+  title?: string;
   headline: string;
   message: string;
+  tone?: "success" | "danger";
+  icon?: ReactNode;
 } | null;
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -202,10 +205,10 @@ export default function SatuanPage() {
     } catch (error) {
       setItems(previousItems);
       const message = getErrorMessage(error, "Gagal menyimpan satuan.");
-      setModalError(message);
-
-      if (message === "Satuan Telah Ada") {
-        window.alert("Satuan Telah Ada");
+      if (message.toLowerCase().includes("validation failed") || message === "Satuan Telah Ada") {
+        setModalError("Nama data satuan sudah ada");
+      } else {
+        setModalError(message);
       }
 
       setSubmitting(false);
@@ -230,11 +233,24 @@ export default function SatuanPage() {
       setSuccessState({
         headline: "Satuan Berhasil Dihapus",
         message: `Satuan ${deletedName} telah dipindahkan ke arsip.`,
+        tone: "success",
       });
       closeModal();
     } catch (error) {
       setItems(previousItems);
-      setModalError(getErrorMessage(error, "Gagal menghapus satuan."));
+      const message = getErrorMessage(error, "Gagal menghapus satuan.");
+      if (message.toLowerCase().includes("validation failed")) {
+        setSuccessState({
+          title: "Informasi",
+          headline: "Satuan Dipakai Oleh Sistem",
+          message: `Satuan ${selectedItem.name} sedang dipakai oleh sistem dan belum bisa dihapus.`,
+          tone: "danger",
+          icon: <AlertTriangle size={36} strokeWidth={2.1} />,
+        });
+        closeModal();
+      } else {
+        setModalError(message);
+      }
       setSubmitting(false);
     }
   }
@@ -415,9 +431,11 @@ export default function SatuanPage() {
 
       <SuccessModal
         open={successState !== null}
-        title="Berhasil"
+        title={successState?.title ?? "Berhasil"}
         headline={successState?.headline ?? ""}
         message={successState?.message ?? ""}
+        tone={successState?.tone ?? "success"}
+        icon={successState?.icon}
         onClose={() => setSuccessState(null)}
       />
     </>

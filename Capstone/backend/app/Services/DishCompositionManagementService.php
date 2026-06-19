@@ -110,7 +110,7 @@ class DishCompositionManagementService
         if (! $validation->setRules([
             'dish_id'          => 'required|is_natural_no_zero',
             'item_id'          => 'required|is_natural_no_zero',
-            'qty_per_patient'  => 'required|decimal|greater_than[0]',
+            'qty_per_patient'  => 'required|numeric|greater_than[0]',
         ])->run($data)) {
             return [
                 'success' => false,
@@ -119,7 +119,7 @@ class DishCompositionManagementService
             ];
         }
 
-        $domainErrors = $this->validateDomainReferences((int) $data['dish_id'], (int) $data['item_id']);
+        $domainErrors = $this->validateDomainReferences((int) $data['dish_id'], (int) $data['item_id'], (float) $data['qty_per_patient']);
         if ($domainErrors !== []) {
             return [
                 'success' => false,
@@ -170,7 +170,12 @@ class DishCompositionManagementService
         if (! $validation->setRules([
             'dish_id'         => 'permit_empty|is_natural_no_zero',
             'item_id'         => 'permit_empty|is_natural_no_zero',
-            'qty_per_patient' => 'permit_empty|decimal|greater_than[0]',
+            'qty_per_patient' => [
+                'rules'  => 'permit_empty|numeric|greater_than[0]|less_than_equal_to[2000]',
+                'errors' => [
+                    'less_than_equal_to' => 'The quantity per patient is unrealistic. Max is 2000.',
+                ],
+            ],
         ])->run($data)) {
             return [
                 'success' => false,
@@ -181,8 +186,9 @@ class DishCompositionManagementService
 
         $resolvedDishId = isset($data['dish_id']) ? (int) $data['dish_id'] : (int) $existing['dish_id'];
         $resolvedItemId = isset($data['item_id']) ? (int) $data['item_id'] : (int) $existing['item_id'];
+        $resolvedQty    = isset($data['qty_per_patient']) ? (float) $data['qty_per_patient'] : (float) $existing['qty_per_patient'];
 
-        $domainErrors = $this->validateDomainReferences($resolvedDishId, $resolvedItemId);
+        $domainErrors = $this->validateDomainReferences($resolvedDishId, $resolvedItemId, $resolvedQty);
         if ($domainErrors !== []) {
             return [
                 'success' => false,
@@ -254,7 +260,7 @@ class DishCompositionManagementService
         ];
     }
 
-    private function validateDomainReferences(int $dishId, int $itemId): array
+    private function validateDomainReferences(int $dishId, int $itemId, ?float $qtyPerPatient = null): array
     {
         $errors = [];
 
@@ -267,6 +273,25 @@ class DishCompositionManagementService
             $errors['item_id'] = 'The selected item is invalid.';
         } elseif (! (bool) $item['is_active']) {
             $errors['item_id'] = 'The selected item is inactive.';
+        }
+
+        if ($qtyPerPatient !== null && $item !== null) {
+            $unitBase = $item['unit_base'] ?? '';
+            $limit    = null;
+
+            if ($unitBase === 'gram') {
+                $limit = 2000;
+            } elseif (in_array($unitBase, ['pcs', 'butir', 'buah'], true)) {
+                $limit = 50;
+            } elseif (in_array($unitBase, ['pack', 'kotak', 'porsi'], true)) {
+                $limit = 10;
+            }
+
+            if ($limit !== null && $qtyPerPatient > $limit) {
+                $errors['qty_per_patient'] = "The quantity per patient is unrealistic for unit {$unitBase}. Max is {$limit}.";
+            } elseif ($qtyPerPatient > 2000) {
+                $errors['qty_per_patient'] = "The quantity per patient is unrealistic. Max is 2000.";
+            }
         }
 
         return $errors;

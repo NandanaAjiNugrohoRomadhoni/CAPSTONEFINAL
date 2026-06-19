@@ -1,2 +1,3 @@
 db
 frontend/node_modules/
+.c*

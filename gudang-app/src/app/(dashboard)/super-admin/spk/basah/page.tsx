@@ -256,7 +256,7 @@ export default function Page() {
         targetLabel: formatSpkDateRange(displayedTargetDates),
         itemCountLabel: `${rows.length} Produk`,
         formulaTitle: "Rumus BAHAN BASAH",
-        formulaDescription: "(Jumlah Pasien Terakhir x 5%) x Komposisi per Paket Menu - Sisa Stok",
+        formulaDescription: "(Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok",
       },
       rows.map((row) => ({
         itemName: row.item_name ?? "-",
@@ -282,7 +282,7 @@ export default function Page() {
 
       <div className="rounded-xl border-l-4 border-[#2155CD] bg-[#D9EAFE] px-5 py-4 text-[#16213E]">
         <p className="font-mono text-[15px] font-bold">Rumus SPK Bahan Basah</p>
-        <p className="mt-3 font-mono text-[15px] leading-relaxed">(Jumlah Pasien Terakhir x 5%) x Komposisi per Paket Menu - Sisa Stok</p>
+        <p className="mt-3 font-mono text-[15px] leading-relaxed">(Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok</p>
       </div>
 
       <div className="rounded-2xl border-2 border-[#2155CD] bg-[#D9EAFE] px-6 py-5 text-[#16213E]">
@@ -301,8 +301,12 @@ export default function Page() {
           <div>
             <p className="text-base font-medium">Setelah Buffer +5%</p>
             <p className="mt-1 font-mono text-xl font-bold">
-              {latestPatient ? `${formatNumber(spkMeta?.estimatedPatients ?? bufferPatients)} orang` : "-"}
-              {latestPatient ? <span className="font-sans text-base"> (acuan)</span> : null}
+              {latestPatient ? `${formatNumber(bufferPatients)} orang` : "-"}
+              {latestPatient ? (
+                <span className="font-sans text-base">
+                  {" "}
+                </span>
+              ) : null}
             </p>
           </div>
         </div>

@@ -591,7 +591,7 @@ class Items extends BaseController
      *     operationId="deleteItem",
      *     tags={"Items"},
      *     summary="Delete item",
-     *     description="Soft-deletes an item master row. Admin only. Successful and failed responses are message-only envelopes. Runtime maps any service failure to HTTP 404, including a missing item.",
+     *     description="Soft-deletes an item master row. Admin only. Successful and failed responses are message-only envelopes. Runtime returns HTTP 404 for a missing item and HTTP 409 if the item is still linked to active dish compositions.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
      *         name="id",
@@ -619,6 +619,11 @@ class Items extends BaseController
      *         response=404,
      *         description="The item could not be deleted because it was not found by the runtime service.",
      *         @OA\JsonContent(ref="#/components/schemas/MessageResponse")
+     *     ),
+     *     @OA\Response(
+     *         response=409,
+     *         description="Conflict: the item is used in one or more dish compositions and cannot be deleted.",
+     *         @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")
      *     )
      * )
      */
@@ -627,11 +632,15 @@ class Items extends BaseController
         $result = $this->itemService->deleteItem($id);
 
         if (! $result['success']) {
+            $statusCode = $result['code'] ?? 404;
+            $payload = ['message' => $result['message']];
+            if (isset($result['data'])) {
+                $payload['data'] = $result['data'];
+            }
+
             return $this->response
-                ->setStatusCode(404)
-                ->setJSON([
-                    'message' => $result['message'],
-                ]);
+                ->setStatusCode($statusCode)
+                ->setJSON($payload);
         }
 
         return $this->response

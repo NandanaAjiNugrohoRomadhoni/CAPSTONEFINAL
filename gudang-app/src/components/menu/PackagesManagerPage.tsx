@@ -74,7 +74,6 @@ const mealLabel: Record<MealKey, string> = {
 };
 
 const mealOrder: MealKey[] = ["siang", "sore", "pagi"];
-
 const emptyMealValues = (): Record<MealKey, string[]> => ({
   siang: [""],
   sore: [""],

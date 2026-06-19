@@ -9,6 +9,7 @@ class AlterMenuArchitecture extends Migration
     public function up()
     {
         $isSQLite = $this->db->getPlatform() === 'SQLite3';
+        $prefix = $this->db->getPrefix();
 
         // 1. Drop the unique constraint blocking multiple dishes per slot
         try {
@@ -19,17 +20,21 @@ class AlterMenuArchitecture extends Migration
                     $this->db->query("DROP INDEX IF EXISTS \"{$row['name']}\"");
                 }
             } else {
-                $this->db->query('ALTER TABLE menu_dishes DROP INDEX IF EXISTS menu_id_meal_time_id');
+                $this->db->query("ALTER TABLE {$prefix}menu_dishes DROP INDEX menu_id_meal_time_id");
             }
         } catch (\Exception $e) {}
         
         // Add a standard index to replace the unique one for performance
         try {
-            $dropQuery = $isSQLite
-                ? 'DROP INDEX IF EXISTS idx_menu_meal_time'
-                : 'ALTER TABLE menu_dishes DROP INDEX IF EXISTS idx_menu_meal_time';
-            $this->db->query($dropQuery);
-            $this->db->query('CREATE INDEX idx_menu_meal_time ON menu_dishes (menu_id, meal_time_id)');
+            if ($isSQLite) {
+                $this->db->query('DROP INDEX IF EXISTS idx_menu_meal_time');
+            } else {
+                $this->db->query("ALTER TABLE {$prefix}menu_dishes DROP INDEX idx_menu_meal_time");
+            }
+        } catch (\Exception $e) {}
+
+        try {
+            $this->db->query("CREATE INDEX idx_menu_meal_time ON {$prefix}menu_dishes (menu_id, meal_time_id)");
         } catch (\Exception $e) {}
 
         // 2. Drop unique constraint on menu_schedules(day_of_month)
@@ -41,17 +46,21 @@ class AlterMenuArchitecture extends Migration
                     $this->db->query("DROP INDEX IF EXISTS \"{$row['name']}\"");
                 }
             } else {
-                $this->db->query('ALTER TABLE menu_schedules DROP INDEX IF EXISTS day_of_month');
+                $this->db->query("ALTER TABLE {$prefix}menu_schedules DROP INDEX day_of_month");
             }
         } catch (\Exception $e) {}
 
         // Add standard index
         try {
-            $dropQuery = $isSQLite
-                ? 'DROP INDEX IF EXISTS idx_day_of_month'
-                : 'ALTER TABLE menu_schedules DROP INDEX IF EXISTS idx_day_of_month';
-            $this->db->query($dropQuery);
-            $this->db->query('CREATE INDEX idx_day_of_month ON menu_schedules (day_of_month)');
+            if ($isSQLite) {
+                $this->db->query('DROP INDEX IF EXISTS idx_day_of_month');
+            } else {
+                $this->db->query("ALTER TABLE {$prefix}menu_schedules DROP INDEX idx_day_of_month");
+            }
+        } catch (\Exception $e) {}
+
+        try {
+            $this->db->query("CREATE INDEX idx_day_of_month ON {$prefix}menu_schedules (day_of_month)");
         } catch (\Exception $e) {}
         
         // 3. Add patient_count to menu_schedules
@@ -68,43 +77,58 @@ class AlterMenuArchitecture extends Migration
         
         // 4. Update foreign key constraints to CASCADE on DELETE for menu_dishes
         if (! $isSQLite) {
-            $this->db->query('ALTER TABLE menu_dishes DROP FOREIGN KEY IF EXISTS menu_dishes_menu_id_foreign');
-            $this->db->query('ALTER TABLE menu_dishes ADD CONSTRAINT menu_dishes_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE CASCADE ON UPDATE CASCADE');
+            try {
+                $this->db->query("ALTER TABLE {$prefix}menu_dishes DROP FOREIGN KEY menu_dishes_menu_id_foreign");
+            } catch (\Exception $e) {}
             
-            $this->db->query('ALTER TABLE menu_schedules DROP FOREIGN KEY IF EXISTS menu_schedules_menu_id_foreign');
-            $this->db->query('ALTER TABLE menu_schedules ADD CONSTRAINT menu_schedules_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE CASCADE ON UPDATE CASCADE');
+            $this->db->query("ALTER TABLE {$prefix}menu_dishes ADD CONSTRAINT menu_dishes_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES {$prefix}menus(id) ON DELETE CASCADE ON UPDATE CASCADE");
+            
+            try {
+                $this->db->query("ALTER TABLE {$prefix}menu_schedules DROP FOREIGN KEY menu_schedules_menu_id_foreign");
+            } catch (\Exception $e) {}
+
+            $this->db->query("ALTER TABLE {$prefix}menu_schedules ADD CONSTRAINT menu_schedules_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES {$prefix}menus(id) ON DELETE CASCADE ON UPDATE CASCADE");
         }
     }
 
     public function down()
     {
         $isSQLite = $this->db->getPlatform() === 'SQLite3';
+        $prefix = $this->db->getPrefix();
 
         // 1. Remove patient_count column
         $this->forge->dropColumn('menu_schedules', 'patient_count');
 
         // 2. Revert foreign keys to RESTRICT
         if (! $isSQLite) {
-            $this->db->query('ALTER TABLE menu_dishes DROP FOREIGN KEY IF EXISTS menu_dishes_menu_id_foreign');
-            $this->db->query('ALTER TABLE menu_dishes ADD CONSTRAINT menu_dishes_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE RESTRICT ON UPDATE CASCADE');
+            try {
+                $this->db->query("ALTER TABLE {$prefix}menu_dishes DROP FOREIGN KEY menu_dishes_menu_id_foreign");
+            } catch (\Exception $e) {}
+            
+            $this->db->query("ALTER TABLE {$prefix}menu_dishes ADD CONSTRAINT menu_dishes_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES {$prefix}menus(id) ON DELETE RESTRICT ON UPDATE CASCADE");
 
-            $this->db->query('ALTER TABLE menu_schedules DROP FOREIGN KEY IF EXISTS menu_schedules_menu_id_foreign');
-            $this->db->query('ALTER TABLE menu_schedules ADD CONSTRAINT menu_schedules_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE RESTRICT ON UPDATE CASCADE');
+            try {
+                $this->db->query("ALTER TABLE {$prefix}menu_schedules DROP FOREIGN KEY menu_schedules_menu_id_foreign");
+            } catch (\Exception $e) {}
+
+            $this->db->query("ALTER TABLE {$prefix}menu_schedules ADD CONSTRAINT menu_schedules_menu_id_foreign FOREIGN KEY (menu_id) REFERENCES {$prefix}menus(id) ON DELETE RESTRICT ON UPDATE CASCADE");
         }
 
         // 3. Drop non-unique indexes
         try {
-            $query = $isSQLite
-                ? 'DROP INDEX IF EXISTS idx_menu_meal_time'
-                : 'ALTER TABLE menu_dishes DROP INDEX IF EXISTS idx_menu_meal_time';
-            $this->db->query($query);
+            if ($isSQLite) {
+                $this->db->query('DROP INDEX IF EXISTS idx_menu_meal_time');
+            } else {
+                $this->db->query("ALTER TABLE {$prefix}menu_dishes DROP INDEX idx_menu_meal_time");
+            }
         } catch (\Exception $e) {}
 
         try {
-            $query = $isSQLite
-                ? 'DROP INDEX IF EXISTS idx_day_of_month'
-                : 'ALTER TABLE menu_schedules DROP INDEX IF EXISTS idx_day_of_month';
-            $this->db->query($query);
+            if ($isSQLite) {
+                $this->db->query('DROP INDEX IF EXISTS idx_day_of_month');
+            } else {
+                $this->db->query("ALTER TABLE {$prefix}menu_schedules DROP INDEX idx_day_of_month");
+            }
         } catch (\Exception $e) {}
 
         // 4. Restore unique constraints

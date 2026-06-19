@@ -1,9 +1,9 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { AlertTriangle, Trash2, X } from "lucide-react";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
@@ -30,6 +30,8 @@ type SuccessState = {
   title?: string;
   headline: string;
   message: string;
+  tone?: "success" | "danger";
+  icon?: ReactNode;
 } | null;
 
 type ItemCategoryRow = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
@@ -196,10 +198,11 @@ export default function JenisBahanPage() {
     } catch (error) {
       setItems(previousItems);
       const message = getErrorMessage(error, "Gagal menyimpan jenis bahan.");
-      setModalError(message);
 
-      if (message === "Jenis Bahan Telah Ada") {
-        window.alert("Jenis Bahan Telah Ada");
+      if (message.toLowerCase().includes("validation failed") || message === "Jenis Bahan Telah Ada") {
+        setModalError("Nama data jenis bahan sudah ada");
+      } else {
+        setModalError(message);
       }
 
       setSubmitting(false);
@@ -228,6 +231,8 @@ export default function JenisBahanPage() {
           title: "Informasi",
           headline: "Jenis Bahan Dipakai Oleh Sistem",
           message: `Jenis bahan ${deletedName} sedang dipakai oleh sistem dan belum bisa dihapus.`,
+          tone: "danger",
+          icon: <AlertTriangle size={36} strokeWidth={2.1} />,
         });
         setItems(previousItems);
         closeModal();
@@ -241,6 +246,8 @@ export default function JenisBahanPage() {
         title: "Berhasil",
         headline: "Jenis Bahan Berhasil Dihapus",
         message: `Jenis bahan ${deletedName} berhasil dihapus dari sistem.`,
+        tone: "danger",
+        icon: <Trash2 size={36} strokeWidth={2.1} />,
       });
       closeModal();
     } catch (error) {
@@ -251,6 +258,8 @@ export default function JenisBahanPage() {
           title: "Informasi",
           headline: "Jenis Bahan Dipakai Oleh Sistem",
           message: `Jenis bahan ${selectedItem.name} sedang dipakai oleh sistem dan belum bisa dihapus.`,
+          tone: "danger",
+          icon: <AlertTriangle size={36} strokeWidth={2.1} />,
         });
         closeModal();
       } else {
@@ -439,6 +448,8 @@ export default function JenisBahanPage() {
         title={successState?.title ?? "Berhasil"}
         headline={successState?.headline ?? ""}
         message={successState?.message ?? ""}
+        tone={successState?.tone ?? "success"}
+        icon={successState?.icon}
         onClose={() => setSuccessState(null)}
       />
     </>

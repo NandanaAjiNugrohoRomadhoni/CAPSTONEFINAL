@@ -25,14 +25,14 @@ const menuBadgePalette = [
   "bg-[#FCE7F3] text-[#BE185D]",
 ];
 const mealDisplayOrder = ["SIANG", "SORE", "PAGI"];
-
 function getPackageNumber(name: string | null | undefined) {
   const match = String(name ?? "").match(/\d+/);
   return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
 }
 
 function sortMenuPackages(packages: MenuRow[]) {
-  return [...packages].sort((a, b) => {
+  return [...packages]
+    .sort((a, b) => {
     const numberDiff = getPackageNumber(a.name) - getPackageNumber(b.name);
     if (numberDiff !== 0) return numberDiff;
     return a.id - b.id;

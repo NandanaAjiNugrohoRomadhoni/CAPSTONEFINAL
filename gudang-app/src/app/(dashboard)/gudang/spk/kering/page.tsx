@@ -5,6 +5,7 @@ import sdk from "@/lib";
 import { formatQuantity, getErrorMessage, toIsoMonth } from "@/lib/admin-utils";
 import { getSpkConflictId } from "@/lib/spk-conflicts";
 import { findExistingKeringSpk } from "@/lib/spk-recommendations";
+import { aggregateKeringRecommendationRows } from "@/lib/spk-kering";
 import {
   AdminPageHeading,
   ExportButton,
@@ -64,7 +65,7 @@ export default function Page() {
         const detail = await sdk.spk.getKeringPengemas(latestSpk.id);
         if (cancelled) return;
         setDetailData(detail.data);
-        setRows(aggregateRecommendationRows(detail.data.items ?? []));
+        setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
         setHasLoadedRecommendation(true);
       } catch {
         // Riwayat SPK boleh kosong; halaman tetap bisa generate rekomendasi baru.
@@ -91,7 +92,7 @@ export default function Page() {
         detail = await sdk.spk.getKeringPengemas(conflictSpkId);
       }
       setDetailData(detail.data);
-      setRows(aggregateRecommendationRows(detail.data.items ?? []));
+      setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
       setHasLoadedRecommendation(true);
       setConfirmOpen(false);
     } catch (generateError) {
@@ -121,15 +122,15 @@ export default function Page() {
         targetLabel: formatTargetMonthLabel(targetMonth),
         itemCountLabel: `${rows.length} Produk`,
         formulaTitle: "Rumus KERING & PENGEMAS",
-        formulaDescription: "Total Pengeluaran Bulan Lalu x 10% - Sisa Stok Saat Ini",
-      },
+        formulaDescription: "Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini",
+        },
       rows.map((row) => ({
         itemName: row.item_name ?? "-",
         categoryName: getItemCategory(row),
         currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
         requiredQty: formatQuantity(row.required_qty, row.item_unit_base),
-        recommendedQty: formatQuantity(row.final_recommended_qty, row.item_unit_base),
-        numericRecommendedQty: Number(row.final_recommended_qty ?? 0),
+        recommendedQty: formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base),
+        numericRecommendedQty: Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0),
       })),
     );
 
@@ -147,7 +148,7 @@ export default function Page() {
 
       <div className="rounded-xl border-l-4 border-[#2155CD] bg-[#D9EAFE] px-5 py-4 text-[#16213E]">
         <p className="font-mono text-[15px] font-bold">Rumus SPK Bahan Kering & Pengemas</p>
-        <p className="mt-3 font-mono text-[15px] leading-relaxed">Total Pengeluaran Bulan Lalu x 10% - Sisa Stok Saat Ini</p>
+        <p className="mt-3 font-mono text-[15px] leading-relaxed">Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini</p>
       </div>
 
       <div>
@@ -179,7 +180,7 @@ export default function Page() {
                   <td className="px-6 py-4 uppercase">{getItemCategory(row)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.required_qty, row.item_unit_base)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.current_stock_qty, row.item_unit_base)}</td>
-                  <td className="px-6 py-4">{formatQuantity(row.final_recommended_qty, row.item_unit_base)}</td>
+                  <td className="px-6 py-4">{formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base)}</td>
                 </tr>
               ))}
               {rows.length === 0 ? (
@@ -218,26 +219,3 @@ function getLatestSpk<T extends { id: number; created_at?: string | null; calcul
   })[0];
 }
 
-function aggregateRecommendationRows<T extends RecommendationRow>(rows: T[]) {
-  const byItem = new Map<string, T>();
-
-  for (const row of rows) {
-    const recommendation = Number(row.final_recommended_qty ?? 0);
-    if (!Number.isFinite(recommendation)) continue;
-
-    const key = String(row.item_id ?? row.item_name ?? row.id);
-    const current = byItem.get(key);
-    if (current) {
-      byItem.set(key, {
-        ...current,
-        required_qty: Number(current.required_qty ?? 0) + Number(row.required_qty ?? 0),
-        final_recommended_qty: Number(current.final_recommended_qty ?? 0) + recommendation,
-      });
-      continue;
-    }
-
-    byItem.set(key, { ...row, final_recommended_qty: recommendation });
-  }
-
-  return Array.from(byItem.values());
-}

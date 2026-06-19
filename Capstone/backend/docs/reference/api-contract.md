@@ -983,11 +983,22 @@ Unit resolution contract:
 
 #### 5.4.6 Delete Item
 
-#### Response
+#### Response (Success 200)
 
 ```json
 {
   "message": "Item deleted successfully."
+}
+```
+
+#### Response (Used in dishes 409 Conflict)
+
+```json
+{
+  "message": "Cannot delete item because it is used in one or more dishes.",
+  "data": [
+    { "id": 1, "name": "Rice" }
+  ]
 }
 ```
 
@@ -1000,6 +1011,7 @@ Unit resolution contract:
 - `name` must be globally unique across both active and deleted rows; if an active row owns the name, create/update returns `400` with a `name` error.
 - if a deleted row already owns the same name, create returns `400` with `errors.restore_id` pointing to the deleted item's ID and a restore-guidance message.
 - Missing or soft-deleted items return `404` for all show/update/delete operations.
+- **Delete Constraints**: An item cannot be deleted if it is referenced in any active `dish_compositions`.
 
 #### 5.4.8 Restore Item
 

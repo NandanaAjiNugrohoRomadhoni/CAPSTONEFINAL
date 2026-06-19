@@ -275,6 +275,7 @@ Perilaku Phase 1 item master API:
 - `unit_base` dan `unit_convert` dikirim client sebagai string dan di-resolve ke row `item_units` yang aktif oleh service layer; FK `item_unit_base_id` / `item_unit_convert_id` diisi dari hasil resolusi tersebut.
 - String `unit_base`/`unit_convert` tetap disimpan di kolom teks untuk backward compatibility dan muncul di response API.
 - `item_unit_base_id` dan `item_unit_convert_id` bersifat nullable untuk mengakomodasi data historis dan periode transisi.
+- **Delete**: Deleting an item is only permitted if it is not referenced in any `dish_compositions`.
 
 ### 3.11 `notifications`
 
@@ -449,6 +450,8 @@ Fungsi: Menyimpan daftar dish/hidangan.
 
 Fungsi: Menghubungkan menu (Paket) dengan dish pada waktu makan tertentu. Menulis ke tabel ini menolak dish yang berstatus `is_active = false`.
 
+**Behavior Note:** A dish referenced in this table cannot be deleted from the `dishes` master list.
+
 | Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | bigint | PK, increment | ID relasi menu-dish |
@@ -459,6 +462,8 @@ Fungsi: Menghubungkan menu (Paket) dengan dish pada waktu makan tertentu. Menuli
 ### 5.6 `dish_compositions`
 
 Fungsi: Menyimpan komposisi item per dish.
+
+**Behavior Note:** An item referenced in this table cannot be deleted from the `items` master list.
 
 | Column | Type | Constraint | Description |
 |---|---|---|---|

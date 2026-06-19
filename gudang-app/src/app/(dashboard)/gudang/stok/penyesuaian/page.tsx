@@ -8,6 +8,7 @@ export default function Page() {
       legacyLatestKey="gudang-latest-stock-opname-id"
       subtitle="Input penyesuaian stok fisik ke backend stock opname dan simpan riwayat draft yang pernah dibuat."
       title="Penyesuaian Stok"
+      submittedStateLabel="Menunggu Konfirmasi"
       useDraftSubmissionChecklist
     />
   );

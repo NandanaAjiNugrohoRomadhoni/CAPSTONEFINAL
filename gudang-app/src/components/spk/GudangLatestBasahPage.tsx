@@ -142,7 +142,7 @@ export default function GudangLatestBasahPage() {
       <SurfaceCard className="bg-[#DCEAFE] px-4 py-3 text-[13px] text-[#16213E]">
         <p className="font-semibold">Rumus SPK Bahan Basah</p>
         <p className="mt-2 font-mono text-[12px]">
-          (Jumlah Pasien Terakhir x 5%) x Komposisi per Paket Menu - Sisa Stok
+          (Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok
         </p>
       </SurfaceCard>
 

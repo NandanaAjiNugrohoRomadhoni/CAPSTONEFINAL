@@ -76,6 +76,7 @@ type StockAdjustmentPageProps = {
   legacyLatestKey?: string;
   autoApplyOnCreate?: boolean;
   allowVerificationAction?: boolean;
+  submittedStateLabel?: string;
   useDraftSubmissionChecklist?: boolean;
 };
 
@@ -403,6 +404,7 @@ export default function StockAdjustmentPage({
   legacyLatestKey,
   autoApplyOnCreate = false,
   allowVerificationAction = false,
+  submittedStateLabel,
   useDraftSubmissionChecklist = false,
 }: Readonly<StockAdjustmentPageProps>) {
   const router = useRouter();
@@ -836,9 +838,8 @@ export default function StockAdjustmentPage({
 
     const rowsHtml = filteredRows
       .map(
-        (row, index) => `
+        (row) => `
           <tr>
-            <td class="rank">${index + 1}</td>
             <td>${escapeSpreadsheetHtml(formatDate(row.opnameDate))}</td>
             <td class="text-strong">PS-${String(row.headerId).padStart(4, "0")}</td>
             <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
@@ -849,7 +850,6 @@ export default function StockAdjustmentPage({
             <td class="${row.variance > 0 ? "safe" : row.variance < 0 ? "danger" : "muted"}">
               ${row.variance > 0 ? "+" : ""}${escapeSpreadsheetHtml(row.varianceLabel)} ${escapeSpreadsheetHtml(row.unit)}
             </td>
-            <td>${escapeSpreadsheetHtml(row.reason)}</td>
             <td class="${row.state === "REJECTED" ? "danger" : row.state === "SUBMITTED" ? "warning" : "safe"}">
               ${escapeSpreadsheetHtml(row.stateLabel)}
             </td>
@@ -889,7 +889,6 @@ export default function StockAdjustmentPage({
 
         <table>
           <tr class="head">
-            <th>No</th>
             <th>Tanggal</th>
             <th>ID Penyesuaian</th>
             <th>Nama Bahan</th>
@@ -898,7 +897,6 @@ export default function StockAdjustmentPage({
             <th>Stok Sistem</th>
             <th>Stok Fisik</th>
             <th>Selisih</th>
-            <th>Alasan Penyesuaian</th>
             <th>Status</th>
             <th>Petugas</th>
           </tr>
@@ -1295,7 +1293,7 @@ export default function StockAdjustmentPage({
                           </button>
                         ) : (
                           <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${getOpnameStateClasses(row.state)}`}>
-                            {row.stateLabel}
+                            {row.state === "SUBMITTED" ? submittedStateLabel ?? row.stateLabel : row.stateLabel}
                           </span>
                         )}
                       </td>

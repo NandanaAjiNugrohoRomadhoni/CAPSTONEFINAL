@@ -12,6 +12,12 @@ import {
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { formatDate, getErrorMessage, resolveDetailItemName, resolveDetailUnit } from "@/lib/admin-utils";
 import { isIsoDateInRange } from "@/lib/date-range";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
 import { X } from "lucide-react";
 
 type TransactionRow = Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number];
@@ -22,6 +28,9 @@ type StatusRow = Awaited<ReturnType<typeof sdk.approvalStatuses.list>>["data"][n
 type TransactionRevisionRow = TransactionRow & {
   user_name?: string | null;
   user?: { name?: string | null; username?: string | null } | null;
+  notes?: string | null;
+  description?: string | null;
+  revision_reason?: string | null;
 };
 
 type TransactionRevisionPageProps = {
@@ -158,22 +167,71 @@ export default function TransactionRevisionPage({
     return normalized.includes("pending") || normalized.includes("menunggu");
   }
 
+  function formatCategoryLabel(values: Array<string | null | undefined>) {
+    const normalizedValues = Array.from(
+      new Set(
+        values
+          .map((value) => value?.trim())
+          .filter((value): value is string => Boolean(value))
+          .map((value) => value.toLowerCase()),
+      ),
+    );
+
+    if (normalizedValues.length === 0) return "-";
+
+    const labelValues = normalizedValues.map((value) =>
+      value
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    );
+
+    if (labelValues.length === 1) return labelValues[0];
+    if (labelValues.length === 2) return `${labelValues[0]} dan ${labelValues[1]}`;
+    return `${labelValues.slice(0, -1).join(", ")} dan ${labelValues[labelValues.length - 1]}`;
+  }
+
   function getRevisionUserLabel(revision: TransactionRevisionRow) {
     return revision.user_name || revision.user?.name || revision.user?.username || `User #${revision.user_id}`;
+  }
+
+  function getRevisionReasonLabel(revision: TransactionRevisionRow) {
+    const reason = revision.reason ?? revision.notes ?? revision.description ?? revision.revision_reason ?? "";
+    return reason.trim() || "Alasan revisi belum tersedia.";
+  }
+
+  function getRevisionStatusLabel(revision: TransactionRevisionRow) {
+    return localizeStatusLabel(getStatusLabel(revision.approval_status_id));
+  }
+
+  function getRevisionChangeStatus(previousQty: number, revisedQty: number) {
+    return previousQty !== revisedQty ? "Ada Perubahan" : "Tidak Ada";
+  }
+
+  function getRevisionComparisonBaseline(revision: TransactionRevisionRow) {
+    if (revision.parent_transaction_id == null) return null;
+    const previousRevision = revisions
+      .filter((row) => row.parent_transaction_id === revision.parent_transaction_id && row.id !== revision.id)
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+    return previousRevision ?? null;
   }
 
   async function openDetails(transaction: TransactionRevisionRow) {
     setDetailTransaction(transaction);
     setLoadingDetails(true);
     try {
-      const [revisionResponse, parentResponse] = await Promise.all([
+      const baselineRevision = getRevisionComparisonBaseline(transaction);
+      const [revisionResponse, baselineResponse] = await Promise.all([
         sdk.stockTransactions.details(transaction.id),
-        transaction.parent_transaction_id
-          ? sdk.stockTransactions.details(transaction.parent_transaction_id)
+        baselineRevision
+          ? sdk.stockTransactions.details(baselineRevision.id)
+          : transaction.parent_transaction_id
+            ? sdk.stockTransactions.details(transaction.parent_transaction_id)
           : Promise.resolve({ data: [] as DetailRow[] }),
       ]);
       const rows = revisionResponse.data ?? [];
-      const parentRows = parentResponse.data ?? [];
+      const parentRows = baselineResponse.data ?? [];
 
       const parentQtyMap = new Map<number, number>();
       parentRows.forEach((detail) => {
@@ -205,9 +263,12 @@ export default function TransactionRevisionPage({
     setConfirmRevision(revision);
     setLoadingConfirmRows(true);
     try {
+      const baselineRevision = getRevisionComparisonBaseline(revision);
       const [revisionDetailResponse, parentDetailResponse] = await Promise.all([
         sdk.stockTransactions.details(revision.id),
-        sdk.stockTransactions.details(revision.parent_transaction_id),
+        baselineRevision
+          ? sdk.stockTransactions.details(baselineRevision.id)
+          : sdk.stockTransactions.details(revision.parent_transaction_id),
       ]);
 
       const revisionDetails = revisionDetailResponse.data ?? [];
@@ -318,14 +379,8 @@ export default function TransactionRevisionPage({
         missingRows.map(async (revision) => {
           try {
             const response = await sdk.stockTransactions.details(revision.id);
-            const categories = Array.from(
-              new Set(
-                (response.data ?? [])
-                  .map((detail) => detail.item_category_name)
-                  .filter((value): value is string => typeof value === "string" && value.trim() !== ""),
-              ),
-            );
-            return [revision.id, categories.length > 0 ? categories.join(", ") : "-"] as const;
+            const categories = (response.data ?? []).map((detail) => detail.item_category_name);
+            return [revision.id, formatCategoryLabel(categories)] as const;
           } catch {
             return [revision.id, "-"] as const;
           }
@@ -356,31 +411,171 @@ export default function TransactionRevisionPage({
     }
   }, [currentPage, filteredTotalPages]);
 
-function handleExport() {
-    const lines = [
-      ["ID Revisi", "ID Transaksi", "Tanggal", "User", "Transaksi", "Kategori Bahan", "Status"],
-      ...visibleRevisions.map((rev) => [
-        `REV-${String(rev.id).padStart(4, "0")}`,
-        `TR-${String(rev.parent_transaction_id ?? rev.id).padStart(4, "0")}`,
-        formatDate(rev.transaction_date),
-        getRevisionUserLabel(rev),
-        normaliseTransactionLabel(typeMap.get(rev.type_id)),
-        categoryMap.get(rev.id) ?? "-",
-        localizeStatusLabel(getStatusLabel(rev.approval_status_id)),
-      ]),
-    ];
+  async function handleExport() {
+    if (typeof window === "undefined" || visibleRevisions.length === 0) {
+      setError("Belum ada data pengajuan revisi yang bisa diexport dari hasil filter saat ini.");
+      return;
+    }
 
-    const csv = lines
-      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
+    const detailCache = new Map<number, DetailRow[]>();
+    await Promise.all(
+      visibleRevisions.map(async (revision) => {
+        const baselineRevision = getRevisionComparisonBaseline(revision);
+        const [revisionResponse, baselineResponse] = await Promise.all([
+          sdk.stockTransactions.details(revision.id),
+          baselineRevision
+            ? sdk.stockTransactions.details(baselineRevision.id)
+            : revision.parent_transaction_id
+              ? sdk.stockTransactions.details(revision.parent_transaction_id)
+              : Promise.resolve({ data: [] as DetailRow[] }),
+        ]);
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = role === "admin" ? "moderasi-revisi-transaksi.csv" : "pengajuan-revisi-transaksi.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+        detailCache.set(revision.id, revisionResponse.data ?? []);
+        if (baselineRevision) {
+          detailCache.set(baselineRevision.id, baselineResponse.data ?? []);
+        } else if (revision.parent_transaction_id != null) {
+          detailCache.set(revision.parent_transaction_id, baselineResponse.data ?? []);
+        }
+      }),
+    );
+
+    const rowGroups = visibleRevisions.flatMap((revision) => {
+      const revisionDetails = detailCache.get(revision.id) ?? [];
+      const baselineRevision = getRevisionComparisonBaseline(revision);
+      const baselineDetails = baselineRevision
+        ? detailCache.get(baselineRevision.id) ?? []
+        : revision.parent_transaction_id
+          ? detailCache.get(revision.parent_transaction_id) ?? []
+          : [];
+
+      const baselineQtyMap = new Map<number, number>();
+      baselineDetails.forEach((detail) => {
+        baselineQtyMap.set(detail.item_id, Number(detail.input_qty ?? detail.qty ?? 0));
+      });
+      const categoryLabel = formatCategoryLabel(revisionDetails.map((detail) => detail.item_category_name));
+
+      return revisionDetails.map((detail, index) => {
+        const revisedQty = Number(detail.input_qty ?? detail.qty ?? 0);
+        const previousQty = baselineQtyMap.get(detail.item_id) ?? 0;
+        return {
+          revision,
+          detail,
+          rowIndex: index,
+          totalRows: revisionDetails.length,
+          previousQty,
+          revisedQty,
+          changeStatus: getRevisionChangeStatus(previousQty, revisedQty),
+          categoryLabel,
+        };
+      });
+    });
+
+    const periodLabel =
+      dateRange.startDate && dateRange.endDate
+        ? `${formatDate(dateRange.startDate)} s/d ${formatDate(dateRange.endDate)}`
+        : "Semua tanggal";
+    const printedAt = formatDate(new Date().toISOString().slice(0, 10));
+
+    const statusCounts = visibleRevisions.reduce(
+      (accumulator, revision) => {
+        const status = getRevisionStatusLabel(revision);
+        if (status === "Disetujui") accumulator.approved += 1;
+        else if (status === "Ditolak") accumulator.rejected += 1;
+        else accumulator.pending += 1;
+        return accumulator;
+      },
+      { approved: 0, rejected: 0, pending: 0 },
+    );
+
+    const summaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Total Revisi</td><td class="summary-value">${formatSpreadsheetNumber(visibleRevisions.length, 0)} dokumen</td></tr>
+        <tr><td class="summary-label">Total Item</td><td class="summary-value">${formatSpreadsheetNumber(rowGroups.length, 0)} item</td></tr>
+        <tr><td class="summary-label">Disetujui</td><td class="summary-value">${formatSpreadsheetNumber(statusCounts.approved, 0)} item</td></tr>
+        <tr><td class="summary-label">Ditolak</td><td class="summary-value">${formatSpreadsheetNumber(statusCounts.rejected, 0)} item</td></tr>
+        <tr><td class="summary-label">Menunggu</td><td class="summary-value">${formatSpreadsheetNumber(statusCounts.pending, 0)} item</td></tr>
+      </table>
+    `;
+
+    const rowsHtml = rowGroups
+      .map((row, index) => {
+        const revisionLabel = `REV-${String(row.revision.id).padStart(4, "0")}`;
+        const transactionLabel = `TR-${String(row.revision.parent_transaction_id ?? row.revision.id).padStart(4, "0")}`;
+        const dateLabel = formatDate(row.revision.transaction_date);
+        const unitLabel = row.detail.satuan ?? "-";
+        const reasonLabel = getRevisionReasonLabel(row.revision);
+        const statusLabel = getRevisionStatusLabel(row.revision);
+        const petugasLabel = getRevisionUserLabel(row.revision);
+        const rowspan = row.totalRows;
+        const isFirstRow = row.rowIndex === 0;
+
+        return `
+          <tr>
+            ${isFirstRow ? `<td class="text-center" rowspan="${rowspan}">${formatSpreadsheetNumber(index + 1, 0)}</td>` : ""}
+            ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(dateLabel)}</td>` : ""}
+            ${isFirstRow ? `<td class="text-strong" rowspan="${rowspan}">${escapeSpreadsheetHtml(revisionLabel)}</td>` : ""}
+            ${isFirstRow ? `<td class="text-strong" rowspan="${rowspan}">${escapeSpreadsheetHtml(transactionLabel)}</td>` : ""}
+            <td class="text-strong">${escapeSpreadsheetHtml(row.detail.item_name ?? "-")}</td>
+            ${isFirstRow ? `<td class="${row.changeStatus === "Ada Perubahan" ? "danger" : "safe"}" rowspan="${rowspan}">${escapeSpreadsheetHtml(row.changeStatus)}</td>` : ""}
+            ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(row.categoryLabel)}</td>` : ""}
+            <td>${escapeSpreadsheetHtml(unitLabel)}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatSpreadsheetNumber(row.previousQty, 0))}</td>
+            <td class="number">${escapeSpreadsheetHtml(formatSpreadsheetNumber(row.revisedQty, 0))}</td>
+            ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(reasonLabel)}</td>` : ""}
+            ${isFirstRow ? `<td class="${statusLabel === "Disetujui" ? "safe" : statusLabel === "Ditolak" ? "danger" : "warning"}" rowspan="${rowspan}">${escapeSpreadsheetHtml(statusLabel)}</td>` : ""}
+            ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(petugasLabel)}</td>` : ""}
+          </tr>
+        `;
+      })
+      .join("");
+
+    const html = buildSpreadsheetDocument({
+      title: "LAPORAN PENGAJUAN REVISI TRANSAKSI BARANG INSTALASI GIZI RSD BALUNG",
+      subtitle: `Periode: ${periodLabel} | Tanggal Cetak: ${printedAt}`,
+      body: `
+        <div class="title">LAPORAN PENGAJUAN REVISI TRANSAKSI BARANG INSTALASI GIZI RSD BALUNG</div>
+        <div class="subtitle">Rekap pengajuan revisi transaksi barang sebelum proses persetujuan.</div>
+
+        <table class="no-border section-gap">
+          <tr>
+            <td style="width: 40%; padding: 0 12px 12px 0;">${summaryHtml}</td>
+            <td style="width: 60%; padding: 0 0 12px 0;">
+              <table>
+                <tr><td class="section" colspan="2">RINGKASAN STATUS PENGAJUAN</td></tr>
+                <tr class="head"><th>Status</th><th>Jumlah</th></tr>
+                <tr><td>Disetujui</td><td class="rank">${formatSpreadsheetNumber(statusCounts.approved, 0)}</td></tr>
+                <tr><td>Ditolak</td><td class="rank">${formatSpreadsheetNumber(statusCounts.rejected, 0)}</td></tr>
+                <tr><td>Menunggu Konfirmasi</td><td class="rank">${formatSpreadsheetNumber(statusCounts.pending, 0)}</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table>
+          <tr class="head">
+            <th>No</th>
+            <th>Tanggal</th>
+            <th>ID Revisi</th>
+            <th>ID Transaksi</th>
+            <th>Nama Bahan</th>
+            <th>Status Perubahan</th>
+            <th>Kategori</th>
+            <th>Satuan</th>
+            <th>Qty Sebelum</th>
+            <th>Qty Perubahan</th>
+            <th>Keterangan</th>
+            <th>Status Pengajuan Revisi</th>
+            <th>Petugas</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      `,
+    });
+
+    downloadSpreadsheetHtml(
+      role === "admin" ? "moderasi-revisi-transaksi.xls" : "pengajuan-revisi-transaksi.xls",
+      html,
+    );
   }
 
   return (
@@ -559,11 +754,12 @@ function handleExport() {
                     </div>
                   ) : (
                     detailRows.map((row, index) => {
+                      const changed = row.changed;
                       return (
                         <div
                           key={`${row.itemId}-${index}`}
                           className={`grid grid-cols-12 items-center gap-3 rounded-lg px-3 py-3 shadow-sm border ${
-                            row.changed ? "border-[#93C5FD] bg-[#EFF6FF]" : "border-[#E2E8F0] bg-white"
+                            changed ? "border-[#93C5FD] bg-[#EFF6FF]" : "border-[#E2E8F0] bg-white"
                           }`}
                         >
                           <div className="col-span-4">
@@ -575,7 +771,13 @@ function handleExport() {
                             </div>
                           </div>
                           <div className="col-span-3">
-                            <div className="flex h-10 items-center justify-center rounded-lg border border-[#93C5FD] bg-[#EFF6FF] text-sm font-bold text-[#1D4ED8]">
+                            <div
+                              className={`flex h-10 items-center justify-center rounded-lg text-sm ${
+                                changed
+                                  ? "border border-[#93C5FD] bg-[#EFF6FF] font-bold text-[#1D4ED8]"
+                                  : "border border-[#CBD5E1] bg-[#F8FAFC] font-semibold text-[#0F172A]"
+                              }`}
+                            >
                               {row.revisedQty}
                             </div>
                           </div>
@@ -597,6 +799,15 @@ function handleExport() {
                 <span className="font-bold text-[#1E40AF]">TR-{String(detailTransaction.parent_transaction_id).padStart(4, "0")}</span>
                 {" "}| Tanggal{" "}
                 <span className="font-semibold text-[#0F172A]">{formatDate(detailTransaction.transaction_date)}</span>
+              </div>
+
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
+                  Alasan Revisi
+                </div>
+                <div className="leading-6">
+                  {getRevisionReasonLabel(detailTransaction)}
+                </div>
               </div>
             </div>
 
@@ -689,6 +900,15 @@ function handleExport() {
                 Revisi: <span className="font-bold text-[#1E40AF]">REV-{String(confirmRevision.id).padStart(4, "0")}</span>
                 {" | "}Parent: <span className="font-bold text-[#1E40AF]">TR-{String(confirmRevision.parent_transaction_id).padStart(4, "0")}</span>
                 {" | "}Tanggal <span className="font-semibold text-[#0F172A]">{formatDate(confirmRevision.transaction_date)}</span>
+              </div>
+
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
+                  Alasan Revisi
+                </div>
+                <div className="leading-6">
+                  {getRevisionReasonLabel(confirmRevision)}
+                </div>
               </div>
             </div>
 

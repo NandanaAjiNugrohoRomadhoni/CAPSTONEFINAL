@@ -86,6 +86,7 @@ type ReportTableRow = {
   outgoingQty: number;
   spkMinusIncoming: number;
   incomingMinusOutgoing: number;
+  accuracy: number;
 };
 
 type ChartPoint = {
@@ -321,6 +322,7 @@ export default function LaporanEvaluationPage() {
         ...row,
         spkMinusIncoming: row.spkQty - row.incomingQty,
         incomingMinusOutgoing: row.incomingQty - row.outgoingQty,
+        accuracy: calculateEvaluationAccuracy(row.spkQty, row.outgoingQty),
       }))
       .sort((left, right) =>
         left.categoryName.localeCompare(right.categoryName, "id-ID") ||
@@ -457,7 +459,7 @@ export default function LaporanEvaluationPage() {
     const filename = `laporan-evaluasi-spk-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}-${periodMode === "MONTHLY" ? formatMonthKey(new Date()) : selectedYear}.xls`;
     const printedAt = formatDate(new Date().toISOString());
     const reportRows = filteredRows.map((row, index) => {
-      const accuracy = calculateEvaluationAccuracy(row.spkQty, row.incomingQty);
+      const accuracy = calculateEvaluationAccuracy(row.spkQty, row.outgoingQty);
 
       return {
         no: index + 1,
@@ -503,11 +505,11 @@ export default function LaporanEvaluationPage() {
       { label: "Mode Evaluasi", value: periodMode === "MONTHLY" ? "Bulanan" : "Tahunan" },
       { label: "Periode", value: periodLabel },
       { label: "Tanggal Cetak", value: printedAt },
-      { label: "Total Jenis Bahan Dievaluasi", value: formatSpreadsheetNumber(reportRows.length, 0) },
-      { label: "Total Rekomendasi SPK", value: formatQuantity(totalRecommended) },
-      { label: "Total Realisasi Pembelian", value: formatQuantity(totalRealization) },
-      { label: "Total Penggunaan Aktual", value: formatQuantity(totalUsage) },
-      { label: "Rata-rata Akurasi SPK", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
+      { label: "Total Bahan Dievaluasi", value: formatSpreadsheetNumber(reportRows.length, 0) },
+      { label: "Total SPK", value: formatQuantity(totalRecommended) },
+      { label: "Total Barang Masuk", value: formatQuantity(totalRealization) },
+      { label: "Total Barang Keluar", value: formatQuantity(totalUsage) },
+      { label: "Rata-rata Tingkat Akurasi", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
     ];
 
     const filterRows = [
@@ -586,12 +588,12 @@ export default function LaporanEvaluationPage() {
           <tr class="head">
             <th>No</th>
             <th>Nama Bahan</th>
-            <th>Kategori</th>
-            <th>Rekomendasi SPK</th>
-            <th>Realisasi Pembelian</th>
-            <th>Penggunaan Aktual</th>
-            <th>Selisih SPK vs Pembelian</th>
-            <th>Selisih Pembelian vs Penggunaan</th>
+            <th>Kategori Bahan</th>
+            <th>SPK</th>
+            <th>Bahan Masuk</th>
+            <th>Bahan Keluar</th>
+            <th>SPK-Bahan Masuk</th>
+            <th>Bahan Masuk-Keluar</th>
             <th>Tingkat Akurasi (%)</th>
           </tr>
           ${htmlRows || `<tr><td class="muted" colspan="9">Belum ada data laporan pada periode ini.</td></tr>`}
@@ -724,13 +726,14 @@ export default function LaporanEvaluationPage() {
             <thead className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-6 py-3">Nama Bahan</th>
-                <th className="px-6 py-3">Jenis Bahan</th>
+                <th className="px-6 py-3">Kategori Bahan</th>
                 <th className="px-6 py-3">SPK</th>
-                <th className="px-6 py-3">Bahan Masuk</th>
-                <th className="px-6 py-3">Bahan Keluar</th>
-                <th className="px-6 py-3">SPK-Bahan Masuk</th>
-                <th className="px-6 py-3">Bahan Masuk-Keluar</th>
-              </tr>
+            <th className="px-6 py-3">Bahan Masuk</th>
+            <th className="px-6 py-3">Bahan Keluar</th>
+            <th className="px-6 py-3">SPK-Bahan Masuk</th>
+            <th className="px-6 py-3">Bahan Masuk-Keluar</th>
+            <th className="px-6 py-3">Tingkat Akurasi</th>
+          </tr>
             </thead>
             <tbody className="text-sm text-gray-700">
               {paginatedRows.map((row) => (
@@ -749,12 +752,15 @@ export default function LaporanEvaluationPage() {
                   <td className={diffToneClass(row.incomingMinusOutgoing)}>
                     {formatSignedQuantity(row.incomingMinusOutgoing, row.unit)}
                   </td>
+                  <td className="px-6 py-4 font-semibold text-gray-700">
+                    {formatSpreadsheetNumber(row.accuracy, 2)}%
+                  </td>
                 </tr>
               ))}
 
               {!loading && filteredRows.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-8 text-center text-gray-400" colSpan={7}>
+                  <td className="px-6 py-8 text-center text-gray-400" colSpan={8}>
                     Belum ada data laporan pada periode ini.
                   </td>
                 </tr>

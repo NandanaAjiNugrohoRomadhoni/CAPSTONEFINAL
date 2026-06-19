@@ -30,9 +30,8 @@ class RuntimeCurrentMonthSeeder extends Seeder
 
         // === PHASE 3: Domain + Composed Entities ===
         $this->call('DishSeeder');
-        $this->call('CsvDishSeeder');
         $this->call('DishCompositionSeeder');
-        $this->call('CsvMenuDishSeeder');
+        $this->call('MenuDishSeeder');
         $this->call('MenuScheduleSeeder');
 
         // === PHASE 4: Runtime-relative operational scenario ===

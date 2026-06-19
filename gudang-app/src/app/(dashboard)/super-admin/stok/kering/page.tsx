@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, getStockTone } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
+import { isItemDeleteConstraintError } from "@/lib/item-delete-guards";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -30,7 +32,13 @@ type ItemRecord = Awaited<ReturnType<typeof sdk.items.list>>["data"][number];
 type ItemCategoryRecord = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
 type ItemUnitRecord = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
 type ItemListQuery = NonNullable<Parameters<typeof sdk.items.list>[0]>;
-type NoticeState = { title: string; headline: string; message: string } | null;
+type NoticeState = {
+  title: string;
+  headline: string;
+  message: string;
+  tone?: "success" | "danger";
+  icon?: ReactNode;
+} | null;
 type ModalMode = "create" | "edit" | null;
 
 const statCards = [
@@ -208,6 +216,12 @@ export default function Page() {
     setModalError(null);
   }
 
+  function closeDeleteModal() {
+    setDeleteTarget(null);
+    setDeleteError(null);
+    setDeleting(false);
+  }
+
   const initialFormValue = useMemo<StockItemFormValue | null>(() => {
     if (!selectedItem) {
       return null;
@@ -306,17 +320,18 @@ export default function Page() {
         headline: "Master Barang Berhasil Dihapus",
         message: `Data bahan ${deleteTarget.name} berhasil dihapus permanen dari sistem.`,
       });
-      setDeleteTarget(null);
+      closeDeleteModal();
     } catch (deleteFailure) {
       const message = getErrorMessage(deleteFailure, "Gagal menghapus master barang.");
 
-      if (message.startsWith("Barang Dipakai Pada Menu")) {
-        setDeleteTarget(null);
-        setDeleteError(null);
+      if (isItemDeleteConstraintError(message)) {
+        closeDeleteModal();
         setSuccessState({
           title: "Peringatan",
           headline: "Barang Tidak Bisa Dihapus",
-          message,
+          message: "Bahan masih dipakai oleh sistem, jadi tidak bisa dihapus.",
+          tone: "danger",
+          icon: <AlertTriangle size={36} strokeWidth={2.1} />,
         });
         return;
       }
@@ -554,19 +569,19 @@ export default function Page() {
                   <td className="px-6 py-4">
                     <StatusPill tone={item.tone}>{item.label}</StatusPill>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end gap-2">
-                      <MiniActionButton onClick={() => openEditModal(item.raw)}>Edit</MiniActionButton>
-                      <MiniActionButton
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeleteTarget(item.raw);
-                        }}
-                        tone="danger"
-                      >
-                        Hapus
-                      </MiniActionButton>
-                    </div>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end gap-2">
+                          <MiniActionButton onClick={() => openEditModal(item.raw)}>Edit</MiniActionButton>
+                          <MiniActionButton
+                            onClick={() => {
+                              setDeleteTarget(item.raw);
+                              setDeleteError(null);
+                            }}
+                            tone="danger"
+                          >
+                            Hapus
+                          </MiniActionButton>
+                        </div>
                   </td>
                 </tr>
               ))}
@@ -609,11 +624,7 @@ export default function Page() {
         description={`Data bahan ${deleteTarget?.name ?? ""} akan dihapus permanen dari sistem dan tidak bisa dipulihkan lagi.`}
         error={deleteError}
         headline={`Hapus bahan ${deleteTarget?.name ?? ""}?`}
-        onClose={() => {
-          if (deleting) return;
-          setDeleteTarget(null);
-          setDeleteError(null);
-        }}
+        onClose={closeDeleteModal}
         onConfirm={handleDelete}
         open={deleteTarget !== null}
         submitting={deleting}
@@ -625,6 +636,8 @@ export default function Page() {
         onClose={() => setSuccessState(null)}
         open={successState !== null}
         title={successState?.title ?? "Berhasil"}
+        tone={successState?.tone ?? "success"}
+        icon={successState?.icon}
       />
     </div>
   );

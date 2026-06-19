@@ -143,4 +143,15 @@ class DishCompositionModel extends Model
             ->where('dish_id', $dishId)
             ->countAllResults();
     }
+
+    public function getDishesByItemId(int $itemId): array
+    {
+        return $this->builder()
+            ->select('dishes.id, dishes.name')
+            ->join('dishes', 'dishes.id = dish_compositions.dish_id')
+            ->where('dish_compositions.item_id', $itemId)
+            ->groupBy('dishes.id')
+            ->get()
+            ->getResultArray();
+    }
 }

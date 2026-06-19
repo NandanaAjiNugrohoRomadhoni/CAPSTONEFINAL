@@ -362,6 +362,16 @@ class ItemManagementService
             ];
         }
 
+        $blockingDishes = $this->isItemUsedInDishes($id);
+        if ($blockingDishes !== []) {
+            return [
+                'success' => false,
+                'code'    => 409,
+                'message' => 'Cannot delete item because it is used in one or more dishes.',
+                'data'    => $blockingDishes
+            ];
+        }
+
         if (! $this->itemModel->delete($id)) {
             return [
                 'success' => false,
@@ -373,6 +383,12 @@ class ItemManagementService
             'success' => true,
             'message' => 'Item deleted successfully.',
         ];
+    }
+
+    public function isItemUsedInDishes(int $id): array
+    {
+        $dishCompositionModel = new \App\Models\DishCompositionModel();
+        return $dishCompositionModel->getDishesByItemId($id);
     }
 
     public function restoreItem(int $id): array

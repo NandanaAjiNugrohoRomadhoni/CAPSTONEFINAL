@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Trash2, Plus } from "lucide-react";
+import { AlertTriangle, X, Trash2, Plus } from "lucide-react";
 import sdk from "@/lib";
 import { useAuthStore } from "@/store/authStore";
 import {
@@ -59,6 +59,20 @@ type RevisionRow = {
   originalQty: number;
 };
 
+type ExportDetailRow = {
+  rawDate: string;
+  dateLabel: string;
+  transactionId: string;
+  itemName: string;
+  categoryName: string;
+  unit: string;
+  incomingQty: string;
+  outgoingQty: string;
+  patientLabel: string;
+  keterangan: string;
+  petugas: string;
+};
+
 type DerivedRow = {
   transaction: TransactionRow;
   transactionLabel: string;
@@ -109,6 +123,82 @@ function normalizeTransactionDirection(label: string) {
   return "MIXED";
 }
 
+function getAllowedItemCategoryMode(rows: RevisionRow[]) {
+  for (const row of rows) {
+    const category = row.category_name.trim().toUpperCase();
+    if (!category) continue;
+    if (category.includes("BASAH")) return "BASAH";
+    if (category.includes("KERING") || category.includes("PENGEMAS")) return "DRY";
+  }
+
+  return "ALL";
+}
+
+function matchesAllowedItemCategory(categoryName: string | null | undefined, allowedMode: string) {
+  const normalizedCategory = String(categoryName ?? "").trim().toUpperCase();
+  if (!normalizedCategory) return false;
+
+  if (allowedMode === "BASAH") {
+    return normalizedCategory.includes("BASAH");
+  }
+
+  if (allowedMode === "DRY") {
+    return normalizedCategory.includes("KERING") || normalizedCategory.includes("PENGEMAS");
+  }
+
+  return normalizedCategory.includes("BASAH") || normalizedCategory.includes("KERING") || normalizedCategory.includes("PENGEMAS");
+}
+
+function formatExportCategoryLabel(categoryName: string | null | undefined) {
+  const normalizedCategory = String(categoryName ?? "").trim().toUpperCase();
+  if (normalizedCategory.includes("KERING") || normalizedCategory.includes("PENGEMAS")) {
+    return "Kering dan Pengemas";
+  }
+  if (normalizedCategory.includes("BASAH")) {
+    return "Basah";
+  }
+  return String(categoryName ?? "-");
+}
+
+function getExportDateRangeLabel(rows: Array<{ rawDate: string }>) {
+  const timestamps = rows
+    .map((row) => new Date(row.rawDate).getTime())
+    .filter((value) => Number.isFinite(value));
+
+  if (timestamps.length === 0) {
+    return "-";
+  }
+
+  const startDate = new Date(Math.min(...timestamps));
+  const endDate = new Date(Math.max(...timestamps));
+  const startLabel = formatDate(startDate.toISOString());
+  const endLabel = formatDate(endDate.toISOString());
+
+  return startLabel === endLabel ? startLabel : `${startLabel} s/d ${endLabel}`;
+}
+
+function groupExportDetailRows(rows: ExportDetailRow[]) {
+  const grouped = new Map<string, ExportDetailRow[]>();
+
+  for (const row of rows) {
+    const key = row.transactionId;
+    const current = grouped.get(key);
+    if (current) {
+      current.push(row);
+      continue;
+    }
+    grouped.set(key, [row]);
+  }
+
+  return Array.from(grouped.values());
+}
+
+function parseExportNumber(value: string) {
+  const normalized = String(value ?? "").replace(/[^\d,.-]/g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 
 const PAGE_SIZE = 10;
 
@@ -141,7 +231,10 @@ export default function GudangTransactionHistoryPage() {
   const [detailState, setDetailState] = useState<DetailState | null>(null);
   const [revisionState, setRevisionState] = useState<DetailState | null>(null);
   const [revisionRows, setRevisionRows] = useState<RevisionRow[]>([]);
+  const [revisionReason, setRevisionReason] = useState("");
   const [savingRevision, setSavingRevision] = useState(false);
+  const [stockShortageMessage, setStockShortageMessage] = useState("");
+  const [reasonWarningMessage, setReasonWarningMessage] = useState("");
   const [totalRecords, setTotalRecords] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   // Items dimuat on-demand saat revision modal dibuka, untuk SearchableItemSelect
@@ -379,6 +472,7 @@ export default function GudangTransactionHistoryPage() {
       );
       setDetailMap((prev) => ({ ...prev, [transaction.id]: details }));
       setRevisionState({ transaction, details, resolvedItemMap });
+      setRevisionReason("");
 
       // Muat daftar semua item untuk SearchableItemSelect (hanya sekali)
       if (!modalItemsLoaded) {
@@ -422,6 +516,19 @@ export default function GudangTransactionHistoryPage() {
   async function submitRevision() {
     if (!revisionState) return;
 
+    const trimmedReason = revisionReason.trim();
+    if (!trimmedReason) {
+      setReasonWarningMessage("Alasan revisi harus diisi sebelum menyimpan.");
+      return;
+    }
+
+    const isOutgoingTransaction = normaliseTransactionLabel(typeMap.get(revisionState.transaction.type_id)) === "Keluar";
+    const stockShortageMessage = getRevisionStockShortageMessage(revisionRows, modalItems, isOutgoingTransaction);
+    if (stockShortageMessage) {
+      setStockShortageMessage(stockShortageMessage);
+      return;
+    }
+
     setSavingRevision(true);
     setError(null);
 
@@ -461,6 +568,9 @@ export default function GudangTransactionHistoryPage() {
       await sdk.stockTransactions.submitRevision(targetTransactionId, payload);
 
       setRevisionState(null);
+      setRevisionReason("");
+      setStockShortageMessage("");
+      setReasonWarningMessage("");
       setSuccessOpen(true);
       
       setTimeout(() => {
@@ -523,14 +633,15 @@ export default function GudangTransactionHistoryPage() {
 
       if (details.length === 0) {
         return [{
-          id: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
-          date: formatDate(row.transaction.transaction_date),
-          name: "-",
-          category: row.categoryLabel,
+          rawDate: String(row.transaction.transaction_date ?? ""),
+          dateLabel: formatDate(row.transaction.transaction_date),
+          transactionId: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
+          itemName: "-",
+          categoryName: row.categoryLabel,
           unit: "-",
-          inQty: "-",
-          outQty: "-",
-          patientCount,
+          incomingQty: "-",
+          outgoingQty: "-",
+          patientLabel: patientCount,
           keterangan,
           petugas: row.userLabel,
         }];
@@ -542,14 +653,15 @@ export default function GudangTransactionHistoryPage() {
         const qty = Number(detail.input_qty ?? detail.qty ?? 0);
         const rowDirection = normalizeTransactionDirection(row.transactionLabel);
         return {
-          id: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
-          date: formatDate(row.transaction.transaction_date),
-          name: resolveDetailItemName(detail, resolvedItem),
-          category: resolveDetailItemCategory(detail, resolvedItem),
+          rawDate: String(row.transaction.transaction_date ?? ""),
+          dateLabel: formatDate(row.transaction.transaction_date),
+          transactionId: `TR-${String(normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id)).padStart(4, "0")}`,
+          itemName: resolveDetailItemName(detail, resolvedItem),
+          categoryName: resolveDetailItemCategory(detail, resolvedItem),
           unit,
-          inQty: rowDirection === "IN" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
-          outQty: rowDirection === "OUT" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
-          patientCount: rowDirection === "OUT" ? patientCount : "-",
+          incomingQty: rowDirection === "IN" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
+          outgoingQty: rowDirection === "OUT" ? `${formatSpreadsheetNumber(qty, 2)} ${unit}` : "-",
+          patientLabel: rowDirection === "OUT" ? patientCount : "-",
           keterangan,
           petugas: row.userLabel,
         };
@@ -561,6 +673,7 @@ export default function GudangTransactionHistoryPage() {
       { label: "Total Detail Bahan", value: formatSpreadsheetNumber(detailRows.length, 0) },
       { label: "Jenis Ekspor", value: exportMode === "IN" ? "Barang Masuk" : exportMode === "OUT" ? "Barang Keluar" : "Gabungan" },
     ];
+    const groupedRows = groupExportDetailRows(detailRows as ExportDetailRow[]);
 
     const title =
       exportMode === "OUT"
@@ -578,55 +691,49 @@ export default function GudangTransactionHistoryPage() {
 
     const headerColumns =
       exportMode === "OUT"
-        ? ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Keluar", "Jumlah Pasien", "Keterangan", "Petugas"]
+        ? ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Keluar", "Jumlah Pasien", "Keterangan", "Petugas"]
         : exportMode === "IN"
-          ? ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Keterangan", "Petugas"]
-          : ["No", "Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Jumlah Keluar", "Keterangan", "Petugas"];
+          ? ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Keterangan", "Petugas"]
+          : ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Jumlah Keluar", "Keterangan", "Petugas"];
 
-    const bodyRows = detailRows.map((row, index) => {
-      const cells =
-        exportMode === "OUT"
-          ? [
-              index + 1,
-              row.date,
-              row.id,
-              row.name,
-              row.category,
-              row.unit,
-              row.outQty,
-              row.patientCount,
-              row.keterangan,
-              row.petugas,
-            ]
-          : exportMode === "IN"
-            ? [
-                index + 1,
-                row.date,
-                row.id,
-                row.name,
-                row.category,
-                row.unit,
-                row.inQty,
-                row.keterangan,
-                row.petugas,
-              ]
-            : [
-                index + 1,
-                row.date,
-                row.id,
-                row.name,
-                row.category,
-                row.unit,
-                row.inQty,
-                row.outQty,
-                row.keterangan,
-                row.petugas,
-              ];
+    const bodyRows = groupedRows
+      .map((group) =>
+        group
+          .map((row, rowIndex) => {
+            const dateCell = rowIndex === 0
+              ? `<td class="text-strong" rowspan="${group.length}">${escapeSpreadsheetHtml(row.dateLabel)}</td>`
+              : "";
+            const idCell = rowIndex === 0
+              ? `<td class="text-strong" rowspan="${group.length}">${escapeSpreadsheetHtml(row.transactionId)}</td>`
+              : "";
+            const categoryCell = rowIndex === 0
+              ? `<td rowspan="${group.length}">${escapeSpreadsheetHtml(row.categoryName)}</td>`
+              : "";
+            const petugasCell = rowIndex === 0
+              ? `<td rowspan="${group.length}">${escapeSpreadsheetHtml(row.petugas)}</td>`
+              : "";
+            const quantityCells =
+              exportMode === "OUT"
+                ? `<td class="number">${escapeSpreadsheetHtml(row.outgoingQty)}</td><td>${escapeSpreadsheetHtml(row.patientLabel)}</td>`
+                : exportMode === "IN"
+                  ? `<td class="number">${escapeSpreadsheetHtml(row.incomingQty)}</td>`
+                  : `<td class="number">${escapeSpreadsheetHtml(row.incomingQty)}</td><td class="number">${escapeSpreadsheetHtml(row.outgoingQty)}</td>`;
 
-      return `<tr>${cells
-        .map((cell, cellIndex) => `<td${cellIndex === 0 ? ' class="rank"' : ''}>${escapeSpreadsheetHtml(cell)}</td>`)
-        .join("")}</tr>`;
-    }).join("");
+            return `
+          <tr>
+            ${dateCell}
+            ${idCell}
+            <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
+            ${categoryCell}
+            <td>${escapeSpreadsheetHtml(row.unit)}</td>
+            ${quantityCells}
+            <td>${escapeSpreadsheetHtml(row.keterangan)}</td>
+            ${petugasCell}
+          </tr>`;
+          })
+          .join(""),
+      )
+      .join("");
 
     const html = buildSpreadsheetDocument({
       title,
@@ -791,12 +898,19 @@ export default function GudangTransactionHistoryPage() {
             transaction={revisionState.transaction}
             rows={revisionRows}
             items={modalItems}
+            reason={revisionReason}
             typeMap={typeMap}
             unitMap={unitMap}
             updateRevisionRow={updateRevisionRow}
+            updateReason={setRevisionReason}
             addRevisionRow={addRevisionRow}
             removeRevisionRow={removeRevisionRow}
-            onClose={() => setRevisionState(null)}
+            onClose={() => {
+              setRevisionState(null);
+              setRevisionReason("");
+              setStockShortageMessage("");
+              setReasonWarningMessage("");
+            }}
             onSubmit={() => void submitRevision()}
             saving={savingRevision}
           />
@@ -808,6 +922,26 @@ export default function GudangTransactionHistoryPage() {
         headline="Revisi Transaksi Berhasil Diajukan"
         message="Perubahan transaksi telah dikirim ke backend sebagai revisi."
         onClose={() => setSuccessOpen(false)}
+      />
+
+      <SuccessModal
+        open={Boolean(stockShortageMessage)}
+        title="Stok Kurang"
+        headline="Stok Bahan Kurang"
+        message={stockShortageMessage || ""}
+        tone="danger"
+        icon={<AlertTriangle size={36} strokeWidth={2.1} />}
+        onClose={() => setStockShortageMessage("")}
+      />
+
+      <SuccessModal
+        open={Boolean(reasonWarningMessage)}
+        title="Peringatan"
+        headline="Alasan Revisi Wajib Diisi"
+        message={reasonWarningMessage || ""}
+        tone="danger"
+        icon={<AlertTriangle size={36} strokeWidth={2.1} />}
+        onClose={() => setReasonWarningMessage("")}
       />
     </>
   );
@@ -906,9 +1040,11 @@ function TransactionRevisionModal({
   transaction,
   rows,
   items,
+  reason,
   typeMap,
   unitMap,
   updateRevisionRow,
+  updateReason,
   addRevisionRow,
   removeRevisionRow,
   onClose,
@@ -918,9 +1054,11 @@ function TransactionRevisionModal({
   transaction: TransactionRow;
   rows: RevisionRow[];
   items: ItemRow[];
+  reason: string;
   typeMap: Map<number, string>;
   unitMap: Map<number, string>;
   updateRevisionRow: (id: number, updates: Partial<RevisionRow>) => void;
+  updateReason: (value: string) => void;
   addRevisionRow: () => void;
   removeRevisionRow: (id: number) => void;
   onClose: () => void;
@@ -928,34 +1066,36 @@ function TransactionRevisionModal({
   saving: boolean;
 }) {
   const typeLabel = typeMap.get(transaction.type_id) ?? "Transaksi";
-  const allowedCategoryMode = useMemo(() => {
-    const sourceCategories = rows
-      .map((row) => row.category_name.toUpperCase())
-      .filter(Boolean);
-    const hasBasah = sourceCategories.some((category) => category.includes("BASAH"));
-    const hasDry = sourceCategories.some(
-      (category) => category.includes("KERING") || category.includes("PENGEMAS"),
-    );
-
-    if (hasBasah && !hasDry) return "BASAH";
-    if (hasDry && !hasBasah) return "DRY";
-    return "ALL";
-  }, [rows]);
+  const allowedCategoryMode = useMemo(() => getAllowedItemCategoryMode(rows), [rows]);
 
   const selectableItems = useMemo(() => {
-    if (allowedCategoryMode === "BASAH") {
-      return items.filter((item) => (item.category?.name ?? "").toUpperCase().includes("BASAH"));
-    }
-
-    if (allowedCategoryMode === "DRY") {
-      return items.filter((item) => {
-        const category = (item.category?.name ?? "").toUpperCase();
-        return category.includes("KERING") || category.includes("PENGEMAS");
-      });
-    }
-
-    return items;
+    if (allowedCategoryMode === "ALL") return items;
+    return items.filter((item) => matchesAllowedItemCategory(item.category?.name, allowedCategoryMode));
   }, [allowedCategoryMode, items]);
+  const selectedItemIds = useMemo(
+    () => new Set(rows.filter((row) => row.item_id > 0).map((row) => row.item_id)),
+    [rows],
+  );
+
+  function getRowItemOptions(currentRow: RevisionRow) {
+    return selectableItems
+      .filter((item) => item.id === currentRow.item_id || !selectedItemIds.has(item.id))
+      .map((item) => ({
+        id: item.id,
+        label: item.name,
+        unit:
+          item.item_unit_base?.name ??
+          (item.item_unit_base_id ? unitMap.get(item.item_unit_base_id) : undefined) ??
+          item.unit_base,
+      }));
+  }
+
+  function getRowHighlightClass(currentRow: RevisionRow) {
+    const isHighlighted = currentRow.isPersisted
+      ? Number(currentRow.qty) !== currentRow.originalQty
+      : currentRow.item_id > 0 || Number(currentRow.qty) > 0 || currentRow.item_name.trim().length > 0;
+    return isHighlighted ? "border-[#BFDBFE] bg-[#EFF6FF]" : "border-[#E2E8F0] bg-[#FCFDFE]";
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-4">
@@ -979,6 +1119,18 @@ function TransactionRevisionModal({
           </button>
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <div className="rounded-2xl border border-[#D7E0EE] bg-white p-4 shadow-sm">
+            <label className="mb-2 block text-sm font-semibold text-[#16213E]">
+              Alasan Revisi <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => updateReason(e.target.value)}
+              placeholder="Tuliskan alasan revisi transaksi..."
+              className="min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
+            />
+          </div>
+
           <div className="rounded-2xl border border-[#D7E0EE] bg-white shadow-sm">
             <div className="border-b border-[#E2E8F0] bg-[#F8FBFF] px-5 py-4">
               <h3 className="text-[22px] font-semibold text-[#16213E]">Komposisi Bahan</h3>
@@ -996,22 +1148,11 @@ function TransactionRevisionModal({
                 {rows.map((row) => (
                   <div
                     key={row.id}
-                    className={`grid grid-cols-12 items-center gap-4 rounded-2xl border p-3 ${
-                      row.isPersisted
-                        ? "border-[#BFDBFE] bg-[#EFF6FF]"
-                        : "border-[#E2E8F0] bg-[#FCFDFE]"
-                    }`}
+                    className={`grid grid-cols-12 items-center gap-4 rounded-2xl border p-3 ${getRowHighlightClass(row)}`}
                   >
                     <div className="col-span-5">
                       <SearchableItemSelect
-                        options={selectableItems.map((it) => ({
-                          id: it.id,
-                          label: it.name,
-                          unit:
-                            it.item_unit_base?.name ??
-                            (it.item_unit_base_id ? unitMap.get(it.item_unit_base_id) : undefined) ??
-                            it.unit_base,
-                        }))}
+                        options={getRowItemOptions(row)}
                         value={row.item_id || null}
                         displayValue={row.item_name}
                         placeholder="Cari bahan..."
@@ -1024,9 +1165,8 @@ function TransactionRevisionModal({
                             (existingRow) => existingRow.id !== row.id && existingRow.item_id === itemId,
                           );
                           if (duplicateExists) return;
-                          const item =
-                            selectableItems.find((it) => it.id === itemId) ??
-                            items.find((it) => it.id === itemId);
+                          const item = selectableItems.find((it) => it.id === itemId);
+                          if (!item) return;
                           updateRevisionRow(row.id, {
                             item_id: itemId || 0,
                             item_name: item?.name || "",
@@ -1053,7 +1193,7 @@ function TransactionRevisionModal({
                           onChange={(e) => {
                             updateRevisionRow(row.id, { qty: e.target.value });
                           }}
-                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-center text-base outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-center text-base outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE]"
                         />
                       </div>
                     </div>
@@ -1153,4 +1293,31 @@ function getStockMovementTypeLabel(value?: string | null): "Masuk" | "Keluar" | 
   if (upper === "IN" || upper === "MASUK") return "Masuk";
   if (upper === "OUT" || upper === "KELUAR") return "Keluar";
   return null;
+}
+
+function getRevisionStockShortageMessage(rows: RevisionRow[], items: ItemRow[], isOutgoing: boolean) {
+  if (!isOutgoing) return "";
+
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+  const shortages = rows
+    .map((row) => {
+      const item = itemMap.get(row.item_id);
+      if (!item) return null;
+
+      const currentStock = Number(item.qty ?? 0) || 0;
+      const conversionBase = Number(item.conversion_base ?? 1) || 1;
+      const revisedBaseQty = Number(row.qty ?? 0) * (row.input_unit === "convert" ? conversionBase : 1);
+      const originalBaseQty = Number(row.originalQty ?? 0) || 0;
+      const additionalQty = Math.max(0, revisedBaseQty - originalBaseQty);
+
+      if (additionalQty > currentStock) {
+        return item.name;
+      }
+      return null;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  if (shortages.length === 0) return "";
+  const uniqueNames = Array.from(new Set(shortages));
+  return `Stok bahan kurang untuk bahan ini: ${uniqueNames.join(", ")}`;
 }

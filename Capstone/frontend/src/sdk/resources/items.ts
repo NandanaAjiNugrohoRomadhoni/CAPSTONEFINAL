@@ -111,6 +111,7 @@ export class ItemsResource {
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @throws {NotFoundApiError} if the item does not exist or is already soft-deleted (404)
+   * @throws {ConflictApiError} if the item is used in one or more dishes (409)
    * @sideeffect Sets `deleted_at`; the row remains restorable.
    */
   public delete(id: number): Promise<ApiMessageResponse> {

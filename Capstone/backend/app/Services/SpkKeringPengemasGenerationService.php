@@ -229,14 +229,15 @@ class SpkKeringPengemasGenerationService
             $itemId = (int) $row['item_id'];
             $usage = $usageByItem[$itemId] ?? 0.0;
             $currentStock = (float) $row['current_stock_qty'];
-            $grossNeed = round($usage * 1.10, 2);
-            $systemRecommendation = max($grossNeed - $currentStock, 0.0);
+            
+            $bufferedUsage = $usage * 1.10;
+            $systemRecommendation = (float) ceil(max($bufferedUsage - $currentStock, 0.0));
 
             $recommendations[] = [
                 'item_id'                => $itemId,
                 'target_date'            => null,
                 'current_stock_qty'      => $currentStock,
-                'required_qty'           => $grossNeed,
+                'required_qty'           => round($bufferedUsage, 2),
                 'system_recommended_qty' => $systemRecommendation,
                 'recommended_qty'        => $systemRecommendation,
             ];
