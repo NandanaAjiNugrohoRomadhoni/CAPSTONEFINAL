@@ -1,6 +1,7 @@
 export * from "./client";
 export * from "./errors";
 export * from "./resources/auth";
+export * from "./resources/auditLogs";
 export * from "./resources/approvalStatuses";
 export * from "./resources/dailyPatients";
 export * from "./resources/dishes";
@@ -23,6 +24,7 @@ export * from "./resources/stockOpnames";
 export * from "./types";
 
 import { ApiClient, type ApiClientOptions } from "./client";
+import { AuditLogsResource } from "./resources/auditLogs";
 import { ApprovalStatusesResource } from "./resources/approvalStatuses";
 import { AuthResource } from "./resources/auth";
 import { DailyPatientsResource } from "./resources/dailyPatients";
@@ -50,6 +52,7 @@ import { StockOpnamesResource } from "./resources/stockOpnames";
 export class CapstoneSdk {
   public readonly client: ApiClient;
   public readonly approvalStatuses: ApprovalStatusesResource;
+  public readonly auditLogs: AuditLogsResource;
   public readonly auth: AuthResource;
   public readonly dailyPatients: DailyPatientsResource;
   public readonly dishes: DishesResource;
@@ -73,6 +76,7 @@ export class CapstoneSdk {
   public constructor(options: ApiClientOptions) {
     this.client = new ApiClient(options);
     this.approvalStatuses = new ApprovalStatusesResource(this.client);
+    this.auditLogs = new AuditLogsResource(this.client);
     this.auth = new AuthResource(this.client);
     this.dailyPatients = new DailyPatientsResource(this.client);
     this.dishes = new DishesResource(this.client);

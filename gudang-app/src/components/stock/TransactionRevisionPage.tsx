@@ -32,6 +32,7 @@ type TransactionRevisionRow = TransactionRow & {
   notes?: string | null;
   description?: string | null;
   revision_reason?: string | null;
+  rejection_reason?: string | null;
 };
 
 type TransactionRevisionPageProps = {
@@ -202,6 +203,11 @@ export default function TransactionRevisionPage({
     return reason.trim() || "Alasan revisi belum tersedia.";
   }
 
+  function getRevisionRejectionReasonLabel(revision: TransactionRevisionRow) {
+    const reason = revision.rejection_reason ?? "";
+    return reason.trim() || "Alasan penolakan belum tersedia.";
+  }
+
   function getRevisionStatusLabel(revision: TransactionRevisionRow) {
     return localizeStatusLabel(getStatusLabel(revision.approval_status_id));
   }
@@ -368,6 +374,9 @@ export default function TransactionRevisionPage({
     const start = (currentPage - 1) * PAGE_SIZE;
     return visibleRevisions.slice(start, start + PAGE_SIZE);
   }, [currentPage, visibleRevisions]);
+
+  const detailStatusLabel = detailTransaction ? getRevisionStatusLabel(detailTransaction) : "";
+  const isRejectedRevision = detailStatusLabel === "Ditolak";
 
   useEffect(() => {
     let cancelled = false;
@@ -791,6 +800,17 @@ export default function TransactionRevisionPage({
                   )}
                 </div>
               </div>
+
+              {isRejectedRevision ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                  <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
+                    Alasan Penolakan Admin
+                  </div>
+                  <div className="leading-6">
+                    {getRevisionRejectionReasonLabel(detailTransaction)}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Info bar */}
               <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3 text-sm font-medium text-[#334155]">

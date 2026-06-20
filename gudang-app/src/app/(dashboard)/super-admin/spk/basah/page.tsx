@@ -115,25 +115,33 @@ export default function Page() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function loadLatestPatientSnapshot() {
+    const patientsResponse = await listAllPaginatedRows<DailyPatientRow>(sdk.dailyPatients.list.bind(sdk.dailyPatients), {
+      sortBy: "service_date",
+      sortDir: "DESC",
+    });
+    const latest = [...patientsResponse].sort((a, b) => b.service_date.localeCompare(a.service_date))[0];
+    if (latest) {
+      const snapshot = { id: latest.id, date: latest.service_date, total: latest.total_patients };
+      setLatestPatient(snapshot);
+      return snapshot;
+    }
+    setLatestPatient(null);
+    return null;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadInitial() {
       setLoading(true);
       try {
-        const [patientsResponse, categoriesResponse, stockResponse] = await Promise.all([
-          listAllPaginatedRows<DailyPatientRow>(sdk.dailyPatients.list.bind(sdk.dailyPatients), {
-            sortBy: "service_date",
-            sortDir: "DESC",
-          }),
+        const [latestSnapshot, categoriesResponse, stockResponse] = await Promise.all([
+          loadLatestPatientSnapshot(),
           sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
           sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } })),
         ]);
         if (cancelled) return;
-        const latest = [...patientsResponse].sort((a, b) => b.service_date.localeCompare(a.service_date))[0];
-        if (latest) {
-          setLatestPatient({ id: latest.id, date: latest.service_date, total: latest.total_patients });
-        }
         const basahCategory = (categoriesResponse.data ?? []).find((category) =>
           category.name.toUpperCase().includes("BASAH")
         );
@@ -143,12 +151,11 @@ export default function Page() {
           const history = await sdk.spk.listBasah();
           if (cancelled) return;
           const matchingSpk =
-            latest && basahCategory?.id
-              ? findExistingBasahSpk(history.data ?? [], latest.service_date, basahCategory.id)
+            latestSnapshot && basahCategory?.id
+              ? findExistingBasahSpk(history.data ?? [], latestSnapshot.date, basahCategory.id)
               : null;
-          const latestSpk = matchingSpk ?? getLatestSpk(history.data ?? []);
-          if (latestSpk) {
-            const detail = await sdk.spk.getBasah(latestSpk.id);
+          if (matchingSpk) {
+            const detail = await sdk.spk.getBasah(matchingSpk.id);
             if (cancelled) return;
             const hydratedRows = overlayBasahRowsWithCurrentStock(
               detail.data.items ?? [],
@@ -161,6 +168,11 @@ export default function Page() {
               targetDates: detail.data.print_ready.target_dates ?? [],
               estimatedPatients: detail.data.estimated_patients,
             });
+          } else {
+            setDetailData(null);
+            setRows([]);
+            setHasLoadedRecommendation(false);
+            setSpkMeta(null);
           }
         } catch {
           // Riwayat SPK boleh kosong; halaman tetap bisa generate rekomendasi baru.
@@ -192,7 +204,8 @@ export default function Page() {
     setGenerating(true);
     setError(null);
     try {
-      if (!latestPatient) {
+      const freshLatestPatient = await loadLatestPatientSnapshot();
+      if (!freshLatestPatient) {
         throw new Error("Data pasien harian belum tersedia untuk generate SPK basah.");
       }
       if (!basahCategoryId) {
@@ -202,8 +215,8 @@ export default function Page() {
       const stockResponse = await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } }));
       try {
         const generated = await sdk.spk.generateBasah({
-          daily_patient_id: latestPatient.id,
-          service_date: latestPatient.date ?? toIsoDate(new Date()),
+          daily_patient_id: freshLatestPatient.id,
+          service_date: freshLatestPatient.date ?? toIsoDate(new Date()),
           category_id: basahCategoryId,
         });
         detail = await sdk.spk.getBasah(generated.data.id);

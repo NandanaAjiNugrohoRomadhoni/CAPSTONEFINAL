@@ -18,7 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { getRoleLabel, useAuthStore } from "@/store/authStore";
-import { hasUnreadActivityLog } from "@/data/activity-log";
+import { getLatestActivityTimestamp, hasUnreadActivityLog } from "@/data/activity-log";
 import {
   clearStockAdjustmentNotifications,
   listStockAdjustmentNotifications,
@@ -165,15 +165,20 @@ export default function Navbar({
   }, [loadNotifications]);
 
   useEffect(() => {
-    const syncActivityBadge = () => {
-      setHasUnreadActivity(hasUnreadActivityLog());
+    const syncActivityBadge = async () => {
+      try {
+        const latestTimestamp = await getLatestActivityTimestamp();
+        setHasUnreadActivity(hasUnreadActivityLog(latestTimestamp));
+      } catch {
+        setHasUnreadActivity(false);
+      }
     };
 
-    syncActivityBadge();
+    void syncActivityBadge();
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "capstone-activity-log-last-viewed-at") {
-        syncActivityBadge();
+        void syncActivityBadge();
       }
     };
 

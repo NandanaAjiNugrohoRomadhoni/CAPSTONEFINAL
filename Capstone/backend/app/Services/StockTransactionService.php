@@ -41,6 +41,7 @@ class StockTransactionService
     private const ALLOWED_REVISION_TOP_LEVEL_FIELDS = [
         'transaction_date',
         'spk_id',
+        'reason',
         'details',
     ];
 
@@ -1172,6 +1173,7 @@ class StockTransactionService
         $revisionData = [
             'type_id'               => $parent['type_id'],
             'transaction_date'      => $data['transaction_date'],
+            'reason'                => trim((string) ($data['reason'] ?? '')),
             'is_revision'           => true,
             'parent_transaction_id' => $parentTransactionId,
             'approval_status_id'    => $pendingStatusId,

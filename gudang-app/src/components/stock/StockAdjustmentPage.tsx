@@ -1172,15 +1172,18 @@ export default function StockAdjustmentPage({
             title={title}
             subtitle={subtitle}
             action={
-              <PrimaryAction
-                disabled={loading || metadataLoading}
-                onClick={async () => {
-                  setModalOpen(true);
-                  await ensureCurrentStock();
-                }}
-              >
-                {metadataLoading ? "Menyiapkan..." : "Input Penyesuaian Stok"}
-              </PrimaryAction>
+              <div className="flex flex-wrap items-center gap-3">
+                <PrimaryAction
+                  disabled={loading || metadataLoading}
+                  onClick={async () => {
+                    setModalOpen(true);
+                    await ensureCurrentStock();
+                  }}
+                >
+                  {metadataLoading ? "Menyiapkan..." : "Input Penyesuaian Stok"}
+                </PrimaryAction>
+                <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+              </div>
             }
           />
 
@@ -1225,26 +1228,21 @@ export default function StockAdjustmentPage({
                   ...statusOptions.map((status) => ({ value: status, label: status })),
                 ]}
               />
-              <div className="flex justify-start xl:justify-end">
-                {useDraftSubmissionChecklist ? (
-                  <div className="flex flex-wrap gap-3 xl:ml-auto">
-                    <PrimaryAction
-                      onClick={() => {
-                        setSelectedDraftIds(userOwnedDraftHeaders.map((opname) => opname.header.id));
-                        setDraftChecklistOpen(true);
-                        setError(null);
-                      }}
-                      disabled={userOwnedDraftHeaders.length === 0}
-                      className="w-full sm:w-auto"
-                    >
-                      Ajukan Draft
-                    </PrimaryAction>
-                    <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
-                  </div>
-                ) : (
-                  <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
-                )}
-              </div>
+              {useDraftSubmissionChecklist ? (
+                <div className="flex justify-start xl:justify-end">
+                  <PrimaryAction
+                    onClick={() => {
+                      setSelectedDraftIds(userOwnedDraftHeaders.map((opname) => opname.header.id));
+                      setDraftChecklistOpen(true);
+                      setError(null);
+                    }}
+                    disabled={userOwnedDraftHeaders.length === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    Ajukan Draft
+                  </PrimaryAction>
+                </div>
+              ) : null}
             </div>
           </div>
 

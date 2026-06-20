@@ -13,8 +13,8 @@ export function isSameIsoDate(left?: string | null, right?: string | null) {
 }
 
 export function findExistingBasahSpk(rows: SpkHistoryEntry[], serviceDate: string, categoryId: number) {
-  const startDate = serviceDate.slice(0, 10);
-  const endDate = addDaysIsoDate(startDate, 1);
+  const startDate = addDaysIsoDate(serviceDate.slice(0, 10), 1);
+  const endDate = addDaysIsoDate(serviceDate.slice(0, 10), 2);
   const scopeSuffix = `|${startDate}|${endDate}|${categoryId}`;
 
   return (

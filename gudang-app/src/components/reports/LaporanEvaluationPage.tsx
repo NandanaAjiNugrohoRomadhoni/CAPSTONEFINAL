@@ -40,7 +40,7 @@ const ALL_STOCK_REPORT_PERIOD = {
   period_end: "2099-12-31",
 } as const;
 
-type PeriodMode = "MONTHLY" | "YEARLY";
+type ChartRangeMode = "FOUR_MONTHS" | "YEAR";
 
 type StockReportRow = {
   item_id?: number;
@@ -111,13 +111,16 @@ type SelectOption = {
   label: string;
 };
 
-const CURRENT_YEAR = new Date().getFullYear();
 const CURRENT_MONTH = new Date().getMonth() + 1;
+const CHART_RANGE_OPTIONS: SelectOption[] = [
+  { value: "FOUR_MONTHS", label: "4 Bulan Terakhir" },
+  { value: "YEAR", label: "1 Tahun Terakhir" },
+];
 
 export default function LaporanEvaluationPage() {
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("MONTHLY");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
+  const [chartRangeMode, setChartRangeMode] = useState<ChartRangeMode>("FOUR_MONTHS");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -129,6 +132,11 @@ export default function LaporanEvaluationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const tablePeriod = useMemo(() => getMonthPeriod(selectedYear, selectedMonth), [selectedYear, selectedMonth]);
+  const chartPeriod = useMemo(
+    () => (chartRangeMode === "FOUR_MONTHS" ? getLastFourMonthsPeriod(selectedYear, selectedMonth) : getYearPeriod(selectedYear)),
+    [chartRangeMode, selectedMonth, selectedYear],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -138,15 +146,6 @@ export default function LaporanEvaluationPage() {
       setError(null);
 
       try {
-        const tablePeriod =
-          periodMode === "MONTHLY"
-            ? getMonthPeriod(CURRENT_YEAR, selectedMonth)
-            : getYearPeriod(selectedYear);
-        const chartPeriod =
-          periodMode === "MONTHLY"
-            ? getLastFourMonthsPeriod(CURRENT_YEAR, selectedMonth)
-            : getYearPeriod(selectedYear);
-
         const [
           stocksResult,
           tableTransactionsResult,
@@ -158,10 +157,10 @@ export default function LaporanEvaluationPage() {
             sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
             sdk.reports.getTransactions(tablePeriod),
             sdk.reports.getSpkHistory(tablePeriod),
-            periodMode === "MONTHLY"
+            chartRangeMode === "FOUR_MONTHS"
               ? sdk.reports.getTransactions(chartPeriod)
               : Promise.resolve(null),
-            periodMode === "MONTHLY"
+            chartRangeMode === "FOUR_MONTHS"
               ? sdk.reports.getSpkHistory(chartPeriod)
               : Promise.resolve(null),
           ]);
@@ -181,13 +180,13 @@ export default function LaporanEvaluationPage() {
             ? ((tableSpkResult.value.data.rows as SpkHistoryReportRow[]) ?? [])
             : [];
         const nextChartTransactions =
-          periodMode === "MONTHLY"
+          chartRangeMode === "FOUR_MONTHS"
             ? chartTransactionsResult.status === "fulfilled" && chartTransactionsResult.value
               ? ((chartTransactionsResult.value.data.rows as TransactionReportRow[]) ?? [])
               : []
             : nextTableTransactions;
         const nextChartSpkHistory =
-          periodMode === "MONTHLY"
+          chartRangeMode === "FOUR_MONTHS"
             ? chartSpkResult.status === "fulfilled" && chartSpkResult.value
               ? ((chartSpkResult.value.data.rows as SpkHistoryReportRow[]) ?? [])
               : []
@@ -226,7 +225,7 @@ export default function LaporanEvaluationPage() {
     return () => {
       cancelled = true;
     };
-  }, [periodMode, selectedMonth, selectedYear]);
+  }, [chartPeriod, chartRangeMode, selectedMonth, selectedYear, tablePeriod]);
 
   const categoryOptions = useMemo(() => {
     return [
@@ -380,7 +379,7 @@ export default function LaporanEvaluationPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, categoryFilter, periodMode, selectedMonth, selectedYear]);
+  }, [searchTerm, categoryFilter, chartRangeMode, selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -416,7 +415,6 @@ export default function LaporanEvaluationPage() {
   }, [itemOptions, selectedItemId]);
 
   const chartRows = useMemo(() => {
-    const chartPeriod = periodMode === "MONTHLY" ? getLastFourMonthsPeriod(CURRENT_YEAR, selectedMonth) : getYearPeriod(selectedYear);
     const monthKeys = buildMonthKeys(chartPeriod.period_start, chartPeriod.period_end);
     const monthLookup = new Map(
       monthKeys.map((month) => [
@@ -481,24 +479,21 @@ export default function LaporanEvaluationPage() {
         unit: selectedItemUnit,
       };
     });
-  }, [chartTransactions, chartSpkHistory, periodMode, selectedYear, selectedItemId, selectedItemUnit, stockQtyByItemId]);
+  }, [chartTransactions, chartSpkHistory, chartPeriod, selectedItemId, selectedItemUnit, stockQtyByItemId]);
 
   const selectedItemLabel =
     itemOptions.find((option) => option.value === selectedItemId)?.label ?? "Pilih item";
 
-  const periodLabel =
-    periodMode === "MONTHLY"
-      ? `Bulan ${formatMonthLabel(selectedMonth)} ${CURRENT_YEAR}`
-      : `Tahun ${selectedYear}`;
+  const periodLabel = formatReportPeriodLabel(chartPeriod.period_start, chartPeriod.period_end);
 
   const totalLabel = `${filteredRows.length === 0 ? 0 : pageStartIndex + 1}-${Math.min(filteredRows.length, pageStartIndex + pageSize)} dari ${filteredRows.length} item`;
   const chartTitle =
-    periodMode === "MONTHLY"
+    chartRangeMode === "FOUR_MONTHS"
       ? "Grafik Evaluasi 4 Bulan Terakhir"
-      : `Laporan Evaluasi 12 Bulan Tahun ${selectedYear}`;
+      : `Grafik Evaluasi 12 Bulan Tahun ${selectedYear}`;
   const chartSubtitle =
-    periodMode === "MONTHLY"
-      ? "Menampilkan tren SPK, stok awal, stok akhir, barang masuk, dan barang keluar untuk item terpilih."
+    chartRangeMode === "FOUR_MONTHS"
+      ? "Menampilkan tren stok awal, SPK, barang masuk, barang keluar, dan stok akhir untuk item terpilih."
       : "Menampilkan tren 12 bulan untuk item yang dipilih.";
 
   const exportDisabled = filteredRows.length === 0;
@@ -507,7 +502,7 @@ export default function LaporanEvaluationPage() {
     if (exportDisabled) return;
 
     const filename = buildExportFilename(
-      `laporan-evaluasi-spk-${periodMode === "MONTHLY" ? "bulanan" : "tahunan"}`,
+      `laporan-evaluasi-spk-${chartRangeMode === "FOUR_MONTHS" ? "4-bulan" : "12-bulan"}`,
     );
     const printedAt = formatDate(new Date().toISOString());
     const reportRows = filteredRows.map((row, index) => {
@@ -557,7 +552,7 @@ export default function LaporanEvaluationPage() {
       });
 
     const summaryRows = [
-      { label: "Mode Evaluasi", value: periodMode === "MONTHLY" ? "Bulanan" : "Tahunan" },
+      { label: "Mode Grafik", value: chartRangeMode === "FOUR_MONTHS" ? "4 Bulan Terakhir" : "12 Bulan Terakhir" },
       { label: "Periode", value: periodLabel },
       { label: "Tanggal Cetak", value: printedAt },
       { label: "Total Bahan Dievaluasi", value: formatSpreadsheetNumber(reportRows.length, 0) },
@@ -570,7 +565,9 @@ export default function LaporanEvaluationPage() {
     ];
 
     const filterRows = [
-      { label: "Periode Tanggal", value: periodLabel },
+      { label: "Bulan", value: formatMonthLabel(selectedMonth, selectedYear) },
+      { label: "Tahun", value: String(selectedYear) },
+      { label: "Periode Grafik", value: periodLabel },
       { label: "Kategori Bahan", value: categoryFilter === "all" ? "Semua Jenis" : categoryFilter },
       { label: "Nama Bahan", value: searchTerm.trim() || "Semua Bahan" },
       { label: "Item Grafik", value: selectedItemLabel },
@@ -752,43 +749,6 @@ export default function LaporanEvaluationPage() {
                 placeholder="Semua Jenis"
               />
             </div>
-            <div className="min-w-[170px]">
-              <ThemedSelect
-                value={periodMode}
-                onChange={(value) => {
-                  const nextMode = value === "YEARLY" ? "YEARLY" : "MONTHLY";
-                  setPeriodMode(nextMode);
-                  if (nextMode === "MONTHLY") {
-                    setSelectedMonth(CURRENT_MONTH);
-                  }
-                }}
-                options={[
-                  { value: "MONTHLY", label: "Evaluasi Bulanan" },
-                  { value: "YEARLY", label: "Evaluasi Tahunan" },
-                ]}
-                placeholder="Evaluasi Bulanan"
-              />
-            </div>
-            {periodMode === "MONTHLY" ? (
-              <div className="min-w-[170px]">
-                <ThemedSelect
-                  value={String(selectedMonth)}
-                  onChange={(value) => setSelectedMonth(Number(value) || CURRENT_MONTH)}
-                  options={buildMonthOptions(CURRENT_YEAR)}
-                  placeholder="Pilih Bulan"
-                />
-              </div>
-            ) : null}
-            {periodMode === "YEARLY" ? (
-              <div className="min-w-[140px]">
-                <ThemedSelect
-                  value={String(selectedYear)}
-                  onChange={(value) => setSelectedYear(Number(value) || new Date().getFullYear())}
-                  options={buildYearOptions()}
-                  placeholder="Pilih Tahun"
-                />
-              </div>
-            ) : null}
           </div>
 
           <div className="ml-auto">
@@ -859,14 +819,24 @@ export default function LaporanEvaluationPage() {
             <p className="mt-1 text-sm text-[#94A3B8]">{chartSubtitle}</p>
           </div>
 
-          <div className="min-w-[220px]">
-            <ThemedSelect
-              value={selectedItemId}
-              onChange={setSelectedItemId}
-              options={itemOptions}
-              placeholder="Pilih item"
-              disabled={itemOptions.length === 0}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-[190px]">
+              <ThemedSelect
+                value={chartRangeMode}
+                onChange={(value) => setChartRangeMode(value === "YEAR" ? "YEAR" : "FOUR_MONTHS")}
+                options={CHART_RANGE_OPTIONS}
+                placeholder="4 Bulan Terakhir"
+              />
+            </div>
+            <div className="min-w-[220px]">
+              <ThemedSelect
+                value={selectedItemId}
+                onChange={setSelectedItemId}
+                options={itemOptions}
+                placeholder="Pilih item"
+                disabled={itemOptions.length === 0}
+              />
+            </div>
           </div>
         </div>
 
@@ -875,12 +845,12 @@ export default function LaporanEvaluationPage() {
           <MetricTile label="Periode Data" value={periodLabel} />
           <MetricTile
             label="Sumber Data"
-            value={periodMode === "MONTHLY" ? "Bulanan + riwayat SPK" : "Tahunan + riwayat SPK"}
+            value={chartRangeMode === "FOUR_MONTHS" ? "4 Bulan Terakhir + riwayat SPK" : "12 Bulan Terakhir + riwayat SPK"}
           />
         </div>
 
         <div className="rounded-[14px] bg-white p-2">
-          {chartRows.some((row) => row.spk !== 0 || row.incoming !== 0 || row.outgoing !== 0) ? (
+          {chartRows.some((row) => row.openingStock !== 0 || row.spk !== 0 || row.incoming !== 0 || row.outgoing !== 0 || row.closingStock !== 0) ? (
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartRows} margin={{ top: 20, right: 24, bottom: 12, left: 8 }}>
@@ -905,10 +875,23 @@ export default function LaporanEvaluationPage() {
                   />
                   <Line
                     type="monotone"
+                    dataKey="openingStock"
+                    name="Stok Awal"
+                    stroke="#10B981"
+                    strokeWidth={2.5}
+                    strokeDasharray="8 6"
+                    dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
+                    activeDot={{ r: 6 }}
+                  >
+                    <LabelList dataKey="openingStock" position="top" fill="#10B981" fontSize={12} />
+                  </Line>
+                  <Line
+                    type="monotone"
                     dataKey="spk"
                     name="SPK"
                     stroke="#EAB308"
                     strokeWidth={3}
+                    strokeDasharray="3 3"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
                   >
@@ -920,6 +903,7 @@ export default function LaporanEvaluationPage() {
                     name="Bahan Masuk"
                     stroke="#2563EB"
                     strokeWidth={3}
+                    strokeDasharray="12 4"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
                   >
@@ -931,10 +915,22 @@ export default function LaporanEvaluationPage() {
                     name="Bahan Keluar"
                     stroke="#EF4444"
                     strokeWidth={3}
+                    strokeDasharray="2 4"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
                   >
                     <LabelList dataKey="outgoing" position="top" fill="#EF4444" fontSize={12} />
+                  </Line>
+                  <Line
+                    type="monotone"
+                    dataKey="closingStock"
+                    name="Stok Akhir"
+                    stroke="#7C3AED"
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
+                    activeDot={{ r: 6 }}
+                  >
+                    <LabelList dataKey="closingStock" position="top" fill="#7C3AED" fontSize={12} />
                   </Line>
                 </LineChart>
               </ResponsiveContainer>
@@ -1108,12 +1104,34 @@ function buildYearOptions(): SelectOption[] {
   }));
 }
 
-function formatMonthLabel(month: number) {
-  const date = new Date(CURRENT_YEAR, month - 1, 1);
+function formatMonthLabel(month: number, year = new Date().getFullYear()) {
+  const date = new Date(year, month - 1, 1);
   return new Intl.DateTimeFormat("id-ID", {
     month: "long",
     timeZone: "Asia/Jakarta",
   }).format(date);
+}
+
+function formatReportPeriodLabel(start: string, end: string) {
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return "-";
+  }
+
+  const startLabel = new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(startDate);
+  const endLabel = new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(endDate);
+
+  return `${startLabel} - ${endLabel}`;
 }
 
 function normalizeChartLegend(value: string) {

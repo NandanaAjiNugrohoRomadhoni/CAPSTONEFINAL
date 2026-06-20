@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   AdminPageHeading,
   Pagination,
@@ -10,7 +10,14 @@ import {
 } from "@/components/admin/ui";
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { isIsoDateInRange } from "@/lib/date-range";
-import { ACTIVITY_ROWS, type ActivityType, type ActivityModule, markActivityLogSeen } from "@/data/activity-log";
+import {
+  formatActivityDate,
+  loadActivityRows,
+  markActivityLogSeen,
+  type ActivityType,
+  type ActivityModule,
+  type ActivityRow,
+} from "@/data/activity-log";
 
 const ACTIVITY_TYPE_OPTIONS = [
   { value: "Semua Jenis", label: "Semua Jenis" },
@@ -31,16 +38,38 @@ const MODULE_OPTIONS = [
 ];
 
 export default function ActivityLogPage() {
+  const [activityRows, setActivityRows] = useState<ActivityRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [selectedActivityType, setSelectedActivityType] = useState("Semua Jenis");
   const [selectedModule, setSelectedModule] = useState("Semua Modul");
   const [currentPage, setCurrentPage] = useState(1);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRows() {
+      setLoading(true);
+      const rows = await loadActivityRows();
+      if (cancelled) return;
+      setActivityRows(rows);
+      setLoading(false);
+      const latestTimestamp = rows.length > 0 ? new Date(`${rows[0].date}T${rows[0].time.replace(".", ":")}:00+07:00`).getTime() : 0;
+      markActivityLogSeen(latestTimestamp);
+    }
+
+    void loadRows();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
-    return ACTIVITY_ROWS.filter((row) => {
+    return activityRows.filter((row) => {
       const matchesSearch =
         query.length === 0 ||
         row.actor.toLowerCase().includes(query) ||
@@ -56,7 +85,7 @@ export default function ActivityLogPage() {
 
       return matchesSearch && matchesDate && matchesType && matchesModule;
     });
-  }, [dateRange, searchTerm, selectedActivityType, selectedModule]);
+  }, [activityRows, dateRange, searchTerm, selectedActivityType, selectedModule]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -74,10 +103,6 @@ export default function ActivityLogPage() {
   }, [currentPage, totalPages]);
 
   const totalLabel = `${filteredRows.length === 0 ? 0 : pageStartIndex + 1}-${Math.min(filteredRows.length, pageStartIndex + pageSize)} dari ${filteredRows.length} item`;
-
-  useEffect(() => {
-    markActivityLogSeen();
-  }, []);
 
   return (
     <div className="space-y-5">
@@ -145,7 +170,7 @@ export default function ActivityLogPage() {
               </tr>
             </thead>
             <tbody className="bg-white text-sm text-gray-700">
-              {paginatedRows.map((row) => (
+              {!loading && paginatedRows.map((row) => (
                 <tr key={row.id} className="border-t border-gray-200 transition hover:bg-gray-50">
                   <td className="px-6 py-4 font-medium text-gray-900">{formatActivityDate(row.date)}</td>
                   <td className="px-6 py-4">{row.time}</td>
@@ -167,10 +192,18 @@ export default function ActivityLogPage() {
                 </tr>
               ))}
 
-              {paginatedRows.length === 0 ? (
+              {!loading && paginatedRows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-8 text-center text-gray-400" colSpan={6}>
                     Belum ada log aktivitas pada filter ini.
+                  </td>
+                </tr>
+              ) : null}
+
+              {loading ? (
+                <tr>
+                  <td className="px-6 py-8 text-center text-gray-400" colSpan={6}>
+                    Memuat log aktivitas...
                   </td>
                 </tr>
               ) : null}
@@ -220,18 +253,4 @@ function getAvatarTone(activityType: ActivityType) {
     case "Delete":
       return "bg-[#EF4444]";
   }
-}
-
-function formatActivityDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "Asia/Jakarta",
-  }).format(date);
 }

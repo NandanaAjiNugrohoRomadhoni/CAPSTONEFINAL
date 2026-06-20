@@ -255,6 +255,10 @@ $routes->group(
             "reports/monthly-stock-export",
             static fn() => service("response")->setStatusCode(204),
         );
+        $routes->options(
+            "audit-logs",
+            static fn() => service("response")->setStatusCode(204),
+        );
 
         if (ENVIRONMENT === "testing") {
             $routes->get(
@@ -299,6 +303,7 @@ $routes->group(
                         "reports/monthly-stock-export",
                         "Reports::monthlyStockExport",
                     );
+                    $routes->get("audit-logs", "AuditLogs::index");
                 },
             );
 

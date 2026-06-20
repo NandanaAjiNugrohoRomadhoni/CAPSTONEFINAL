@@ -8,10 +8,12 @@ import { getErrorMessage } from "@/lib/admin-utils";
 import { listAllItems } from "@/lib/items";
 import { listAllPaginatedRows } from "@/lib/pagination";
 import { buildCsvRecipeMenus, normalizeCsvMenuName } from "@/lib/menu-csv-plan";
+import { downloadMenuPackageSpreadsheet } from "@/lib/menu-package-export";
 import DeleteConfirmModal from "@/components/feedback/DeleteConfirmModal";
 import SuccessModal from "@/components/feedback/SuccessModal";
 import {
   AdminPageHeading,
+  ExportButton,
   MiniActionButton,
   PrimaryAction,
   SurfaceCard,
@@ -687,7 +689,10 @@ export default function AdminMenuManagementPage() {
                 placeholder="Cari nama menu"
               />
             </label>
-            <span className="ml-auto text-sm font-medium text-[#94A3B8]">{filteredMenus.length} menu</span>
+            <div className="ml-auto flex items-center gap-3">
+              <ExportButton onClick={downloadMenuPackageSpreadsheet}>Export Paket Menu</ExportButton>
+              <span className="text-sm font-medium text-[#94A3B8]">{filteredMenus.length} menu</span>
+            </div>
           </div>
 
           <div className="bg-white px-5 py-5">

@@ -159,8 +159,16 @@ function inferNotificationRoute(
   }
 
   if (notification.type === "STOCK_REVISION") {
+    const kind = inferNotificationKind(notification);
+
+    if (kind === "stock-revision-rejected") {
+      return currentRole === "gudang"
+        ? "/gudang/transaksi/pengajuan-revisi"
+        : "/super-admin/transaksi/pengajuan-revisi";
+    }
+
     if (currentRole === "admin") {
-      return inferNotificationKind(notification) === "stock-revision-submitted"
+      return kind === "stock-revision-submitted"
         ? "/super-admin/transaksi/pengajuan-revisi"
         : "/super-admin/transaksi/riwayat";
     }

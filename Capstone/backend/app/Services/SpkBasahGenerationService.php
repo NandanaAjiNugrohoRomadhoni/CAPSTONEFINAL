@@ -156,14 +156,10 @@ class SpkBasahGenerationService
      */
     private function resolveBasahTargetDates(DateTimeImmutable $requestedDate): array
     {
-        $dates = [$requestedDate->format('Y-m-d')];
-        $next  = $requestedDate->modify('+1 day');
-
-        if ($requestedDate->format('Y-m') === $next->format('Y-m')) {
-            $dates[] = $next->format('Y-m-d');
-        }
-
-        return $dates;
+        return [
+            $requestedDate->modify('+1 day')->format('Y-m-d'),
+            $requestedDate->modify('+2 day')->format('Y-m-d'),
+        ];
     }
 
     private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array

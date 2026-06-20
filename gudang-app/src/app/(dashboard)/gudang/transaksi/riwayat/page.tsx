@@ -549,9 +549,11 @@ export default function GudangTransactionHistoryPage() {
       const payload: {
         transaction_date: string;
         spk_id?: number | null;
+        reason: string;
         details: { item_id: number; qty: number; input_unit?: "base" | "convert" }[];
       } = {
         transaction_date: revisionState.transaction.transaction_date,
+        reason: trimmedReason,
         details,
       };
       if (typeof revisionState.transaction.spk_id === "number") {
