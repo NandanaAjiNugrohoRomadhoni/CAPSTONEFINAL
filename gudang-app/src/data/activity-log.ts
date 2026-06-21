@@ -1,9 +1,9 @@
 import sdk from "@/lib";
-import type { ActivityLogEntry, ActivityLogModule, ActivityLogActivityType } from "@/sdk/types";
+import type { AuditLogActivityType, AuditLogEntry, AuditLogModule } from "@/sdk/types";
 
-export type ActivityType = ActivityLogActivityType;
-export type ActivityModule = ActivityLogModule;
-export type ActivityRow = ActivityLogEntry;
+export type ActivityType = AuditLogActivityType;
+export type ActivityModule = AuditLogModule;
+export type ActivityRow = AuditLogEntry;
 
 const ACTIVITY_LAST_VIEWED_KEY = "capstone-activity-log-last-viewed-at";
 
