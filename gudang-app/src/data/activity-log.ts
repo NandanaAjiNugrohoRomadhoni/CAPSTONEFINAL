@@ -1,5 +1,9 @@
 import sdk from "@/lib";
+<<<<<<< HEAD
 import type { AuditLogActivityType, AuditLogEntry, AuditLogModule } from "@/sdk/types";
+=======
+import type { AuditLogActivityType, AuditLogEntry, AuditLogModule } from "@/sdk/resources/auditLogs";
+>>>>>>> eab018f (Update project)
 
 export type ActivityType = AuditLogActivityType;
 export type ActivityModule = AuditLogModule;

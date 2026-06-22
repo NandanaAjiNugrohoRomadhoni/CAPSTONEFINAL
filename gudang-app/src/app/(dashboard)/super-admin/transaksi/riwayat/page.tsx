@@ -76,7 +76,6 @@ type ExportDetailRow = {
   unit: string;
   incomingQty: string;
   outgoingQty: string;
-  keterangan: string;
   petugas: string;
   patientLabel: string;
   directionLabel: string;
@@ -655,7 +654,6 @@ export default function Page() {
         normalizeTransactionId(row.transaction.parent_transaction_id) || normalizeTransactionId(row.transaction.id),
       ).padStart(4, "0")}`;
       const directionLabel = normalizeTransactionDirection(row.transactionLabel);
-      const keterangan = row.transaction.reason ?? "-";
       const petugas = row.userLabel;
       const patientCountRaw = (row.transaction as { patient_count?: unknown; jumlah_pasien?: unknown }).patient_count
         ?? (row.transaction as { patient_count?: unknown; jumlah_pasien?: unknown }).jumlah_pasien
@@ -678,7 +676,6 @@ export default function Page() {
           unit: "-",
           incomingQty: "-",
           outgoingQty: "-",
-          keterangan,
           petugas,
           patientLabel,
           directionLabel,
@@ -696,7 +693,6 @@ export default function Page() {
           unit: resolveDetailUnit(detail, undefined, unitMap),
           incomingQty: directionLabel === "IN" ? `${formatSpreadsheetNumber(quantity, Number.isInteger(quantity) ? 0 : 1)}` : "-",
           outgoingQty: directionLabel === "OUT" ? `${formatSpreadsheetNumber(quantity, Number.isInteger(quantity) ? 0 : 1)}` : "-",
-          keterangan,
           petugas,
           patientLabel,
           directionLabel,
@@ -706,8 +702,8 @@ export default function Page() {
 
     const totalTransactions = exportSource.length;
     const totalItems = exportRows.length;
-    const totalIncomingQty = exportRows.reduce((total, row) => total + parseExportNumber(row.incomingQty), 0);
-    const totalOutgoingQty = exportRows.reduce((total, row) => total + parseExportNumber(row.outgoingQty), 0);
+    const totalIncomingTransactions = exportSource.filter((row) => normalizeTransactionDirection(row.transactionLabel) === "IN").length;
+    const totalOutgoingTransactions = exportSource.filter((row) => normalizeTransactionDirection(row.transactionLabel) === "OUT").length;
     const groupedRows = groupExportDetailRows(exportRows);
     const periodLabel = getExportDateRangeLabel(exportRows);
 
@@ -715,8 +711,8 @@ export default function Page() {
       <table class="summary">
         <tr><td class="summary-label">Total Transaksi</td><td class="summary-value">${totalTransactions} transaksi</td></tr>
         <tr><td class="summary-label">Total Item</td><td class="summary-value">${totalItems} item</td></tr>
-        <tr><td class="summary-label">Total Barang Masuk</td><td class="summary-value">${formatSpreadsheetNumber(totalIncomingQty, 0)}</td></tr>
-        <tr><td class="summary-label">Total Barang Keluar</td><td class="summary-value">${formatSpreadsheetNumber(totalOutgoingQty, 0)}</td></tr>
+        <tr><td class="summary-label">Total Barang Masuk</td><td class="summary-value">${formatSpreadsheetNumber(totalIncomingTransactions, 0)} transaksi</td></tr>
+        <tr><td class="summary-label">Total Barang Keluar</td><td class="summary-value">${formatSpreadsheetNumber(totalOutgoingTransactions, 0)} transaksi</td></tr>
       </table>
     `;
 
@@ -750,7 +746,6 @@ export default function Page() {
             ${categoryCell}
             <td>${escapeSpreadsheetHtml(row.unit)}</td>
             ${quantityCells}
-            <td>${escapeSpreadsheetHtml(row.keterangan)}</td>
             ${petugasCell}
           </tr>`;
           })
@@ -818,7 +813,6 @@ export default function Page() {
                   ? "<th>Jumlah Masuk</th>"
                   : "<th>Jumlah Masuk</th><th>Jumlah Keluar</th>"
             }
-            <th>Keterangan</th>
             <th>Petugas</th>
           </tr>
           ${bodyRows}

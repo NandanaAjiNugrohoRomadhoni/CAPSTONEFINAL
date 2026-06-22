@@ -125,7 +125,7 @@ function buildPackageCards(
     };
 
     const dishName = slot.dish?.name ?? null;
-    if (dishName && !current[mealKey].includes(dishName)) {
+    if (dishName) {
       current[mealKey].push(dishName);
     }
     groupedSlots.set(slot.menu_id, current);
@@ -440,7 +440,7 @@ export default function PackagesManagerPage() {
           pagi: [],
         };
         const dishName = slot.dish?.name ?? null;
-        if (dishName && !current[mealKey].includes(dishName)) {
+        if (dishName) {
           current[mealKey].push(dishName);
         }
         groupedSlots.set(slot.menu_id, current);
@@ -580,13 +580,9 @@ export default function PackagesManagerPage() {
       const requests: Promise<unknown>[] = [];
 
       for (const mealKey of mealOrder) {
-        const selectedDishNames = Array.from(
-          new Set(
-            mealValues[mealKey]
-              .map((value) => value.trim())
-              .filter((value) => value.length > 0),
-          ),
-        );
+        const selectedDishNames = mealValues[mealKey]
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
         const existingSlots = getSlotStates(selectedPackageId, mealKey);
         const mealTimeId =
           existingSlots[0]?.mealTimeId ?? mealTimeNameToId.get(mealKey) ?? null;

@@ -30,3 +30,7 @@ export async function listAllItems(query: ListItemsQuery = {}) {
     return [...rows];
   });
 }
+
+export function clearItemsCache() {
+  itemsCache.clear();
+}

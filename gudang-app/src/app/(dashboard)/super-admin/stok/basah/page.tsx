@@ -6,7 +6,7 @@ import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
 import { formatNumber, formatQuantity, getErrorMessage, getStockTone } from "@/lib/admin-utils";
 import { buildExportFilename } from "@/lib/export-filename";
-import { listAllItems } from "@/lib/items";
+import { clearItemsCache, listAllItems } from "@/lib/items";
 import { isItemDeleteConstraintError } from "@/lib/item-delete-guards";
 import {
   buildSpreadsheetDocument,
@@ -236,6 +236,7 @@ export default function Page() {
     const trimmedName = formValue.name.trim();
     const trimmedCategory = formValue.categoryName.trim();
     const trimmedUnitName = formValue.unitName.trim();
+    const trimmedUnitConvertName = formValue.unitConvertName?.trim() || getUnitConvertName(trimmedUnitName);
     const minimumStock = Number(formValue.minimumStock);
 
     if (!trimmedName || !trimmedCategory || !trimmedUnitName || !Number.isFinite(minimumStock) || minimumStock <= 0) {
@@ -249,6 +250,7 @@ export default function Page() {
       trimmedName === selectedItem.name &&
       trimmedCategory === (selectedItem.category?.name ?? "").trim() &&
       trimmedUnitName === (selectedItem.unit_base ?? "").trim() &&
+      trimmedUnitConvertName === (selectedItem.unit_convert ?? "").trim() &&
       minimumStock === (Number(selectedItem.conversion_base ?? 0) || 0)
     ) {
       setSuccessState({
@@ -260,13 +262,12 @@ export default function Page() {
       return;
     }
 
-    const unitConvertName = formValue.unitConvertName?.trim() || getUnitConvertName(trimmedUnitName);
     const payload = {
       name: trimmedName,
       item_category_name: trimmedCategory,
       conversion_base: minimumStock,
       unit_base: trimmedUnitName,
-      unit_convert: unitConvertName,
+      unit_convert: trimmedUnitConvertName,
       is_active: true,
     } as const;
 
@@ -290,6 +291,7 @@ export default function Page() {
         });
       }
 
+      clearItemsCache();
       await loadPageData();
       setSubmitting(false);
       closeModal();
@@ -310,6 +312,7 @@ export default function Page() {
 
     try {
       await sdk.items.delete(deleteTarget.id);
+      clearItemsCache();
       await loadPageData();
       setSuccessState({
         title: "Berhasil",
