@@ -746,7 +746,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($countBefore + 1, $countAfter);
 
         $latestAudit = $auditModel->orderBy('id', 'DESC')->first();
-        $this->assertSame('stock_transaction_create', $latestAudit['action_type']);
+        $this->assertSame('create', $latestAudit['action_type']);
         $this->assertSame('stock_transactions', $latestAudit['table_name']);
     }
 
@@ -941,7 +941,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($countBefore + 1, $countAfter);
 
         $latestAudit = $auditModel->orderBy('id', 'DESC')->first();
-        $this->assertSame('stock_direct_correction_create', $latestAudit['action_type']);
+        $this->assertSame('create', $latestAudit['action_type']);
 
         $newValues = json_decode((string) $latestAudit['new_values'], true);
         $this->assertIsArray($newValues);
@@ -1633,7 +1633,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $failingAuditService = new class () extends AuditService {
             public function log(
                 ?int $userId,
-                string $actionType,
+                \App\Enums\AuditActionType $actionType,
                 string $tableName,
                 int $recordId,
                 ?string $message = null,
@@ -1999,12 +1999,13 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($countBefore + 1, $countAfter);
 
         $latestAudit = $auditModel->orderBy('id', 'DESC')->first();
-        $this->assertSame('stock_transaction_revision_submit', $latestAudit['action_type']);
+        $this->assertSame('submit', $latestAudit['action_type']);
 
         $newValues = json_decode((string) $latestAudit['new_values'], true);
         $this->assertIsArray($newValues);
-        $this->assertTrue($newValues['is_revision']);
-        $this->assertSame($parentId, $newValues['parent_transaction_id']);
+        $this->assertIsArray($newValues['revision_header'] ?? null);
+        $this->assertTrue($newValues['revision_header']['is_revision']);
+        $this->assertSame($parentId, $newValues['revision_header']['parent_transaction_id']);
     }
 
     public function testSubmitRevisionRejectsRevisionAsParent(): void
@@ -3067,7 +3068,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($countBefore + 1, $countAfter);
 
         $latestAudit = $auditModel->orderBy('id', 'DESC')->first();
-        $this->assertSame('stock_transaction_revision_approve', $latestAudit['action_type']);
+        $this->assertSame('approval', $latestAudit['action_type']);
 
         $oldValues = json_decode((string) $latestAudit['old_values'], true);
         $newValues = json_decode((string) $latestAudit['new_values'], true);
@@ -3636,7 +3637,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($countBefore + 1, $countAfter);
 
         $latestAudit = $auditModel->orderBy('id', 'DESC')->first();
-        $this->assertSame('stock_transaction_revision_reject', $latestAudit['action_type']);
+        $this->assertSame('rejection', $latestAudit['action_type']);
 
         $oldValues = json_decode((string) $latestAudit['old_values'], true);
         $newValues = json_decode((string) $latestAudit['new_values'], true);

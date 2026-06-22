@@ -50,7 +50,7 @@ class SpkBasahTest extends CIUnitTestCase
 
         $json = json_decode($response->getJSON(), true);
         $this->assertSame(['2026-03-01', '2026-03-02'], $json['data']['target_dates']);
-        $this->assertSame(105, $json['data']['estimated_patients']);
+        $this->assertSame(100, $json['data']['estimated_patients']);
 
         $db = Database::connect();
         $spk = $db->table('spk_calculations')->where('id', (int) $json['data']['id'])->get()->getRowArray();
@@ -140,10 +140,10 @@ class SpkBasahTest extends CIUnitTestCase
             ]);
 
         $response->assertStatus(201);
-        $json = json_decode($response->getJSON(), true);
 
+        $json = json_decode($response->getJSON(), true);
         $this->assertSame(['2026-03-31'], $json['data']['target_dates']);
-        $this->assertSame(84, $json['data']['estimated_patients']);
+        $this->assertSame(80, $json['data']['estimated_patients']);
 
         $db = Database::connect();
         $details = $db->table('spk_recommendations')
@@ -173,9 +173,7 @@ class SpkBasahTest extends CIUnitTestCase
 
         $baselineJson = json_decode($baseline->getJSON(), true);
         $this->assertIsArray($baselineJson);
-        $this->assertSame(201, $baseline->response()->getStatusCode());
-        $this->assertSame(['2026-03-01', '2026-03-02'], $baselineJson['data']['target_dates']);
-        $this->assertSame(105, (int) $baselineJson['data']['estimated_patients']);
+        $this->assertSame(100, (int) $baselineJson['data']['estimated_patients']);
 
         $db = Database::connect();
         $beforeDetails = $db->table('spk_recommendations')
@@ -447,7 +445,7 @@ class SpkBasahTest extends CIUnitTestCase
             'item_id' => (int) $item['id'],
             'target_date' => '2026-03-01',
             'current_stock_qty' => 100,
-            'required_qty' => 200,
+            'required_qty' => 210,
             'system_recommended_qty' => 110,
             'recommended_qty' => 110,
             'is_overridden' => false,

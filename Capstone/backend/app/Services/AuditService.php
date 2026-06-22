@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
+
 use App\Models\AuditLogModel;
 
 class AuditService
@@ -15,7 +17,7 @@ class AuditService
 
     public function log(
         ?int $userId,
-        string $actionType,
+        AuditActionType $actionType,
         string $tableName,
         int $recordId,
         ?string $message = null,
@@ -25,7 +27,7 @@ class AuditService
     ): bool {
         $data = [
             'user_id'     => $userId,
-            'action_type' => $actionType,
+            'action_type' => $actionType->value,
             'table_name'  => $tableName,
             'record_id'   => $recordId,
             'message'     => $message,

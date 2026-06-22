@@ -85,12 +85,19 @@ export default function Page() {
     try {
       let detail: Awaited<ReturnType<typeof sdk.spk.getKeringPengemas>>;
       try {
-        const generated = await sdk.spk.generateKeringPengemas({ target_month: targetMonth });
+        const generated = await sdk.spk.generateKeringPengemas({
+          target_month: targetMonth,
+          regenerate: hasLoadedRecommendation,
+        });
         detail = await sdk.spk.getKeringPengemas(generated.data.id);
       } catch (generateError) {
         const conflictSpkId = getSpkConflictId(generateError);
         if (!conflictSpkId) throw generateError;
-        detail = await sdk.spk.getKeringPengemas(conflictSpkId);
+        const regenerated = await sdk.spk.generateKeringPengemas({
+          target_month: targetMonth,
+          regenerate: true,
+        });
+        detail = await sdk.spk.getKeringPengemas(regenerated.data.id);
       }
       setDetailData(detail.data);
       setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
@@ -156,7 +163,7 @@ export default function Page() {
 
       <div>
         <PrimaryAction className="rounded-xl px-5 py-3 text-[15px] shadow-[0_8px_18px_rgba(33,85,205,0.32)]" disabled={generating} onClick={() => setConfirmOpen(true)}>
-          {generating ? "Generating..." : "Generate"}
+          {generating ? "Generating..." : hasLoadedRecommendation ? "Regenerate" : "Generate"}
         </PrimaryAction>
       </div>
 
@@ -201,6 +208,7 @@ export default function Page() {
       </SurfaceCard>
 
       <GenerateSpkConfirmModal
+        isRegenerate={hasLoadedRecommendation}
         loading={generating}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => void handleGenerate()}

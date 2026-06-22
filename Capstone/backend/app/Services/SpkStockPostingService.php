@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\SpkCalculationModel;
 use App\Models\SpkRecommendationModel;
 use App\Models\TransactionTypeModel;
@@ -12,17 +13,19 @@ class SpkStockPostingService
 {
     protected SpkCalculationModel $spkCalculationModel;
     protected SpkRecommendationModel $spkRecommendationModel;
+    protected AuditService $auditService;
     protected StockTransactionService $stockTransactionService;
     protected TransactionTypeModel $transactionTypeModel;
     protected BaseConnection $db;
 
     public function __construct()
     {
-        $this->spkCalculationModel   = new SpkCalculationModel();
+        $this->spkCalculationModel = new SpkCalculationModel();
         $this->spkRecommendationModel = new SpkRecommendationModel();
+        $this->auditService = new AuditService();
         $this->stockTransactionService = new StockTransactionService();
-        $this->transactionTypeModel  = new TransactionTypeModel();
-        $this->db                    = Database::connect();
+        $this->transactionTypeModel = new TransactionTypeModel();
+        $this->db = Database::connect();
     }
 
     public function post(int $spkId, string $spkType, int $actorId, ?string $ipAddress = null): array
@@ -82,7 +85,7 @@ class SpkStockPostingService
         $aggregated = [];
         foreach ($recommendations as $row) {
             $itemId = (int) $row['item_id'];
-            $qty    = round((float) $row['recommended_qty'], 2);
+            $qty = round((float) $row['recommended_qty'], 2);
 
             if ($qty <= 0) {
                 continue;
@@ -119,7 +122,7 @@ class SpkStockPostingService
             'transaction_date' => (string) $spk['calculation_date'],
             'spk_id' => $spkId,
             'details' => array_map(
-                static fn (int $itemId, float $qty): array => [
+                static fn(int $itemId, float $qty): array => [
                     'item_id' => $itemId,
                     'qty' => round($qty, 2),
                     'input_unit' => 'base',
@@ -132,7 +135,7 @@ class SpkStockPostingService
         $this->db->transStart();
 
         $transactionResult = $this->stockTransactionService->createTransaction($payload, $actorId, $ipAddress);
-        if (! $transactionResult['success']) {
+        if (!$transactionResult['success']) {
             $this->db->transRollback();
 
             return [
@@ -144,7 +147,7 @@ class SpkStockPostingService
         }
 
         $updated = $this->spkCalculationModel->update($spkId, ['is_finish' => true]);
-        if (! $updated) {
+        if (!$updated) {
             $this->db->transRollback();
 
             return [
@@ -152,6 +155,32 @@ class SpkStockPostingService
                 'status_code' => 400,
                 'message' => 'Failed to finalize SPK posting state.',
                 'errors' => $this->spkCalculationModel->errors(),
+            ];
+        }
+
+        if (
+            !$this->auditService->log(
+                $actorId,
+                AuditActionType::Post,
+                'spk_calculations',
+                $spkId,
+                'SPK posted to stock.',
+                [
+                    'spk_calculation_id' => $spkId,
+                    'previous_finish_state' => false,
+                ],
+                [
+                    'spk_calculation_id' => $spkId,
+                    'posted_transaction_id' => (int) ($transactionResult['data']['id'] ?? 0),
+                ],
+                $ipAddress
+            )
+        ) {
+            return [
+                'success' => false,
+                'status_code' => 400,
+                'message' => 'Failed to write audit log.',
+                'errors' => [],
             ];
         }
 

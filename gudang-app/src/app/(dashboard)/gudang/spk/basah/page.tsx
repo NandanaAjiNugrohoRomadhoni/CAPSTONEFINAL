@@ -213,17 +213,25 @@ export default function Page() {
       }
       let detail: Awaited<ReturnType<typeof sdk.spk.getBasah>>;
       const stockResponse = await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } }));
+      const generatePayload = {
+        daily_patient_id: freshLatestPatient.id,
+        service_date: freshLatestPatient.date ?? toIsoDate(new Date()),
+        category_id: basahCategoryId,
+      };
       try {
         const generated = await sdk.spk.generateBasah({
-          daily_patient_id: freshLatestPatient.id,
-          service_date: freshLatestPatient.date ?? toIsoDate(new Date()),
-          category_id: basahCategoryId,
+          ...generatePayload,
+          regenerate: hasLoadedRecommendation,
         });
         detail = await sdk.spk.getBasah(generated.data.id);
       } catch (generateError) {
         const conflictSpkId = getSpkConflictId(generateError);
         if (!conflictSpkId) throw generateError;
-        detail = await sdk.spk.getBasah(conflictSpkId);
+        const regenerated = await sdk.spk.generateBasah({
+          ...generatePayload,
+          regenerate: true,
+        });
+        detail = await sdk.spk.getBasah(regenerated.data.id);
       }
       const hydratedRows = overlayBasahRowsWithCurrentStock(
         detail.data.items ?? [],
@@ -330,7 +338,7 @@ export default function Page() {
 
       <div>
         <PrimaryAction className="rounded-xl px-5 py-3 text-[15px] shadow-[0_8px_18px_rgba(33,85,205,0.32)]" disabled={generating} onClick={() => setConfirmOpen(true)}>
-          {generating ? "Generating..." : "Generate"}
+          {generating ? "Generating..." : hasLoadedRecommendation ? "Regenerate" : "Generate"}
         </PrimaryAction>
       </div>
 
@@ -373,6 +381,7 @@ export default function Page() {
       </SurfaceCard>
 
       <GenerateSpkConfirmModal
+        isRegenerate={hasLoadedRecommendation}
         loading={generating}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => void handleGenerate()}

@@ -64,6 +64,7 @@ class MonthlyExportScenarioSeeder extends Seeder
                     'service_date' => $serviceDate,
                     'total_patients' => rand(100, 150),
                     'notes' => "Scenario patient count for {$month}",
+                    'user_id' => $users['admin_id'],
                 ]);
             }
             $cursor = $cursor->modify('+1 day');

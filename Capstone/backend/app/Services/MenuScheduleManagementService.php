@@ -2,21 +2,28 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\MenuModel;
 use App\Models\MenuScheduleModel;
 use DateTimeImmutable;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 
 class MenuScheduleManagementService
 {
     protected MenuScheduleModel $menuScheduleModel;
     protected MenuModel $menuModel;
     protected MenuCalendarContract $calendarContract;
+    protected AuditService $auditService;
+    protected BaseConnection $db;
 
     public function __construct()
     {
         $this->menuScheduleModel = new MenuScheduleModel();
-        $this->menuModel         = new MenuModel();
-        $this->calendarContract  = new MenuCalendarContract();
+        $this->menuModel = new MenuModel();
+        $this->calendarContract = new MenuCalendarContract();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     public function getAllSchedules(): array
@@ -25,13 +32,13 @@ class MenuScheduleManagementService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $row): array => $this->formatSchedule($row), $rows),
-            'meta'    => [
-                'page'       => 1,
-                'perPage'    => max(1, count($rows)),
-                'total'      => count($rows),
+            'data' => array_map(fn(array $row): array => $this->formatSchedule($row), $rows),
+            'meta' => [
+                'page' => 1,
+                'perPage' => max(1, count($rows)),
+                'total' => count($rows),
                 'totalPages' => count($rows) > 0 ? 1 : 0,
-                'paginated'  => false,
+                'paginated' => false,
             ],
         ];
     }
@@ -46,30 +53,48 @@ class MenuScheduleManagementService
     public function createSchedule(array $data): array
     {
         $validated = $this->validateWritePayload($data);
-        if (! $validated['success']) {
+        if (!$validated['success']) {
             return $validated;
         }
 
         $dayOfMonth = (int) $data['day_of_month'];
-        $menuId     = (int) $data['menu_id'];
-        $patientCount = isset($data['patient_count']) && $data['patient_count'] !== '' ? (int) $data['patient_count'] : null;
+        $menuId = (int) $data['menu_id'];
+        $this->db->transStart();
 
         $created = $this->menuScheduleModel->insert([
-            'day_of_month'  => $dayOfMonth,
-            'menu_id'       => $menuId,
+            'day_of_month' => $dayOfMonth,
+            'menu_id' => $menuId,
             'patient_count' => $patientCount,
         ], true);
 
         if ($created === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to create menu schedule.',
-                'errors'  => $this->menuScheduleModel->errors(),
+                'errors' => $this->menuScheduleModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Create, 'menu_schedules', (int) $created, 'Menu schedule created.', null, $data, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to create menu schedule.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create menu schedule.',
             ];
         }
 
         return [
-            'success'  => true,
+            'success' => true,
             'schedule' => $this->getScheduleById((int) $created),
         ];
     }
@@ -85,15 +110,17 @@ class MenuScheduleManagementService
         }
 
         $validation = service('validation');
-        if (! $validation->setRules([
-            'day_of_month'  => 'permit_empty|is_natural_no_zero|less_than_equal_to[31]',
-            'menu_id'       => 'permit_empty|is_natural_no_zero',
-            'patient_count' => 'permit_empty|is_natural',
-        ])->run($data)) {
+        if (
+            !$validation->setRules([
+                'day_of_month' => 'permit_empty|is_natural_no_zero|less_than_equal_to[31]',
+                'menu_id' => 'permit_empty|is_natural_no_zero',
+                'patient_count' => 'permit_empty|is_natural',
+            ])->run($data)
+        ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
@@ -114,7 +141,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $errors,
+                'errors' => $errors,
             ];
         }
 
@@ -131,31 +158,51 @@ class MenuScheduleManagementService
 
         if ($updateData === []) {
             return [
-                'success'  => true,
+                'success' => true,
                 'schedule' => $this->getScheduleById($id),
             ];
         }
 
-        if (! $this->menuScheduleModel->update($id, $updateData)) {
+        $this->db->transStart();
+
+        if (!$this->menuScheduleModel->update($id, $updateData)) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to update menu schedule.',
-                'errors'  => $this->menuScheduleModel->errors(),
+                'errors' => $this->menuScheduleModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Update, 'menu_schedules', $id, 'Menu schedule updated.', $existing, $updateData, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to update menu schedule.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update menu schedule.',
             ];
         }
 
         return [
-            'success'  => true,
+            'success' => true,
             'schedule' => $this->getScheduleById($id),
         ];
     }
 
     public function resolveCalendar(array $queryParams): array
     {
-        $month     = trim((string) ($queryParams['month'] ?? ''));
-        $date      = trim((string) ($queryParams['date'] ?? ''));
+        $month = trim((string) ($queryParams['month'] ?? ''));
+        $date = trim((string) ($queryParams['date'] ?? ''));
         $startDate = trim((string) ($queryParams['start_date'] ?? ''));
-        $endDate   = trim((string) ($queryParams['end_date'] ?? ''));
+        $endDate = trim((string) ($queryParams['end_date'] ?? ''));
 
         $modeCount = 0;
         $modeCount += $month !== '' ? 1 : 0;
@@ -166,7 +213,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['month' => 'One resolver mode is required: month, date, or start_date+end_date.'],
+                'errors' => ['month' => 'One resolver mode is required: month, date, or start_date+end_date.'],
             ];
         }
 
@@ -174,7 +221,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['query' => 'Use exactly one resolver mode: month, date, or start_date+end_date.'],
+                'errors' => ['query' => 'Use exactly one resolver mode: month, date, or start_date+end_date.'],
             ];
         }
 
@@ -196,7 +243,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['date' => 'The date field must be a valid date in Y-m-d format.'],
+                'errors' => ['date' => 'The date field must be a valid date in Y-m-d format.'],
             ];
         }
 
@@ -204,51 +251,51 @@ class MenuScheduleManagementService
 
         return [
             'success' => true,
-            'data'    => [
-                'date'         => $resolvedDate->format('Y-m-d'),
+            'data' => [
+                'date' => $resolvedDate->format('Y-m-d'),
                 'day_of_month' => (int) $resolvedDate->format('j'),
-                'assignments'  => $assignments,
+                'assignments' => $assignments,
             ],
         ];
     }
 
     private function resolveMonth(string $month): array
     {
-        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['month' => 'The month field must use Y-m format.'],
+                'errors' => ['month' => 'The month field must use Y-m format.'],
             ];
         }
 
         [$year, $monthNum] = array_map('intval', explode('-', $month));
-        if (! checkdate($monthNum, 1, $year)) {
+        if (!checkdate($monthNum, 1, $year)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['month' => 'The month field must be a valid calendar month.'],
+                'errors' => ['month' => 'The month field must be a valid calendar month.'],
             ];
         }
 
         $daysInMonth = (int) date('t', mktime(0, 0, 0, $monthNum, 1, $year));
-        $rows        = [];
+        $rows = [];
 
         for ($day = 1; $day <= $daysInMonth; $day++) {
-            $date        = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $monthNum, $day));
+            $date = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $monthNum, $day));
             $assignments = $this->resolveEffectiveAssignments($date);
 
             $rows[] = [
-                'date'         => $date->format('Y-m-d'),
+                'date' => $date->format('Y-m-d'),
                 'day_of_month' => $day,
-                'assignments'  => $assignments,
+                'assignments' => $assignments,
             ];
         }
 
         return [
             'success' => true,
-            'data'    => $rows,
-            'meta'    => [
+            'data' => $rows,
+            'meta' => [
                 'month' => sprintf('%04d-%02d', $year, $monthNum),
                 'total' => count($rows),
             ],
@@ -261,18 +308,18 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['start_date' => 'Both start_date and end_date are required for range mode.'],
+                'errors' => ['start_date' => 'Both start_date and end_date are required for range mode.'],
             ];
         }
 
         $start = $this->parseStrictDate($startDate);
-        $end   = $this->parseStrictDate($endDate);
+        $end = $this->parseStrictDate($endDate);
 
         if ($start === null || $end === null) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['start_date' => 'The start_date and end_date fields must be valid dates in Y-m-d format.'],
+                'errors' => ['start_date' => 'The start_date and end_date fields must be valid dates in Y-m-d format.'],
             ];
         }
 
@@ -280,20 +327,20 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['start_date' => 'The start_date must be earlier than or equal to end_date.'],
+                'errors' => ['start_date' => 'The start_date must be earlier than or equal to end_date.'],
             ];
         }
 
-        $rows    = [];
+        $rows = [];
         $current = $start;
 
         while ($current <= $end) {
             $assignments = $this->resolveEffectiveAssignments($current);
 
             $rows[] = [
-                'date'         => $current->format('Y-m-d'),
+                'date' => $current->format('Y-m-d'),
                 'day_of_month' => (int) $current->format('j'),
-                'assignments'  => $assignments,
+                'assignments' => $assignments,
             ];
 
             $current = $current->modify('+1 day');
@@ -301,23 +348,23 @@ class MenuScheduleManagementService
 
         return [
             'success' => true,
-            'data'    => $rows,
-            'meta'    => [
+            'data' => $rows,
+            'meta' => [
                 'start_date' => $start->format('Y-m-d'),
-                'end_date'   => $end->format('Y-m-d'),
-                'total'      => count($rows),
+                'end_date' => $end->format('Y-m-d'),
+                'total' => count($rows),
             ],
         ];
     }
 
     private function parseStrictDate(string $value): ?DateTimeImmutable
     {
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return null;
         }
 
         [$year, $month, $day] = array_map('intval', explode('-', $value));
-        if (! checkdate($month, $day, $year)) {
+        if (!checkdate($month, $day, $year)) {
             return null;
         }
 
@@ -336,9 +383,9 @@ class MenuScheduleManagementService
 
         $schedules = $this->menuScheduleModel->findAssignmentsByDay((int) $date->format('j'));
 
-        if (! empty($schedules)) {
-            return array_map(fn ($s) => [
-                'menu_id'       => (int) $s['menu_id'],
+        if (!empty($schedules)) {
+            return array_map(fn($s) => [
+                'menu_id' => (int) $s['menu_id'],
                 'patient_count' => isset($s['patient_count']) ? (int) $s['patient_count'] : null,
             ], $schedules);
         }
@@ -349,15 +396,17 @@ class MenuScheduleManagementService
     private function validateWritePayload(array $data): array
     {
         $validation = service('validation');
-        if (! $validation->setRules([
-            'day_of_month' => 'required|is_natural_no_zero|less_than_equal_to[31]',
-            'menu_id'      => 'required|is_natural_no_zero',
-            'patient_count' => 'permit_empty|is_natural',
-        ])->run($data)) {
+        if (
+            !$validation->setRules([
+                'day_of_month' => 'required|is_natural_no_zero|less_than_equal_to[31]',
+                'menu_id' => 'required|is_natural_no_zero',
+                'patient_count' => 'permit_empty|is_natural',
+            ])->run($data)
+        ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
@@ -371,7 +420,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $errors,
+                'errors' => $errors,
             ];
         }
 
@@ -381,14 +430,14 @@ class MenuScheduleManagementService
     private function formatSchedule(array $row): array
     {
         return [
-            'id'           => (int) $row['id'],
+            'id' => (int) $row['id'],
             'day_of_month' => (int) $row['day_of_month'],
-            'menu_id'      => (int) $row['menu_id'],
-            'patient_count'=> isset($row['patient_count']) ? (int) $row['patient_count'] : null,
-            'created_at'   => $row['created_at'],
-            'updated_at'   => $row['updated_at'],
-            'menu'         => [
-                'id'   => (int) $row['menu_id'],
+            'menu_id' => (int) $row['menu_id'],
+            'patient_count' => isset($row['patient_count']) ? (int) $row['patient_count'] : null,
+            'created_at' => $row['created_at'],
+            'updated_at' => $row['updated_at'],
+            'menu' => [
+                'id' => (int) $row['menu_id'],
                 'name' => $row['menu_name'] ?? null,
             ],
         ];

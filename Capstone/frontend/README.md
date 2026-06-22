@@ -14,9 +14,8 @@ It is a typed wrapper over the CodeIgniter 4 backend under `/api/v1`, with resou
 
 The SDK only covers the backend routes that are implemented and verified now. It does not expose planned backend modules that do not yet exist as active API routes.
 
-If you need a compact backend-side index of implemented vs planned modules, route groups, key flow rules, and permission notes before wiring new SDK surfaces, see `../backend/docs/architecture/runtime-status.md` (Canonical).
 
-Implemented SDK resources:
+If you need a compact backend-side index of implemented vs planned modules, route groups, key flow rules, and permission notes before wiring new SDK surfaces, see `../backend/docs/architecture/runtime-status.md` (Canonical).
 
 - `auth`
 - `roles`
@@ -34,6 +33,7 @@ Implemented SDK resources:
 - `dishes`
 - `dishCompositions`
 - `menuSchedules`
+- `auditLogs`
 - `notifications`
 - `dashboard`
 - `reports`
@@ -550,7 +550,8 @@ These resources provide analytical views and auditing tools.
 |---|---|---|
 | `dashboard` | `getAggregate` | `admin`, `dapur`, `gudang` |
 | `reports` | `getStocks`, `getTransactions`, `getSpkHistory`, `getEvaluation`, `getMonthlyStockExport` | `admin`, `dapur`, `gudang` |
-| `stockOpnames` | `create`, `get`, `submit` | `admin`, `gudang` |
+| `auditLogs` | `list`, `types` | `admin` |
+| `stockOpnames` | `create`, `get`, `update`, `submit` | `admin`, `gudang` |
 | `stockOpnames` | `approve`, `reject`, `post` | `admin` |
 
 ## List query reference

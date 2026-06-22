@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\ApprovalStatusModel;
 use App\Models\StockTransactionModel;
 use App\Models\TransactionTypeModel;
@@ -16,13 +17,15 @@ class HistoricalOpnameBackfillService
     protected StockTransactionModel $stockTransactionModel;
     protected TransactionTypeModel $transactionTypeModel;
     protected ApprovalStatusModel $approvalStatusModel;
+    protected AuditService $auditService;
 
     public function __construct()
     {
-        $this->db                          = Database::connect();
-        $this->stockTransactionModel       = new StockTransactionModel();
-        $this->transactionTypeModel        = new TransactionTypeModel();
-        $this->approvalStatusModel         = new ApprovalStatusModel();
+        $this->db = Database::connect();
+        $this->stockTransactionModel = new StockTransactionModel();
+        $this->transactionTypeModel = new TransactionTypeModel();
+        $this->approvalStatusModel = new ApprovalStatusModel();
+        $this->auditService = new AuditService();
     }
 
     /**
@@ -37,7 +40,7 @@ class HistoricalOpnameBackfillService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'from' => 'The from option must be a valid date (YYYY-MM-DD).',
                     ],
                 ];
@@ -53,7 +56,7 @@ class HistoricalOpnameBackfillService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'to' => 'The to option must be a valid date (YYYY-MM-DD).',
                     ],
                 ];
@@ -66,17 +69,17 @@ class HistoricalOpnameBackfillService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'range' => 'The from option must be less than or equal to to option.',
                 ],
             ];
         }
 
         $normalizedFromDate = $fromDateObject?->format('Y-m-d');
-        $normalizedToDate   = $toDateObject?->format('Y-m-d');
+        $normalizedToDate = $toDateObject?->format('Y-m-d');
 
         $requiredIds = $this->resolveRequiredTypeAndStatusIds();
-        if (! $requiredIds['success']) {
+        if (!$requiredIds['success']) {
             return $requiredIds;
         }
 
@@ -111,9 +114,9 @@ class HistoricalOpnameBackfillService
             $seenLegacyDetailIds[$legacyDetailId] = true;
         }
 
-        $createdCount      = 0;
-        $skippedCount      = 0;
-        $createdDetailIds  = [];
+        $createdCount = 0;
+        $skippedCount = 0;
+        $createdDetailIds = [];
         $legacyDetailCount = count($sourceRows);
 
         $this->db->transStart();
@@ -141,18 +144,18 @@ class HistoricalOpnameBackfillService
             );
 
             $transactionPayload = [
-                'type_id'                  => (int) $requiredIds['data']['type_id'],
-                'transaction_date'         => (string) $row['opname_date'],
-                'is_revision'              => false,
-                'parent_transaction_id'    => null,
-                'approval_status_id'       => (int) $requiredIds['data']['approval_status_id'],
-                'approved_by'              => null,
-                'user_id'                  => (int) $row['created_by'],
-                'spk_id'                   => null,
-                'reason'                   => $reason,
-                'legacy_source_table'      => self::LEGACY_SOURCE_TABLE,
-                'legacy_source_id'         => (int) $row['stock_opname_id'],
-                'legacy_source_detail_id'  => $legacyDetailId,
+                'type_id' => (int) $requiredIds['data']['type_id'],
+                'transaction_date' => (string) $row['opname_date'],
+                'is_revision' => false,
+                'parent_transaction_id' => null,
+                'approval_status_id' => (int) $requiredIds['data']['approval_status_id'],
+                'approved_by' => null,
+                'user_id' => (int) $row['created_by'],
+                'spk_id' => null,
+                'reason' => $reason,
+                'legacy_source_table' => self::LEGACY_SOURCE_TABLE,
+                'legacy_source_id' => (int) $row['stock_opname_id'],
+                'legacy_source_detail_id' => $legacyDetailId,
             ];
 
             $transactionId = $this->stockTransactionModel->insert($transactionPayload, true);
@@ -163,9 +166,9 @@ class HistoricalOpnameBackfillService
                 return [
                     'success' => false,
                     'message' => 'Failed to create stock transaction backfill row.',
-                    'errors'  => [
-                        'model'   => $this->stockTransactionModel->errors(),
-                        'db'      => $this->db->error(),
+                    'errors' => [
+                        'model' => $this->stockTransactionModel->errors(),
+                        'db' => $this->db->error(),
                         'payload' => $transactionPayload,
                     ],
                 ];
@@ -173,10 +176,10 @@ class HistoricalOpnameBackfillService
 
             $detailInserted = $this->db->table('stock_transaction_details')->insert([
                 'transaction_id' => (int) $transactionId,
-                'item_id'        => (int) $row['item_id'],
-                'qty'            => number_format($absDelta, 2, '.', ''),
-                'input_qty'      => number_format($absDelta, 2, '.', ''),
-                'input_unit'     => 'base',
+                'item_id' => (int) $row['item_id'],
+                'qty' => number_format($absDelta, 2, '.', ''),
+                'input_qty' => number_format($absDelta, 2, '.', ''),
+                'input_unit' => 'base',
             ]);
 
             if ($detailInserted === false) {
@@ -185,7 +188,7 @@ class HistoricalOpnameBackfillService
                 return [
                     'success' => false,
                     'message' => 'Failed to create stock transaction detail backfill row.',
-                    'errors'  => [
+                    'errors' => [
                         'db' => $this->db->error(),
                     ],
                 ];
@@ -203,24 +206,34 @@ class HistoricalOpnameBackfillService
             return [
                 'success' => false,
                 'message' => 'Transaction failed.',
-                'errors'  => [
+                'errors' => [
                     'database' => $dbError,
                 ],
             ];
         }
 
+        $this->auditService->log(null, AuditActionType::Create, 'stock_transactions', 0, 'Historical stock opname backfill completed.', null, [
+            'legacy_source_table' => self::LEGACY_SOURCE_TABLE,
+            'from' => $normalizedFromDate,
+            'to' => $normalizedToDate,
+            'legacy_rows_considered' => $legacyDetailCount,
+            'created_rows' => $createdCount,
+            'skipped_rows' => $skippedCount,
+            'created_detail_ids' => $createdDetailIds,
+        ], null);
+
         return [
             'success' => true,
             'message' => 'Historical stock opname backfill completed.',
-            'data'    => [
-                'legacy_source_table'     => self::LEGACY_SOURCE_TABLE,
-                'from'                    => $normalizedFromDate,
-                'to'                      => $normalizedToDate,
-                'legacy_rows_considered'  => $legacyDetailCount,
-                'created_rows'            => $createdCount,
-                'skipped_rows'            => $skippedCount,
-                'created_detail_ids'      => $createdDetailIds,
-                'seen_detail_ids'         => array_keys($seenLegacyDetailIds),
+            'data' => [
+                'legacy_source_table' => self::LEGACY_SOURCE_TABLE,
+                'from' => $normalizedFromDate,
+                'to' => $normalizedToDate,
+                'legacy_rows_considered' => $legacyDetailCount,
+                'created_rows' => $createdCount,
+                'skipped_rows' => $skippedCount,
+                'created_detail_ids' => $createdDetailIds,
+                'seen_detail_ids' => array_keys($seenLegacyDetailIds),
             ],
         ];
     }
@@ -263,7 +276,7 @@ class HistoricalOpnameBackfillService
             return [
                 'success' => false,
                 'message' => 'System error: transaction type not found.',
-                'errors'  => [
+                'errors' => [
                     'type' => TransactionTypeModel::NAME_OPNAME_ADJUSTMENT,
                 ],
             ];
@@ -274,7 +287,7 @@ class HistoricalOpnameBackfillService
             return [
                 'success' => false,
                 'message' => 'System error: APPROVED approval status not found.',
-                'errors'  => [
+                'errors' => [
                     'approval_status' => ApprovalStatusModel::NAME_APPROVED,
                 ],
             ];
@@ -283,8 +296,8 @@ class HistoricalOpnameBackfillService
         return [
             'success' => true,
             'message' => 'Resolved required type and status.',
-            'data'    => [
-                'type_id'            => $opnameAdjustmentTypeId,
+            'data' => [
+                'type_id' => $opnameAdjustmentTypeId,
                 'approval_status_id' => $approvedStatusId,
             ],
         ];

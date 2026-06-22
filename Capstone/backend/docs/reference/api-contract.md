@@ -142,6 +142,7 @@ Bagian ini hanya berisi endpoint yang saat ini benar-benar tersedia sebagai rout
 | GET | `/api/v1/auth/me` | Get current user profile from Bearer token |
 | PATCH | `/api/v1/auth/password` | Self-service password change (requires valid token and current password, revokes all tokens) |
 | GET | `/api/v1/roles` | List roles (paginated), restricted to `admin` via role filter |
+| GET | `/api/v1/audit-logs` | List audit trail history (paginated), restricted to `admin` via role filter |
 
 #### 5.1.1 Self-Service Password Change
 
@@ -183,6 +184,110 @@ Authenticated users can change their own password. This endpoint requires the us
     "current_password": "The current_password field is required.",
     "password": "The password field must be at least 8 characters in length."
   }
+}
+```
+
+#### 5.1.2 Audit Logs
+
+Admin-only endpoint for reading audit trail history. This endpoint returns the standard `data/meta/links` envelope.
+
+**Access:** Requires valid Bearer token and `admin` role
+
+##### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | `1` | Page number (minimum 1) |
+| `perPage` | integer | `10` | Results per page (1–100) |
+| `paginate` | string | `true` | Set to `false` or `0` to return all matched rows |
+| `q` | string | — | Full-text search across message, table name, action type, user name, and username |
+| `action_type` | string | — | Filter by raw action type value (e.g. `stock_opname_post`) |
+| `table_name` | string | — | Filter by source table name (e.g. `stock_opnames`) |
+| `sortBy` | string | `created_at` | Sort column: `id`, `created_at`, `action_type`, `table_name`, `record_id` |
+| `sortDir` | string | `DESC` | Sort direction: `ASC` or `DESC` |
+
+Unknown query parameters return `400` validation errors.
+
+##### Response
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "date": "2026-06-22",
+      "time": "10:00",
+      "actor": "Admin User",
+      "actorInfo": {
+        "id": 12,
+        "name": "Admin User",
+        "username": "admin"
+      },
+      "activityType": "update",
+      "activityLabel": "Update",
+      "module": "Transaksi",
+      "detail": "Updated stock transaction 99",
+      "description": "Updated stock transaction 99",
+      "target": {
+        "table": "stock_transactions",
+        "recordId": 99
+      },
+      "changes": {
+        "before": {
+          "qty": 10,
+          "status": "DRAFT"
+        },
+        "after": {
+          "qty": 12,
+          "status": "SUBMITTED"
+        },
+        "diff": [
+          {
+            "field": "qty",
+            "before": 10,
+            "after": 12
+          },
+          {
+            "field": "status",
+            "before": "DRAFT",
+            "after": "SUBMITTED"
+          }
+        ]
+      },
+      "ipAddress": "127.0.0.1",
+      "rawActionType": "update",
+      "created_at": "2026-06-22 10:00:00"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "perPage": 10,
+    "total": 1,
+    "totalPages": 1,
+    "paginated": true
+  },
+  "links": {
+    "self": "/api/v1/audit-logs?page=1&perPage=10",
+    "first": "/api/v1/audit-logs?page=1&perPage=10",
+    "last": "/api/v1/audit-logs?page=1&perPage=10",
+    "next": null,
+    "previous": null
+  }
+}
+```
+`before` berisi snapshot sebelum perubahan. `after` berisi snapshot sesudah perubahan. `diff` berisi field yang berubah. Saat table_name bernilai `stock_transactions` dan action_type mengandung `revision`, objek `changes` juga berisi `itemDiff` berisi daftar perubahan per-item (added/removed/changed) dengan qty_before/qty_after untuk setiap item_id. `actorInfo`, `target`, `ipAddress`, dan `rawActionType` ikut dikirim runtime untuk backward-compatible audit UI.
+
+##### Filter Metadata Endpoint
+
+`GET /api/v1/audit-logs/types` returns available filter values for the audit log UI.
+
+**Access:** Requires valid Bearer token and `admin` role
+
+```json
+{
+  "actionTypes": ["approval", "create", "delete", "post", "rejection", "submit", "update"],
+  "moduleTypes": ["Transaksi", "Master Barang", "Menu", "Pengguna", "SPK", "Stok", "Laporan", "Data Sistem"],
+  "tableNames": ["stock_transactions", "stock_transaction_details", "stock_opnames", "stock_opname_details", "spk_calculations", "spk_recommendations", "daily_patients", "dishes", "dish_compositions", "menu_dishes", "menu_schedules", "users", "items", "monthly_stock_snapshots"]
 }
 ```
 
@@ -1639,6 +1744,15 @@ SPK basah dipisahkan menjadi tiga surface yang berbeda: menu projection, generat
 | POST | `/api/v1/spk/basah/history/{id}/override` | Override rekomendasi qty per item |
 | POST | `/api/v1/spk/basah/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
 
+SPK basah calculation rules:
+
+ - `qty_per_patient`, `current_stock_qty`, `required_qty`, `system_recommended_qty`, and `recommended_qty` use `items.unit_base`.
+ - SPK basah does not convert quantities to `unit_convert` during generation.
+ - `required_qty = ceil(qty_per_patient × (estimated_patients + ceil(estimated_patients × 0.05)))`.
+ - `system_recommended_qty = max(required_qty - current_stock_qty, 0)`.
+ - Multiple menus assigned to the same date deduplicate shared dishes by `dish_id`; different dishes on the same date still sum.
+ - SPK basah applies ceil to final required quantity, so 66.6666 becomes 67.
+
 #### 5.7.3 SPK Kering/Pengemas Route Family
 
 SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
@@ -1651,6 +1765,12 @@ SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
 | GET | `/api/v1/spk/kering-pengemas/history/{id}` | Detail histori |
 | POST | `/api/v1/spk/kering-pengemas/history/{id}/override` | Override rekomendasi qty per item |
 | POST | `/api/v1/spk/kering-pengemas/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
+
+SPK kering/pengemas calculation rules:
+
+- `required_qty = previous_month_out_usage × 1.10`.
+- `system_recommended_qty = ceil(max(required_qty - current_stock_qty, 0))`.
+- Whole-unit `ceil()` rounding applies only after subtracting current stock.
 
 #### 5.7.4 Shared SPK Utility
 
@@ -2151,13 +2271,12 @@ Endpoint berikut masih planned dan belum tersedia sebagai route aktif.
 - stock usage locking rules
 - stock transaction integration
 
-### 6.4 Planned Audit & Reporting Endpoints
+### 6.4 Planned Reporting Endpoints
 
 Endpoint berikut masih planned dan belum tersedia sebagai route aktif.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/v1/audit-logs` | List audit logs |
 | POST | `/api/v1/reports/export-pdf` | Export report as PDF |
 
 ## 7. Example Request/Response Contracts

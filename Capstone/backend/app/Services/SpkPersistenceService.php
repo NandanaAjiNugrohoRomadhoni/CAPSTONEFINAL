@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\SpkCalculationModel;
 use App\Models\SpkRecommendationModel;
 use CodeIgniter\Database\BaseConnection;
@@ -12,13 +13,15 @@ class SpkPersistenceService
 {
     protected SpkCalculationModel $spkCalculationModel;
     protected SpkRecommendationModel $spkRecommendationModel;
+    protected AuditService $auditService;
     protected BaseConnection $db;
 
     public function __construct()
     {
-        $this->spkCalculationModel   = new SpkCalculationModel();
+        $this->spkCalculationModel = new SpkCalculationModel();
         $this->spkRecommendationModel = new SpkRecommendationModel();
-        $this->db                    = Database::connect();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     /**
@@ -31,26 +34,26 @@ class SpkPersistenceService
         $existingLatest = $this->spkCalculationModel->getLatestByScopeKey($scopeKey);
         $shouldRegenerate = (bool) ($headerData['regenerate'] ?? false);
 
-        if ($existingLatest !== null && ! $shouldRegenerate && ! (bool) ($existingLatest['is_finish'] ?? false)) {
+        if ($existingLatest !== null && !$shouldRegenerate && !(bool) ($existingLatest['is_finish'] ?? false)) {
             return [
-                'success'  => false,
-                'message'  => 'SPK generation conflict.',
-                'errors'   => [
+                'success' => false,
+                'message' => 'SPK generation conflict.',
+                'errors' => [
                     'scope' => 'An active SPK already exists for this generation scope. Set regenerate=true to create a new version.',
                 ],
                 'conflict' => [
-                    'spk_id'             => (int) $existingLatest['id'],
-                    'version'            => (int) $existingLatest['version'],
-                    'scope_key'          => (string) $existingLatest['scope_key'],
-                    'is_latest'          => (bool) $existingLatest['is_latest'],
-                    'is_finish'          => (bool) $existingLatest['is_finish'],
-                    'calculation_date'   => $existingLatest['calculation_date'],
-                    'target_date_start'  => $existingLatest['target_date_start'],
-                    'target_date_end'    => $existingLatest['target_date_end'],
-                    'target_month'       => $existingLatest['target_month'],
+                    'spk_id' => (int) $existingLatest['id'],
+                    'version' => (int) $existingLatest['version'],
+                    'scope_key' => (string) $existingLatest['scope_key'],
+                    'is_latest' => (bool) $existingLatest['is_latest'],
+                    'is_finish' => (bool) $existingLatest['is_finish'],
+                    'calculation_date' => $existingLatest['calculation_date'],
+                    'target_date_start' => $existingLatest['target_date_start'],
+                    'target_date_end' => $existingLatest['target_date_end'],
+                    'target_month' => $existingLatest['target_month'],
                     'regenerate_allowed' => true,
                 ],
-                'status'   => 409,
+                'status' => 409,
             ];
         }
 
@@ -65,20 +68,20 @@ class SpkPersistenceService
             ->update();
 
         $spkId = $this->spkCalculationModel->insert([
-            'spk_type'          => $headerData['spk_type'],
+            'spk_type' => $headerData['spk_type'],
             'calculation_scope' => $headerData['calculation_scope'],
-            'scope_key'         => $scopeKey,
-            'version'           => $nextVersion,
-            'is_latest'         => true,
-            'calculation_date'  => $headerData['calculation_date'],
+            'scope_key' => $scopeKey,
+            'version' => $nextVersion,
+            'is_latest' => true,
+            'calculation_date' => $headerData['calculation_date'],
             'target_date_start' => $headerData['target_date_start'],
-            'target_date_end'   => $headerData['target_date_end'],
-            'target_month'      => $headerData['target_month'] ?? null,
-            'daily_patient_id'  => $headerData['daily_patient_id'] ?? null,
-            'user_id'           => (int) $headerData['user_id'],
-            'category_id'       => (int) $headerData['category_id'],
+            'target_date_end' => $headerData['target_date_end'],
+            'target_month' => $headerData['target_month'] ?? null,
+            'daily_patient_id' => $headerData['daily_patient_id'] ?? null,
+            'user_id' => (int) $headerData['user_id'],
+            'category_id' => (int) $headerData['category_id'],
             'estimated_patients' => (int) $headerData['estimated_patients'],
-            'is_finish'         => (bool) ($headerData['is_finish'] ?? false),
+            'is_finish' => (bool) ($headerData['is_finish'] ?? false),
         ], true);
 
         if ($spkId === false) {
@@ -87,7 +90,7 @@ class SpkPersistenceService
             return [
                 'success' => false,
                 'message' => 'Failed to create SPK calculation header.',
-                'errors'  => $this->spkCalculationModel->errors(),
+                'errors' => $this->spkCalculationModel->errors(),
             ];
         }
 
@@ -102,30 +105,30 @@ class SpkPersistenceService
                 ? (bool) $recommendation['is_overridden']
                 : abs($finalRecommendedQty - $systemRecommendedQty) > 0.00001;
 
-            if ($isOverridden && ! array_key_exists('override_reason', $recommendation)) {
+            if ($isOverridden && !array_key_exists('override_reason', $recommendation)) {
                 $this->db->transRollback();
 
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         "recommendations.{$index}.override_reason" => 'override_reason is required when recommendation is overridden.',
                     ],
                 ];
             }
 
             $inserted = $this->spkRecommendationModel->insert([
-                'spk_id'                  => (int) $spkId,
-                'item_id'                 => (int) $recommendation['item_id'],
-                'target_date'             => $recommendation['target_date'] ?? null,
-                'current_stock_qty'       => (float) $recommendation['current_stock_qty'],
-                'required_qty'            => (float) $recommendation['required_qty'],
-                'system_recommended_qty'  => $systemRecommendedQty,
-                'recommended_qty'         => $finalRecommendedQty,
-                'is_overridden'           => $isOverridden,
-                'override_reason'         => $isOverridden ? (string) $recommendation['override_reason'] : null,
-                'overridden_by'           => $isOverridden ? (int) ($recommendation['overridden_by'] ?? $headerData['user_id']) : null,
-                'overridden_at'           => $isOverridden ? ($recommendation['overridden_at'] ?? date('Y-m-d H:i:s')) : null,
+                'spk_id' => (int) $spkId,
+                'item_id' => (int) $recommendation['item_id'],
+                'target_date' => $recommendation['target_date'] ?? null,
+                'current_stock_qty' => (float) $recommendation['current_stock_qty'],
+                'required_qty' => (float) $recommendation['required_qty'],
+                'system_recommended_qty' => $systemRecommendedQty,
+                'recommended_qty' => $finalRecommendedQty,
+                'is_overridden' => $isOverridden,
+                'override_reason' => $isOverridden ? (string) $recommendation['override_reason'] : null,
+                'overridden_by' => $isOverridden ? (int) ($recommendation['overridden_by'] ?? $headerData['user_id']) : null,
+                'overridden_at' => $isOverridden ? ($recommendation['overridden_at'] ?? date('Y-m-d H:i:s')) : null,
             ]);
 
             if ($inserted === false) {
@@ -134,7 +137,7 @@ class SpkPersistenceService
                 return [
                     'success' => false,
                     'message' => 'Failed to create SPK recommendation snapshot.',
-                    'errors'  => $this->spkRecommendationModel->errors(),
+                    'errors' => $this->spkRecommendationModel->errors(),
                 ];
             }
         }
@@ -145,14 +148,41 @@ class SpkPersistenceService
             return [
                 'success' => false,
                 'message' => 'Failed to persist SPK history version.',
-                'errors'  => [],
+                'errors' => [],
+            ];
+        }
+
+        if (
+            !$this->auditService->log(
+                isset($headerData['user_id']) ? (int) $headerData['user_id'] : null,
+                AuditActionType::Create,
+                'spk_calculations',
+                (int) $spkId,
+                'SPK version created.',
+                null,
+                [
+                    'spk_type' => $headerData['spk_type'],
+                    'scope_key' => $scopeKey,
+                    'version' => $nextVersion,
+                    'calculation_scope' => $headerData['calculation_scope'],
+                    'target_date_start' => $headerData['target_date_start'] ?? null,
+                    'target_date_end' => $headerData['target_date_end'] ?? null,
+                    'target_month' => $headerData['target_month'] ?? null,
+                ],
+                null
+            )
+        ) {
+            return [
+                'success' => false,
+                'message' => 'Failed to write audit log.',
+                'errors' => [],
             ];
         }
 
         return [
             'success' => true,
             'data' => [
-                'id'      => (int) $spkId,
+                'id' => (int) $spkId,
                 'version' => $nextVersion,
                 'scope_key' => $scopeKey,
             ],

@@ -151,10 +151,12 @@ export interface GenerateSpkBasahRequest {
   daily_patient_id: number;
   service_date: string;
   category_id: number;
+  regenerate?: boolean;
 }
 
 export interface GenerateSpkKeringPengemasRequest {
   target_month: string;
+  regenerate?: boolean;
 }
 
 export interface SpkBasahGenerateResult {

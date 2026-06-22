@@ -713,6 +713,7 @@ var ItemsResource = class {
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @throws {NotFoundApiError} if the item does not exist or is already soft-deleted (404)
+   * @throws {ConflictApiError} if the item is used in one or more dishes (409)
    * @sideeffect Sets `deleted_at`; the row remains restorable.
    */
   delete(id) {
@@ -1157,6 +1158,39 @@ function buildMenuCalendarQuery(query) {
   if (query.date !== void 0) result.date = query.date;
   if (query.start_date !== void 0) result.start_date = query.start_date;
   if (query.end_date !== void 0) result.end_date = query.end_date;
+  return result;
+}
+
+// src/sdk/resources/auditLogs.ts
+var AuditLogsResource = class {
+  constructor(client) {
+    this.client = client;
+  }
+  client;
+  list(query) {
+    return this.client.request({
+      method: "GET",
+      path: "/audit-logs",
+      ...query ? { query: buildAuditLogQuery(query) } : {}
+    });
+  }
+  types() {
+    return this.client.request({
+      method: "GET",
+      path: "/audit-logs/types"
+    });
+  }
+};
+function buildAuditLogQuery(query) {
+  const result = {};
+  if (query.page !== void 0) result.page = query.page;
+  if (query.perPage !== void 0) result.perPage = query.perPage;
+  if (query.paginate !== void 0) result.paginate = query.paginate;
+  if (query.q !== void 0) result.q = query.q;
+  if (query.action_type !== void 0) result.action_type = query.action_type;
+  if (query.table_name !== void 0) result.table_name = query.table_name;
+  if (query.sortBy !== void 0) result.sortBy = query.sortBy;
+  if (query.sortDir !== void 0) result.sortDir = query.sortDir;
   return result;
 }
 
@@ -2261,6 +2295,7 @@ var CapstoneSdk = class {
   mealTimes;
   menus;
   menuSchedules;
+  auditLogs;
   notifications;
   spk;
   stockTransactions;
@@ -2283,6 +2318,7 @@ var CapstoneSdk = class {
     this.mealTimes = new MealTimesResource(this.client);
     this.menus = new MenusResource(this.client);
     this.menuSchedules = new MenuSchedulesResource(this.client);
+    this.auditLogs = new AuditLogsResource(this.client);
     this.notifications = new NotificationsResource(this.client);
     this.spk = new SpkResource(this.client);
     this.stockTransactions = new StockTransactionsResource(this.client);
@@ -2312,6 +2348,7 @@ export {
   ApiClient,
   ApiError,
   ApprovalStatusesResource,
+  AuditLogsResource,
   AuthResource,
   AuthenticationApiError,
   AuthorizationApiError,

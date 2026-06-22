@@ -2,19 +2,26 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\AppUserProvider;
 use App\Models\UserModel;
 use CodeIgniter\Shield\Entities\User;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 
 class AuthService
 {
     protected AppUserProvider $userProvider;
     protected UserModel $userModel;
+    protected AuditService $auditService;
+    protected BaseConnection $db;
 
     public function __construct()
     {
         $this->userProvider = new AppUserProvider();
         $this->userModel = new UserModel();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     public function attemptLogin(string $username, string $password): array
@@ -100,9 +107,12 @@ class AuthService
         }
 
         $user->fill(['password' => $newPassword]);
+
+        $this->db->transStart();
         $updated = $this->userProvider->save($user);
 
         if (!$updated) {
+            $this->db->transRollback();
             return [
                 "success" => false,
                 "message" => "Failed to update password.",
@@ -110,6 +120,33 @@ class AuthService
         }
 
         $this->userProvider->revokeAllUserTokens((int) $user->id);
+
+        $auditLogged = $this->auditService->log(
+            (int) $user->id,
+            AuditActionType::PasswordChange,
+            'users',
+            (int) $user->id,
+            'Password changed via self-service.',
+            null,
+            ['password_updated' => true],
+            null
+        );
+
+        if (!$auditLogged) {
+            $this->db->transRollback();
+            return [
+                "success" => false,
+                "message" => "Failed to log password change.",
+            ];
+        }
+
+        $this->db->transComplete();
+        if (!$this->db->transStatus()) {
+            return [
+                "success" => false,
+                "message" => "Failed to change password due to a system error.",
+            ];
+        }
 
         return [
             "success" => true,

@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 type GenerateSpkConfirmModalProps = {
   open: boolean;
   targetLabel: string;
+  isRegenerate?: boolean;
   loading?: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -13,6 +14,7 @@ type GenerateSpkConfirmModalProps = {
 export default function GenerateSpkConfirmModal({
   open,
   targetLabel,
+  isRegenerate = false,
   loading = false,
   onClose,
   onConfirm,
@@ -25,8 +27,14 @@ export default function GenerateSpkConfirmModal({
       <div className="relative w-full max-w-[520px] overflow-hidden rounded-[24px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
           <div>
-            <h2 className="text-[26px] font-semibold leading-tight text-[#16213E]">Konfirmasi Generate SPK</h2>
-            <p className="mt-2 text-base text-[#8A9BB8]">Pastikan rekomendasi siap dibuat dan disimpan.</p>
+            <h2 className="text-[26px] font-semibold leading-tight text-[#16213E]">
+              {isRegenerate ? "Konfirmasi Regenerate SPK" : "Konfirmasi Generate SPK"}
+            </h2>
+            <p className="mt-2 text-base text-[#8A9BB8]">
+              {isRegenerate
+                ? "SPK aktif sebelumnya akan diganti sebagai versi terbaru."
+                : "Pastikan rekomendasi siap dibuat dan disimpan."}
+            </p>
           </div>
           <button
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
@@ -40,7 +48,7 @@ export default function GenerateSpkConfirmModal({
 
         <div className="px-6 py-6">
           <div className="rounded-[20px] border border-blue-200 bg-[#EEF4FF] px-5 py-5 text-center text-base leading-8 text-[#334155]">
-            Apakah anda ingin melihat rekomendasi belanja bahan untuk{" "}
+            Apakah anda ingin {isRegenerate ? "membuat ulang" : "melihat"} rekomendasi belanja bahan untuk{" "}
             <span className="font-semibold text-[#2155CD]">{targetLabel}</span> dan disimpan kedalam riwayat SPK?
           </div>
         </div>

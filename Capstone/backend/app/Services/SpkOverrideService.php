@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
+
 use App\Models\SpkCalculationModel;
 use App\Models\SpkRecommendationModel;
 use CodeIgniter\Database\BaseConnection;
@@ -162,7 +164,7 @@ class SpkOverrideService
 
         $auditLogged = $this->auditService->log(
             $actorId,
-            'spk_recommendation_override',
+            AuditActionType::Override,
             'spk_recommendations',
             $recommendationId,
             'SPK recommendation item overridden before finalization.',

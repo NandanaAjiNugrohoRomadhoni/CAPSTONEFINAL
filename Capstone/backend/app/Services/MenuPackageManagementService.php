@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\DishModel;
 use App\Models\MealTimeModel;
 use App\Models\MenuModel;
+use Config\Database;
+use CodeIgniter\Database\BaseConnection;
 
 class MenuPackageManagementService
 {
@@ -12,14 +15,18 @@ class MenuPackageManagementService
     protected MealTimeModel $mealTimeModel;
     protected DishModel $dishModel;
     protected $menuDishModel;
+    protected AuditService $auditService;
+    protected BaseConnection $db;
 
     public function __construct()
     {
-        $this->menuModel     = new MenuModel();
+        $this->menuModel = new MenuModel();
         $this->mealTimeModel = new MealTimeModel();
-        $this->dishModel     = new DishModel();
+        $this->dishModel = new DishModel();
         $modelClass = 'App\\Models\\MenuDishModel';
         $this->menuDishModel = new $modelClass();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     public function getAllMenus(): array
@@ -30,16 +37,16 @@ class MenuPackageManagementService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $menu): array => [
-                'id'   => (int) $menu['id'],
+            'data' => array_map(fn(array $menu): array => [
+                'id' => (int) $menu['id'],
                 'name' => $menu['name'],
             ], $menus),
-            'meta'    => [
-                'page'       => 1,
-                'perPage'    => max(1, count($menus)),
-                'total'      => count($menus),
+            'meta' => [
+                'page' => 1,
+                'perPage' => max(1, count($menus)),
+                'total' => count($menus),
                 'totalPages' => count($menus) > 0 ? 1 : 0,
-                'paginated'  => false,
+                'paginated' => false,
             ],
         ];
     }
@@ -50,13 +57,13 @@ class MenuPackageManagementService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $row): array => $this->formatSlot($row), $rows),
-            'meta'    => [
-                'page'       => 1,
-                'perPage'    => max(1, count($rows)),
-                'total'      => count($rows),
+            'data' => array_map(fn(array $row): array => $this->formatSlot($row), $rows),
+            'meta' => [
+                'page' => 1,
+                'perPage' => max(1, count($rows)),
+                'total' => count($rows),
                 'totalPages' => count($rows) > 0 ? 1 : 0,
-                'paginated'  => false,
+                'paginated' => false,
             ],
         ];
     }
@@ -64,21 +71,23 @@ class MenuPackageManagementService
     public function assignDishToSlot(array $data): array
     {
         $validation = service('validation');
-        if (! $validation->setRules([
-            'menu_id'      => 'required|is_natural_no_zero',
-            'meal_time_id' => 'required|is_natural_no_zero',
-            'dish_id'      => 'required|is_natural_no_zero',
-        ])->run($data)) {
+        if (
+            !$validation->setRules([
+                'menu_id' => 'required|is_natural_no_zero',
+                'meal_time_id' => 'required|is_natural_no_zero',
+                'dish_id' => 'required|is_natural_no_zero',
+            ])->run($data)
+        ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
-        $menuId     = (int) $data['menu_id'];
+        $menuId = (int) $data['menu_id'];
         $mealTimeId = (int) $data['meal_time_id'];
-        $dishId     = (int) $data['dish_id'];
+        $dishId = (int) $data['dish_id'];
 
         $errors = [];
 
@@ -95,7 +104,7 @@ class MenuPackageManagementService
         $dish = $this->dishModel->findById($dishId);
         if ($dish === null) {
             $errors['dish_id'] = 'The selected dish is invalid.';
-        } elseif (! (bool) ($dish['is_active'] ?? false)) {
+        } elseif (!(bool) ($dish['is_active'] ?? false)) {
             $errors['dish_id'] = 'The selected dish is inactive.';
         }
 
@@ -103,21 +112,52 @@ class MenuPackageManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $errors,
+                'errors' => $errors,
             ];
         }
 
+        $existingDishes = $this->menuDishModel->findDishesBySlot($menuId, $mealTimeId);
+        foreach ($existingDishes as $ed) {
+            if ((int) $ed['dish_id'] === $dishId) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors' => [
+                        'dish_id' => 'This dish is already assigned to this menu slot.',
+                    ],
+                ];
+            }
+        }
+
+        $this->db->transStart();
         $created = $this->menuDishModel->insert([
-            'menu_id'      => $menuId,
+            'menu_id' => $menuId,
             'meal_time_id' => $mealTimeId,
-            'dish_id'      => $dishId,
+            'dish_id' => $dishId,
         ], true);
 
         if ($created === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to assign menu slot.',
-                'errors'  => $this->menuDishModel->errors(),
+                'errors' => $this->menuDishModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Create, 'menu_dishes', (int) $created, 'Menu dish assigned.', null, $data, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to assign menu slot.',
+            ];
+        }
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to assign menu slot.',
             ];
         }
 
@@ -133,7 +173,7 @@ class MenuPackageManagementService
 
         return [
             'success' => true,
-            'slot'    => $this->formatSlot($row),
+            'slot' => $this->formatSlot($row),
         ];
     }
 
@@ -150,11 +190,11 @@ class MenuPackageManagementService
 
         // Validate that at least one updatable field is present
         $hasUpdatableField = isset($data['menu_id']) || isset($data['meal_time_id']) || isset($data['dish_id']);
-        if (! $hasUpdatableField) {
+        if (!$hasUpdatableField) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'data' => 'At least one of menu_id, meal_time_id, or dish_id must be provided.',
                 ],
             ];
@@ -173,11 +213,11 @@ class MenuPackageManagementService
             $rules['dish_id'] = 'is_natural_no_zero';
         }
 
-        if ($rules !== [] && ! $validation->setRules($rules)->run($data)) {
+        if ($rules !== [] && !$validation->setRules($rules)->run($data)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
@@ -215,7 +255,7 @@ class MenuPackageManagementService
             $dish = $this->dishModel->findById($dishId);
             if ($dish === null) {
                 $errors['dish_id'] = 'The selected dish is invalid.';
-            } elseif (! (bool) ($dish['is_active'] ?? false)) {
+            } elseif (!(bool) ($dish['is_active'] ?? false)) {
                 $errors['dish_id'] = 'The selected dish is inactive.';
             }
         } else {
@@ -226,7 +266,24 @@ class MenuPackageManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $errors,
+                'errors' => $errors,
+            ];
+        }
+
+        $collision = $this->menuDishModel
+            ->where('menu_id', $menuId)
+            ->where('meal_time_id', $mealTimeId)
+            ->where('dish_id', $dishId)
+            ->where('id !=', $id)
+            ->first();
+
+        if ($collision !== null) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => [
+                    'dish_id' => 'This dish is already assigned to this menu slot.',
+                ],
             ];
         }
 
@@ -243,12 +300,30 @@ class MenuPackageManagementService
         }
 
         // Perform update
+        $this->db->transStart();
         $updated = $this->menuDishModel->update($id, $updateData);
         if ($updated === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to update menu slot.',
-                'errors'  => $this->menuDishModel->errors(),
+                'errors' => $this->menuDishModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Update, 'menu_dishes', $id, 'Menu dish assignment updated.', $existing, $updateData, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to update menu slot.',
+            ];
+        }
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update menu slot.',
             ];
         }
 
@@ -258,7 +333,7 @@ class MenuPackageManagementService
         return [
             'success' => true,
             'message' => 'Menu slot updated successfully.',
-            'data'    => $this->formatSlot($row),
+            'data' => $this->formatSlot($row),
         ];
     }
 
@@ -274,12 +349,30 @@ class MenuPackageManagementService
         }
 
         // Perform delete
+        $this->db->transStart();
         $deleted = $this->menuDishModel->delete($id);
         if ($deleted === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to delete menu slot.',
-                'errors'  => $this->menuDishModel->errors(),
+                'errors' => $this->menuDishModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Delete, 'menu_dishes', $id, 'Menu dish assignment deleted.', $existing, null, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to delete menu slot.',
+            ];
+        }
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to delete menu slot.',
             ];
         }
 
@@ -292,22 +385,22 @@ class MenuPackageManagementService
     private function formatSlot(array $row): array
     {
         return [
-            'id'           => (int) $row['id'],
-            'menu_id'      => (int) $row['menu_id'],
+            'id' => (int) $row['id'],
+            'menu_id' => (int) $row['menu_id'],
             'meal_time_id' => (int) $row['meal_time_id'],
-            'dish_id'      => (int) $row['dish_id'],
-            'created_at'   => $row['created_at'],
-            'updated_at'   => $row['updated_at'],
-            'menu'         => [
-                'id'   => (int) $row['menu_id'],
+            'dish_id' => (int) $row['dish_id'],
+            'created_at' => $row['created_at'],
+            'updated_at' => $row['updated_at'],
+            'menu' => [
+                'id' => (int) $row['menu_id'],
                 'name' => $row['menu_name'] ?? null,
             ],
-            'meal_time'    => [
-                'id'   => (int) $row['meal_time_id'],
+            'meal_time' => [
+                'id' => (int) $row['meal_time_id'],
                 'name' => $row['meal_time_name'] ?? null,
             ],
-            'dish'         => [
-                'id'   => (int) $row['dish_id'],
+            'dish' => [
+                'id' => (int) $row['dish_id'],
                 'name' => $row['dish_name'] ?? null,
             ],
         ];

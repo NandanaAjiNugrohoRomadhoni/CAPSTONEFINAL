@@ -76,6 +76,10 @@ use OpenApi\Annotations as OA;
  *         description="Daily patient input endpoints for listing, creating, and resolving service-date-specific operational totals."
  *     ),
  *     @OA\Tag(
+ *         name="Audit Logs",
+ *         description="Admin-only audit trail read endpoint for operational accountability and investigations."
+ *     ),
+ *     @OA\Tag(
  *         name="Stock Transactions",
  *         description="Inventory workflow endpoints for transaction listing, creation, revision submission, direct corrections, and admin review actions."
  *     ),

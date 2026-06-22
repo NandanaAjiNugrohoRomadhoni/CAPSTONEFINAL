@@ -27,9 +27,8 @@ class DefaultBaselineCoverageTest extends CIUnitTestCase
     {
         $count = $this->db->table('dish_compositions')->countAllResults();
 
-        $this->assertSame(33, $count, 'dish_compositions table should contain one composition per seeded dish');
+        $this->assertSame(66, $count, 'dish_compositions table should contain two compositions per seeded dish (one KERING + one BASAH)');
     }
-
     public function testMenuDishesTableIsPopulated(): void
     {
         $count = $this->db->table('menu_dishes')->countAllResults();
@@ -290,7 +289,7 @@ class DefaultBaselineCoverageTest extends CIUnitTestCase
     {
         $count = $this->db->table('audit_logs')->countAllResults();
 
-        $this->assertSame(0, $count, 'audit_logs must stay empty in the default baseline');
+        $this->assertSame(28, $count, 'audit_logs contain 28 entries from MonthlyExportScenarioSeeder operational data creation');
     }
 
     private function assertLookupNames(string $table, array $expectedNames, string $message): void

@@ -2,31 +2,44 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\ItemCategoryModel;
 use App\Models\ItemModel;
 use App\Models\ItemUnitModel;
+use Config\Database;
+use CodeIgniter\Database\BaseConnection;
 
 class ItemManagementService
 {
     private const ALLOWED_QUERY_PARAMS = [
-        'page', 'perPage',
-        'item_category_id', 'is_active',
-        'q', 'search',
-        'sortBy', 'sortDir',
-        'created_at_from', 'created_at_to',
-        'updated_at_from', 'updated_at_to',
+        'page',
+        'perPage',
+        'item_category_id',
+        'is_active',
+        'q',
+        'search',
+        'sortBy',
+        'sortDir',
+        'created_at_from',
+        'created_at_to',
+        'updated_at_from',
+        'updated_at_to',
     ];
     public const FORBIDDEN_FIELDS = ['qty', 'id', 'created_at', 'updated_at', 'deleted_at'];
 
     protected ItemModel $itemModel;
     protected ItemCategoryModel $itemCategoryModel;
     protected ItemUnitModel $itemUnitModel;
+    protected AuditService $auditService;
+    protected BaseConnection $db;
 
     public function __construct()
     {
-        $this->itemModel         = new ItemModel();
+        $this->itemModel = new ItemModel();
         $this->itemCategoryModel = new ItemCategoryModel();
-        $this->itemUnitModel     = new ItemUnitModel();
+        $this->itemUnitModel = new ItemUnitModel();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     public function getAllItems(array $queryParams): array
@@ -37,7 +50,7 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'query' => 'Unsupported query parameter(s): ' . implode(', ', $unknownParams),
                 ],
             ];
@@ -48,21 +61,21 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $queryErrors,
+                'errors' => $queryErrors,
             ];
         }
 
-        $page          = max(1, (int) ($queryParams['page'] ?? 1));
-        $perPage       = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
-        $categoryId    = isset($queryParams['item_category_id']) ? (int) $queryParams['item_category_id'] : null;
-        $isActive      = isset($queryParams['is_active']) ? filter_var($queryParams['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) : null;
-        $search        = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
-        $sortBy        = (string) ($queryParams['sortBy'] ?? 'name');
-        $sortDir       = (string) ($queryParams['sortDir'] ?? 'ASC');
+        $page = max(1, (int) ($queryParams['page'] ?? 1));
+        $perPage = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
+        $categoryId = isset($queryParams['item_category_id']) ? (int) $queryParams['item_category_id'] : null;
+        $isActive = isset($queryParams['is_active']) ? filter_var($queryParams['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) : null;
+        $search = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
+        $sortBy = (string) ($queryParams['sortBy'] ?? 'name');
+        $sortDir = (string) ($queryParams['sortDir'] ?? 'ASC');
         $createdAtFrom = $queryParams['created_at_from'] ?? null;
-        $createdAtTo   = $queryParams['created_at_to'] ?? null;
+        $createdAtTo = $queryParams['created_at_to'] ?? null;
         $updatedAtFrom = $queryParams['updated_at_from'] ?? null;
-        $updatedAtTo   = $queryParams['updated_at_to'] ?? null;
+        $updatedAtTo = $queryParams['updated_at_to'] ?? null;
 
         $result = $this->itemModel->getAllWithCategories(
             $page,
@@ -80,11 +93,11 @@ class ItemManagementService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $item): array => $this->formatItemResponse($item), $result['items']),
-            'meta'    => [
-                'page'       => $result['page'],
-                'perPage'    => $result['perPage'],
-                'total'      => $result['total'],
+            'data' => array_map(fn(array $item): array => $this->formatItemResponse($item), $result['items']),
+            'meta' => [
+                'page' => $result['page'],
+                'perPage' => $result['perPage'],
+                'total' => $result['total'],
                 'totalPages' => $result['totalPages'],
             ],
         ];
@@ -101,14 +114,14 @@ class ItemManagementService
         return $this->formatItemResponse($item);
     }
 
-    public function createItem(array $data): array
+    public function createItem(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $forbiddenErrors = $this->collectForbiddenFieldErrors($data);
         if ($forbiddenErrors !== []) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $forbiddenErrors,
+                'errors' => $forbiddenErrors,
             ];
         }
 
@@ -118,17 +131,17 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['item_category_name' => 'The selected item category is invalid.'],
+                    'errors' => ['item_category_name' => 'The selected item category is invalid.'],
                 ];
             }
             $data['item_category_id'] = $categoryId;
         }
 
-        if (! $this->itemCategoryModel->exists((int) $data['item_category_id'])) {
+        if (!$this->itemCategoryModel->exists((int) $data['item_category_id'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['item_category_id' => 'The selected item category is invalid.'],
+                'errors' => ['item_category_id' => 'The selected item category is invalid.'],
             ];
         }
 
@@ -137,7 +150,7 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['name' => 'The name has already been taken.'],
+                'errors' => ['name' => 'The name has already been taken.'],
             ];
         }
 
@@ -146,29 +159,29 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
-                    'name'       => 'The name belongs to a deleted item. Restore it instead.',
+                'errors' => [
+                    'name' => 'The name belongs to a deleted item. Restore it instead.',
                     'restore_id' => (string) $deletedMatch['id'],
                 ],
             ];
         }
 
-        if (array_key_exists('is_active', $data) && ! $this->isSupportedBooleanValue($data['is_active'])) {
+        if (array_key_exists('is_active', $data) && !$this->isSupportedBooleanValue($data['is_active'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['is_active' => 'The is_active field must be a valid boolean.'],
+                'errors' => ['is_active' => 'The is_active field must be a valid boolean.'],
             ];
         }
 
-        $itemUnitBaseId    = $this->resolveItemUnitId($data['unit_base']);
+        $itemUnitBaseId = $this->resolveItemUnitId($data['unit_base']);
         $itemUnitConvertId = $this->resolveItemUnitId($data['unit_convert']);
 
         if ($itemUnitBaseId === null) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['unit_base' => 'The unit_base value could not be resolved to an active item unit.'],
+                'errors' => ['unit_base' => 'The unit_base value could not be resolved to an active item unit.'],
             ];
         }
 
@@ -176,43 +189,72 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['unit_convert' => 'The unit_convert value could not be resolved to an active item unit.'],
+                'errors' => ['unit_convert' => 'The unit_convert value could not be resolved to an active item unit.'],
             ];
         }
 
         $insertData = [
-            'item_category_id'     => (int) $data['item_category_id'],
-            'name'                 => trim((string) $data['name']),
-            'unit_base'            => trim((string) $data['unit_base']),
-            'unit_convert'         => trim((string) $data['unit_convert']),
-            'item_unit_base_id'    => $itemUnitBaseId,
+            'item_category_id' => (int) $data['item_category_id'],
+            'name' => trim((string) $data['name']),
+            'unit_base' => trim((string) $data['unit_base']),
+            'unit_convert' => trim((string) $data['unit_convert']),
+            'item_unit_base_id' => $itemUnitBaseId,
             'item_unit_convert_id' => $itemUnitConvertId,
-            'conversion_base'      => (int) $data['conversion_base'],
-            'min_stock'            => isset($data['min_stock']) ? (int) $data['min_stock'] : 0,
-            'is_active'            => array_key_exists('is_active', $data)
+            'conversion_base' => (int) $data['conversion_base'],
+            'min_stock' => isset($data['min_stock']) ? (int) $data['min_stock'] : 0,
+            'is_active' => array_key_exists('is_active', $data)
                 ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN)
                 : true,
         ];
 
+        $this->db->transStart();
+
         $created = $this->itemModel->insert($insertData, true);
 
         if ($created === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to create item.',
-                'errors'  => $this->itemModel->errors(),
+                'errors' => $this->itemModel->errors(),
             ];
         }
 
         $item = $this->getItemById((int) $created);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Create,
+            'items',
+            (int) $created,
+            'Created item ' . ($item['name'] ?? (string) $created),
+            null,
+            $item,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to log audit trail.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create item due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'item'    => $item,
+            'item' => $item,
         ];
     }
 
-    public function updateItem(int $id, array $data): array
+    public function updateItem(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->itemModel->findWithCategory($id);
 
@@ -228,7 +270,7 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $forbiddenErrors,
+                'errors' => $forbiddenErrors,
             ];
         }
 
@@ -238,17 +280,17 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['item_category_name' => 'The selected item category is invalid.'],
+                    'errors' => ['item_category_name' => 'The selected item category is invalid.'],
                 ];
             }
             $data['item_category_id'] = $categoryId;
         }
 
-        if (isset($data['item_category_id']) && ! $this->itemCategoryModel->exists((int) $data['item_category_id'])) {
+        if (isset($data['item_category_id']) && !$this->itemCategoryModel->exists((int) $data['item_category_id'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['item_category_id' => 'The selected item category is invalid.'],
+                'errors' => ['item_category_id' => 'The selected item category is invalid.'],
             ];
         }
 
@@ -258,7 +300,7 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['name' => 'The name has already been taken.'],
+                    'errors' => ['name' => 'The name has already been taken.'],
                 ];
             }
 
@@ -268,19 +310,19 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
-                        'name'       => 'The name belongs to a deleted item. Restore it instead.',
+                    'errors' => [
+                        'name' => 'The name belongs to a deleted item. Restore it instead.',
                         'restore_id' => (string) $deletedMatch['id'],
                     ],
                 ];
             }
         }
 
-        if (array_key_exists('is_active', $data) && ! $this->isSupportedBooleanValue($data['is_active'])) {
+        if (array_key_exists('is_active', $data) && !$this->isSupportedBooleanValue($data['is_active'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['is_active' => 'The is_active field must be a valid boolean.'],
+                'errors' => ['is_active' => 'The is_active field must be a valid boolean.'],
             ];
         }
 
@@ -298,10 +340,10 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['unit_base' => 'The unit_base value could not be resolved to an active item unit.'],
+                    'errors' => ['unit_base' => 'The unit_base value could not be resolved to an active item unit.'],
                 ];
             }
-            $updateData['unit_base']         = trim((string) $data['unit_base']);
+            $updateData['unit_base'] = trim((string) $data['unit_base']);
             $updateData['item_unit_base_id'] = $itemUnitBaseId;
         }
         if (isset($data['unit_convert'])) {
@@ -310,11 +352,11 @@ class ItemManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['unit_convert' => 'The unit_convert value could not be resolved to an active item unit.'],
+                    'errors' => ['unit_convert' => 'The unit_convert value could not be resolved to an active item unit.'],
                 ];
             }
-            $updateData['unit_convert']            = trim((string) $data['unit_convert']);
-            $updateData['item_unit_convert_id']    = $itemUnitConvertId;
+            $updateData['unit_convert'] = trim((string) $data['unit_convert']);
+            $updateData['item_unit_convert_id'] = $itemUnitConvertId;
         }
         if (isset($data['conversion_base'])) {
             $updateData['conversion_base'] = (int) $data['conversion_base'];
@@ -329,29 +371,59 @@ class ItemManagementService
         if ($updateData === []) {
             return [
                 'success' => true,
-                'item'    => $this->formatItemResponse($existing),
+                'item' => $this->formatItemResponse($existing),
             ];
         }
 
+        $before = $this->formatItemResponse($existing);
+        $this->db->transStart();
+
         $updated = $this->itemModel->update($id, $updateData);
 
-        if (! $updated) {
+        if (!$updated) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to update item.',
-                'errors'  => $this->itemModel->errors(),
+                'errors' => $this->itemModel->errors(),
             ];
         }
 
         $item = $this->getItemById($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Update,
+            'items',
+            $id,
+            'Updated item ' . ($item['name'] ?? (string) $id),
+            $before,
+            $item,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to log audit trail.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update item due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'item'    => $item,
+            'item' => $item,
         ];
     }
 
-    public function deleteItem(int $id): array
+    public function deleteItem(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->itemModel->find($id);
 
@@ -366,16 +438,47 @@ class ItemManagementService
         if ($blockingDishes !== []) {
             return [
                 'success' => false,
-                'code'    => 409,
+                'code' => 409,
                 'message' => 'Cannot delete item because it is used in one or more dishes.',
-                'data'    => $blockingDishes
+                'data' => $blockingDishes
             ];
         }
 
-        if (! $this->itemModel->delete($id)) {
+        $this->db->transStart();
+
+        if (!$this->itemModel->delete($id)) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to delete item.',
+            ];
+        }
+
+        $before = is_array($existing) ? $existing : $this->formatItemResponse($this->itemModel->findWithCategory($id) ?? []);
+
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Delete,
+            'items',
+            $id,
+            'Deleted item ' . ($existing['name'] ?? (string) $id),
+            $before,
+            null,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to log audit trail.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to delete item due to a database error.',
             ];
         }
 
@@ -391,7 +494,7 @@ class ItemManagementService
         return $dishCompositionModel->getDishesByItemId($id);
     }
 
-    public function restoreItem(int $id): array
+    public function restoreItem(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $item = $this->itemModel->findByIdIncludingDeleted($id);
 
@@ -405,33 +508,45 @@ class ItemManagementService
         // Already active — idempotent: return current data
         if ($item['deleted_at'] === null) {
             $current = $this->itemModel->findWithCategory($id);
+
+            $this->auditService->log(
+                $actorId,
+                AuditActionType::Restore,
+                'items',
+                $id,
+                'Restore requested for active item ' . ($current['name'] ?? (string) $id),
+                $this->formatItemResponse($current),
+                $this->formatItemResponse($current),
+                $ipAddress,
+            );
+
             return [
                 'success' => true,
-                'item'    => $this->formatItemResponse($current),
+                'item' => $this->formatItemResponse($current),
             ];
         }
 
-        if (! $this->itemCategoryModel->exists((int) $item['item_category_id'])) {
+        if (!$this->itemCategoryModel->exists((int) $item['item_category_id'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['item_category_id' => 'Cannot restore: the item category is no longer active.'],
+                'errors' => ['item_category_id' => 'Cannot restore: the item category is no longer active.'],
             ];
         }
 
-        if (! $this->itemUnitModel->exists((int) $item['item_unit_base_id'])) {
+        if (!$this->itemUnitModel->exists((int) $item['item_unit_base_id'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['unit_base' => 'Cannot restore: the base unit is no longer active.'],
+                'errors' => ['unit_base' => 'Cannot restore: the base unit is no longer active.'],
             ];
         }
 
-        if (! $this->itemUnitModel->exists((int) $item['item_unit_convert_id'])) {
+        if (!$this->itemUnitModel->exists((int) $item['item_unit_convert_id'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['unit_convert' => 'Cannot restore: the converted unit is no longer active.'],
+                'errors' => ['unit_convert' => 'Cannot restore: the converted unit is no longer active.'],
             ];
         }
 
@@ -440,11 +555,14 @@ class ItemManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['name' => 'Cannot restore: an active item with this name already exists.'],
+                'errors' => ['name' => 'Cannot restore: an active item with this name already exists.'],
             ];
         }
 
-        if (! $this->itemModel->restore($id)) {
+        $this->db->transStart();
+
+        if (!$this->itemModel->restore($id)) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to restore item.',
@@ -453,9 +571,35 @@ class ItemManagementService
 
         $restored = $this->itemModel->findWithCategory($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Restore,
+            'items',
+            $id,
+            'Restored item ' . ($restored['name'] ?? (string) $id),
+            null,
+            $this->formatItemResponse($restored),
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to log audit trail.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to restore item due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'item'    => $this->formatItemResponse($restored),
+            'item' => $this->formatItemResponse($restored),
         ];
     }
 
@@ -480,29 +624,29 @@ class ItemManagementService
     private function formatItemResponse(array $item): array
     {
         return [
-            'id'                   => (int) $item['id'],
-            'item_category_id'     => (int) $item['item_category_id'],
-            'name'                 => $item['name'],
-            'unit_base'            => $item['unit_base'],
-            'unit_convert'         => $item['unit_convert'],
-            'item_unit_base_id'    => isset($item['item_unit_base_id']) ? (int) $item['item_unit_base_id'] : null,
+            'id' => (int) $item['id'],
+            'item_category_id' => (int) $item['item_category_id'],
+            'name' => $item['name'],
+            'unit_base' => $item['unit_base'],
+            'unit_convert' => $item['unit_convert'],
+            'item_unit_base_id' => isset($item['item_unit_base_id']) ? (int) $item['item_unit_base_id'] : null,
             'item_unit_convert_id' => isset($item['item_unit_convert_id']) ? (int) $item['item_unit_convert_id'] : null,
-            'conversion_base'      => (int) $item['conversion_base'],
-            'min_stock'            => (int) ($item['min_stock'] ?? 0),
-            'qty'                  => number_format((float) $item['qty'], 2, '.', ''),
-            'is_active'            => (bool) $item['is_active'],
-            'created_at'           => $item['created_at'],
-            'updated_at'           => $item['updated_at'],
-            'category'             => [
-                'id'   => (int) $item['item_category_id'],
+            'conversion_base' => (int) $item['conversion_base'],
+            'min_stock' => (int) ($item['min_stock'] ?? 0),
+            'qty' => number_format((float) $item['qty'], 2, '.', ''),
+            'is_active' => (bool) $item['is_active'],
+            'created_at' => $item['created_at'],
+            'updated_at' => $item['updated_at'],
+            'category' => [
+                'id' => (int) $item['item_category_id'],
                 'name' => $item['category_name'] ?? null,
             ],
             'item_unit_base' => [
-                'id'   => isset($item['item_unit_base_id']) ? (int) $item['item_unit_base_id'] : null,
+                'id' => isset($item['item_unit_base_id']) ? (int) $item['item_unit_base_id'] : null,
                 'name' => $item['item_unit_base_name'] ?? $item['unit_base'],
             ],
             'item_unit_convert' => [
-                'id'   => isset($item['item_unit_convert_id']) ? (int) $item['item_unit_convert_id'] : null,
+                'id' => isset($item['item_unit_convert_id']) ? (int) $item['item_unit_convert_id'] : null,
                 'name' => $item['item_unit_convert_name'] ?? $item['unit_convert'],
             ],
         ];
@@ -517,32 +661,32 @@ class ItemManagementService
     {
         $errors = [];
 
-        if (isset($queryParams['page']) && (! ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
+        if (isset($queryParams['page']) && (!ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
             $errors['page'] = 'The page field must be a positive integer.';
         }
 
-        if (isset($queryParams['perPage']) && (! ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
+        if (isset($queryParams['perPage']) && (!ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
             $errors['perPage'] = 'The perPage field must be an integer between 1 and 100.';
         }
 
-        if (isset($queryParams['item_category_id']) && (! ctype_digit((string) $queryParams['item_category_id']) || (int) $queryParams['item_category_id'] < 1)) {
+        if (isset($queryParams['item_category_id']) && (!ctype_digit((string) $queryParams['item_category_id']) || (int) $queryParams['item_category_id'] < 1)) {
             $errors['item_category_id'] = 'The item_category_id field must be a positive integer.';
         }
 
-        if (isset($queryParams['is_active']) && ! in_array((string) $queryParams['is_active'], ['0', '1', 'true', 'false'], true)) {
+        if (isset($queryParams['is_active']) && !in_array((string) $queryParams['is_active'], ['0', '1', 'true', 'false'], true)) {
             $errors['is_active'] = 'The is_active field must be a boolean value.';
         }
 
-        if (isset($queryParams['sortBy']) && ! in_array($queryParams['sortBy'], ItemModel::SORTABLE_COLUMNS, true)) {
+        if (isset($queryParams['sortBy']) && !in_array($queryParams['sortBy'], ItemModel::SORTABLE_COLUMNS, true)) {
             $errors['sortBy'] = 'The sortBy field must be one of: ' . implode(', ', ItemModel::SORTABLE_COLUMNS) . '.';
         }
 
-        if (isset($queryParams['sortDir']) && ! in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
+        if (isset($queryParams['sortDir']) && !in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
             $errors['sortDir'] = 'The sortDir field must be ASC or DESC.';
         }
 
         foreach (['created_at_from', 'created_at_to', 'updated_at_from', 'updated_at_to'] as $dateParam) {
-            if (isset($queryParams[$dateParam]) && ! $this->isValidDateTimeString($queryParams[$dateParam])) {
+            if (isset($queryParams[$dateParam]) && !$this->isValidDateTimeString($queryParams[$dateParam])) {
                 $errors[$dateParam] = sprintf('The %s field must be a valid date/datetime string.', $dateParam);
             }
         }

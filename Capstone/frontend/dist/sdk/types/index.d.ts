@@ -1,5 +1,6 @@
 export * from "./auth";
 export * from "./common";
+export * from "./auditLogs";
 export * from "./dailyPatients";
 export * from "./dashboard";
 export * from "./menu";

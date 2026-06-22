@@ -15,8 +15,10 @@ export interface StockTransaction {
     /** Backend-managed approval status identifier. */
     approval_status_id: number;
     approved_by: number | null;
+    approved_by_name: string | null;
     /** Backend derives this from the Bearer token for create requests. */
     user_id: number;
+    user_name: string | null;
     spk_id: number | null;
     reason: string | null;
     /** Optional admin rejection note stored separately from transaction `reason`. */

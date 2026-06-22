@@ -2,15 +2,22 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\DailyPatientModel;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 
 class DailyPatientService
 {
     protected DailyPatientModel $dailyPatientModel;
+    protected BaseConnection $db;
+    protected AuditService $auditService;
 
     public function __construct()
     {
         $this->dailyPatientModel = new DailyPatientModel();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     public function getAllDailyPatients(): array
@@ -21,13 +28,13 @@ class DailyPatientService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $row): array => $this->formatRow($row), $rows),
-            'meta'    => [
-                'page'       => 1,
-                'perPage'    => max(1, count($rows)),
-                'total'      => count($rows),
+            'data' => array_map(fn(array $row): array => $this->formatRow($row), $rows),
+            'meta' => [
+                'page' => 1,
+                'perPage' => max(1, count($rows)),
+                'total' => count($rows),
                 'totalPages' => count($rows) > 0 ? 1 : 0,
-                'paginated'  => false,
+                'paginated' => false,
             ],
         ];
     }
@@ -49,23 +56,25 @@ class DailyPatientService
     public function createDailyPatient(array $data): array
     {
         $validation = service('validation');
-        if (! $validation->setRules([
-            'service_date'   => 'required|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
-            'total_patients' => 'required|is_natural',
-            'notes'          => 'permit_empty|string',
-        ])->run($data)) {
+        if (
+            !$validation->setRules([
+                'service_date' => 'required|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
+                'total_patients' => 'required|is_natural',
+                'notes' => 'permit_empty|string',
+            ])->run($data)
+        ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
-        if (! $this->isValidDate($data['service_date'])) {
+        if (!$this->isValidDate($data['service_date'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'The service_date field must be a valid date in Y-m-d format.',
                 ],
             ];
@@ -76,29 +85,49 @@ class DailyPatientService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'A daily patient input for this service_date already exists. Use PUT /api/v1/daily-patients/{id} to update the existing row.',
-                    'existing_id'  => (string) $existing['id'],
+                    'existing_id' => (string) $existing['id'],
                 ],
             ];
         }
 
+        $this->db->transStart();
         $created = $this->dailyPatientModel->insert([
-            'service_date'   => $data['service_date'],
+            'service_date' => $data['service_date'],
             'total_patients' => (int) $data['total_patients'],
-            'notes'          => array_key_exists('notes', $data) ? $data['notes'] : null,
+            'notes' => array_key_exists('notes', $data) ? $data['notes'] : null,
         ], true);
 
         if ($created === false) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to create daily patient.',
-                'errors'  => $this->dailyPatientModel->errors(),
+                'errors' => $this->dailyPatientModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log($data['user_id'] ?? null, AuditActionType::Create, 'daily_patients', (int) $created, 'Daily patient created.', null, $data, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to write audit log.',
+                'errors' => [],
+            ];
+        }
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create daily patient.',
+                'errors' => [],
             ];
         }
 
         return [
-            'success'      => true,
+            'success' => true,
             'daily_patient' => $this->getDailyPatientById((int) $created),
         ];
     }
@@ -110,20 +139,22 @@ class DailyPatientService
             return [
                 'success' => false,
                 'message' => 'Daily patient not found.',
-                'errors'  => [],
+                'errors' => [],
             ];
         }
 
         $validation = service('validation');
-        if (! $validation->setRules([
-            'service_date'   => 'permit_empty|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
-            'total_patients' => 'permit_empty|is_natural',
-            'notes'          => 'permit_empty|string',
-        ])->run($data)) {
+        if (
+            !$validation->setRules([
+                'service_date' => 'permit_empty|regex_match[/^\d{4}-\d{2}-\d{2}$/]',
+                'total_patients' => 'permit_empty|is_natural',
+                'notes' => 'permit_empty|string',
+            ])->run($data)
+        ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
@@ -131,11 +162,11 @@ class DailyPatientService
             ? (string) $data['service_date']
             : (string) $existingRow['service_date'];
 
-        if (! $this->isValidDate($serviceDate)) {
+        if (!$this->isValidDate($serviceDate)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'The service_date field must be a valid date in Y-m-d format.',
                 ],
             ];
@@ -146,33 +177,53 @@ class DailyPatientService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'A daily patient input for this service_date already exists.',
-                    'existing_id'  => (string) $duplicate['id'],
+                    'existing_id' => (string) $duplicate['id'],
                 ],
             ];
         }
 
         $payload = [
-            'service_date'   => $serviceDate,
+            'service_date' => $serviceDate,
             'total_patients' => array_key_exists('total_patients', $data)
                 ? (int) $data['total_patients']
                 : (int) $existingRow['total_patients'],
-            'notes'          => array_key_exists('notes', $data)
+            'notes' => array_key_exists('notes', $data)
                 ? $data['notes']
                 : $existingRow['notes'],
         ];
 
-        if (! $this->dailyPatientModel->update($id, $payload)) {
+        $this->db->transStart();
+        if (!$this->dailyPatientModel->update($id, $payload)) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to update daily patient.',
-                'errors'  => $this->dailyPatientModel->errors(),
+                'errors' => $this->dailyPatientModel->errors(),
+            ];
+        }
+
+        if (!$this->auditService->log($data['user_id'] ?? null, AuditActionType::Update, 'daily_patients', $id, 'Daily patient updated.', $existingRow, $payload, null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to write audit log.',
+                'errors' => [],
+            ];
+        }
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update daily patient.',
+                'errors' => [],
             ];
         }
 
         return [
-            'success'       => true,
+            'success' => true,
             'daily_patient' => $this->getDailyPatientById($id),
         ];
     }
@@ -180,18 +231,18 @@ class DailyPatientService
     private function formatRow(array $row): array
     {
         return [
-            'id'             => (int) $row['id'],
-            'service_date'   => $row['service_date'],
+            'id' => (int) $row['id'],
+            'service_date' => $row['service_date'],
             'total_patients' => (int) $row['total_patients'],
-            'notes'          => $row['notes'],
-            'created_at'     => $row['created_at'],
-            'updated_at'     => $row['updated_at'],
+            'notes' => $row['notes'],
+            'created_at' => $row['created_at'],
+            'updated_at' => $row['updated_at'],
         ];
     }
 
     private function isValidDate(string $value): bool
     {
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return false;
         }
 

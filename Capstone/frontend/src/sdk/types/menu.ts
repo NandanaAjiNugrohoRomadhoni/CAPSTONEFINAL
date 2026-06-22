@@ -75,6 +75,7 @@ export interface MenuSchedule {
 
 export interface MenuAssignment {
   menu_id: number;
+  patient_count?: number | null;
 }
 
 export interface CalendarDay {
@@ -98,7 +99,7 @@ export interface MenuCalendarRangeMeta {
 }
 
 /** Response for `GET /api/v1/menu-calendar?date=YYYY-MM-DD`. */
-export interface MenuCalendarDateResponse extends ApiDataResponse<CalendarDay> {}
+export interface MenuCalendarDateResponse extends ApiDataResponse<CalendarDay> { }
 
 /** Response for `GET /api/v1/menu-calendar?month=YYYY-MM`. */
 export interface MenuCalendarMonthResponse extends ApiDataResponse<CalendarDay[]> {

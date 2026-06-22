@@ -41,9 +41,12 @@ export interface MenuSlot {
     menu_id: number;
     meal_time_id: number;
     dish_id: number;
-    created_at: string | null;
-    updated_at: string | null;
-    menu: Menu;
+    created_at: string;
+    updated_at: string;
+    menu: {
+        id: number;
+        name: string | null;
+    };
     meal_time: {
         id: number;
         name: string | null;
@@ -55,17 +58,24 @@ export interface MenuSchedule {
     id: number;
     day_of_month: number;
     menu_id: number;
-    created_at: string | null;
-    updated_at: string | null;
-    menu: Menu;
+    created_at: string;
+    updated_at: string;
+    menu: {
+        id: number;
+        name: string | null;
+    };
 }
-/** Effective calendar projection entry returned by `/api/v1/menu-calendar`. */
-export interface MenuCalendarEntry {
+export interface MenuAssignment {
+    menu_id: number;
+    patient_count?: number | null;
+}
+export interface CalendarDay {
     date: string;
     day_of_month: number;
-    menu_id: number;
-    menu_name: string;
+    assignments: MenuAssignment[];
 }
+/** Effective calendar projection entry returned by `/api/v1/menu-calendar`. */
+export type MenuCalendarEntry = CalendarDay;
 export interface MenuCalendarMonthMeta {
     month: string;
     total: number;
@@ -76,14 +86,14 @@ export interface MenuCalendarRangeMeta {
     total: number;
 }
 /** Response for `GET /api/v1/menu-calendar?date=YYYY-MM-DD`. */
-export interface MenuCalendarDateResponse extends ApiDataResponse<MenuCalendarEntry> {
+export interface MenuCalendarDateResponse extends ApiDataResponse<CalendarDay> {
 }
 /** Response for `GET /api/v1/menu-calendar?month=YYYY-MM`. */
-export interface MenuCalendarMonthResponse extends ApiDataResponse<MenuCalendarEntry[]> {
+export interface MenuCalendarMonthResponse extends ApiDataResponse<CalendarDay[]> {
     meta: MenuCalendarMonthMeta;
 }
 /** Response for `GET /api/v1/menu-calendar?start_date=...&end_date=...`. */
-export interface MenuCalendarRangeResponse extends ApiDataResponse<MenuCalendarEntry[]> {
+export interface MenuCalendarRangeResponse extends ApiDataResponse<CalendarDay[]> {
     meta: MenuCalendarRangeMeta;
 }
 export type MenuCalendarResponse = MenuCalendarDateResponse | MenuCalendarMonthResponse | MenuCalendarRangeResponse;

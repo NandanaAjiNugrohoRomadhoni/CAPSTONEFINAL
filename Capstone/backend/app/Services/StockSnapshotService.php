@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\ItemModel;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -10,11 +11,13 @@ use DateTimeImmutable;
 class StockSnapshotService
 {
     protected ItemModel $itemModel;
+    protected AuditService $auditService;
     protected BaseConnection $db;
 
     public function __construct()
     {
         $this->itemModel = new ItemModel();
+        $this->auditService = new AuditService();
         $this->db = Database::connect();
     }
 
@@ -35,7 +38,7 @@ class StockSnapshotService
         }
 
         $periodMonth = $month . '-01';
-        
+
         // Check if snapshot already exists for this month to ensure idempotency
         $existing = $this->db->table('monthly_stock_snapshots')
             ->where('period_month', $periodMonth)
@@ -66,11 +69,12 @@ class StockSnapshotService
         $batch = [];
         $now = date('Y-m-d H:i:s');
 
+        $this->db->transStart();
         foreach ($items as $item) {
             $batch[] = [
                 'period_month' => $periodMonth,
-                'item_id' => (int)$item['id'],
-                'opening_qty' => (float)$item['qty'],
+                'item_id' => (int) $item['id'],
+                'opening_qty' => (float) $item['qty'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -78,6 +82,23 @@ class StockSnapshotService
 
         if (!empty($batch)) {
             $this->db->table('monthly_stock_snapshots')->insertBatch($batch);
+        }
+
+        if (!$this->auditService->log(null, AuditActionType::Create, 'monthly_stock_snapshots', 0, 'Monthly opening stock snapshot taken.', null, ['period' => $periodMonth, 'item_count' => count($batch)], null)) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to log audit trail.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to complete stock snapshot transaction.',
+            ];
         }
 
         return [

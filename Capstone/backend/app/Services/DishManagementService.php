@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\DishCompositionModel;
 use App\Models\DishModel;
 use App\Models\MenuDishModel;
@@ -28,14 +29,16 @@ class DishManagementService
     protected DishModel $dishModel;
     protected DishCompositionModel $dishCompositionModel;
     protected MenuDishModel $menuDishModel;
+    protected AuditService $auditService;
     protected BaseConnection $db;
 
     public function __construct()
     {
-        $this->db                  = Database::connect();
-        $this->dishModel           = new DishModel();
+        $this->db = Database::connect();
+        $this->dishModel = new DishModel();
         $this->dishCompositionModel = new DishCompositionModel();
-        $this->menuDishModel       = new MenuDishModel();
+        $this->menuDishModel = new MenuDishModel();
+        $this->auditService = new AuditService();
     }
 
     public function getAllDishes(array $queryParams): array
@@ -46,7 +49,7 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'query' => 'Unsupported query parameter(s): ' . implode(', ', $unknownParams),
                 ],
             ];
@@ -57,20 +60,20 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $queryErrors,
+                'errors' => $queryErrors,
             ];
         }
 
-        $page          = max(1, (int) ($queryParams['page'] ?? 1));
-        $perPage       = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
-        $paginate      = $this->shouldPaginate($queryParams['paginate'] ?? null);
-        $search        = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
+        $page = max(1, (int) ($queryParams['page'] ?? 1));
+        $perPage = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
+        $paginate = $this->shouldPaginate($queryParams['paginate'] ?? null);
+        $search = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
         $requestedSortBy = (string) ($queryParams['sortBy'] ?? 'name');
-        $sortBy        = in_array($requestedSortBy, DishModel::SORTABLE_COLUMNS, true)
+        $sortBy = in_array($requestedSortBy, DishModel::SORTABLE_COLUMNS, true)
             ? $requestedSortBy
             : 'name';
-        $sortDir       = strtoupper((string) ($queryParams['sortDir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
-        $isActive      = $this->parseNullableBoolean($queryParams['is_active'] ?? null);
+        $sortDir = strtoupper((string) ($queryParams['sortDir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+        $isActive = $this->parseNullableBoolean($queryParams['is_active'] ?? null);
 
         $result = $this->dishModel->getAllDishes(
             $page,
@@ -88,13 +91,13 @@ class DishManagementService
 
         return [
             'success' => true,
-            'data'    => $result['dishes'],
-            'meta'    => [
-                'page'       => $result['page'],
-                'perPage'    => $result['perPage'],
-                'total'      => $result['total'],
+            'data' => $result['dishes'],
+            'meta' => [
+                'page' => $result['page'],
+                'perPage' => $result['perPage'],
+                'total' => $result['total'],
                 'totalPages' => $result['totalPages'],
-                'paginated'  => $paginate,
+                'paginated' => $paginate,
             ],
         ];
     }
@@ -108,11 +111,11 @@ class DishManagementService
     {
         $validation = service('validation');
 
-        if (! $validation->setRules(['name' => 'required|max_length[100]'])->run($data)) {
+        if (!$validation->setRules(['name' => 'required|max_length[100]'])->run($data)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
@@ -122,23 +125,38 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['name' => 'The name has already been taken.'],
+                'errors' => ['name' => 'The name has already been taken.'],
             ];
         }
+
+        $this->db->transStart();
 
         $created = $this->dishModel->insert(['name' => $name], true);
 
         if ($created === false) {
+            $this->db->transRollback();
+
             return [
                 'success' => false,
                 'message' => 'Failed to create dish.',
-                'errors'  => $this->dishModel->errors(),
+                'errors' => $this->dishModel->errors(),
+            ];
+        }
+
+        $this->auditService->log(null, AuditActionType::Create, 'dishes', (int) $created, 'Dish created.', null, ['name' => $name], null);
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create dish.',
             ];
         }
 
         return [
             'success' => true,
-            'dish'    => $this->dishModel->find((int) $created),
+            'dish' => $this->dishModel->find((int) $created),
         ];
     }
 
@@ -155,18 +173,18 @@ class DishManagementService
 
         $validation = service('validation');
 
-        if (! $validation->setRules(['name' => 'permit_empty|max_length[100]'])->run($data)) {
+        if (!$validation->setRules(['name' => 'permit_empty|max_length[100]'])->run($data)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
-        if (! array_key_exists('name', $data)) {
+        if (!array_key_exists('name', $data)) {
             return [
                 'success' => true,
-                'dish'    => $existing,
+                'dish' => $existing,
             ];
         }
 
@@ -175,7 +193,7 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['name' => 'The name field is required.'],
+                'errors' => ['name' => 'The name field is required.'],
             ];
         }
 
@@ -183,21 +201,36 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['name' => 'The name has already been taken.'],
+                'errors' => ['name' => 'The name has already been taken.'],
             ];
         }
 
-        if (! $this->dishModel->update($id, ['name' => $name])) {
+        $this->db->transStart();
+
+        if (!$this->dishModel->update($id, ['name' => $name])) {
+            $this->db->transRollback();
+
             return [
                 'success' => false,
                 'message' => 'Failed to update dish.',
-                'errors'  => $this->dishModel->errors(),
+                'errors' => $this->dishModel->errors(),
+            ];
+        }
+
+        $this->auditService->log(null, AuditActionType::Update, 'dishes', $id, 'Dish updated.', $existing, ['name' => $name], null);
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update dish.',
             ];
         }
 
         return [
             'success' => true,
-            'dish'    => $this->dishModel->findById($id),
+            'dish' => $this->dishModel->findById($id),
         ];
     }
 
@@ -216,7 +249,7 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['dish_id' => 'The dish must be inactive before it can be deleted.'],
+                'errors' => ['dish_id' => 'The dish must be inactive before it can be deleted.'],
             ];
         }
 
@@ -224,11 +257,26 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['dish_id' => 'The dish is still referenced by menu slots.'],
+                'errors' => ['dish_id' => 'The dish is still referenced by menu slots.'],
             ];
         }
 
-        if (! $this->dishModel->delete($id)) {
+        $this->db->transStart();
+
+        if (!$this->dishModel->delete($id)) {
+            $this->db->transRollback();
+
+            return [
+                'success' => false,
+                'message' => 'Failed to delete dish.',
+            ];
+        }
+
+        $this->auditService->log(null, AuditActionType::Delete, 'dishes', $id, 'Dish deleted.', $existing, null, null);
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
             return [
                 'success' => false,
                 'message' => 'Failed to delete dish.',
@@ -257,18 +305,18 @@ class DishManagementService
         $updated = $this->dishModel->builder()
             ->where('id', $id)
             ->set([
-                'is_active'  => false,
+                'is_active' => false,
                 'updated_at' => date('Y-m-d H:i:s'),
             ])
             ->update();
 
-        if (! $updated) {
+        if (!$updated) {
             $this->db->transRollback();
 
             return [
                 'success' => false,
                 'message' => 'Failed to deactivate dish.',
-                'errors'  => [],
+                'errors' => [],
             ];
         }
 
@@ -280,9 +328,11 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Failed to deactivate dish.',
-                'errors'  => $this->menuDishModel->errors(),
+                'errors' => $this->menuDishModel->errors(),
             ];
         }
+
+        $this->auditService->log(null, AuditActionType::Deactivate, 'dishes', $id, 'Dish deactivated.', $existing, ['is_active' => false], null);
 
         $this->db->transComplete();
 
@@ -290,13 +340,13 @@ class DishManagementService
             return [
                 'success' => false,
                 'message' => 'Failed to deactivate dish.',
-                'errors'  => [],
+                'errors' => [],
             ];
         }
 
         return [
             'success' => true,
-            'dish'    => $this->dishModel->findById($id),
+            'dish' => $this->dishModel->findById($id),
         ];
     }
 
@@ -314,21 +364,36 @@ class DishManagementService
         if ((bool) ($existing['is_active'] ?? false) === true) {
             return [
                 'success' => true,
-                'dish'    => $existing,
+                'dish' => $existing,
             ];
         }
 
-        if (! $this->dishModel->update($id, ['is_active' => true])) {
+        $this->db->transStart();
+
+        if (!$this->dishModel->update($id, ['is_active' => true])) {
+            $this->db->transRollback();
+
             return [
                 'success' => false,
                 'message' => 'Failed to reactivate dish.',
-                'errors'  => $this->dishModel->errors(),
+                'errors' => $this->dishModel->errors(),
+            ];
+        }
+
+        $this->auditService->log(null, AuditActionType::Activate, 'dishes', $id, 'Dish reactivated.', $existing, ['is_active' => true], null);
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return [
+                'success' => false,
+                'message' => 'Failed to reactivate dish.',
             ];
         }
 
         return [
             'success' => true,
-            'dish'    => $this->dishModel->findById($id),
+            'dish' => $this->dishModel->findById($id),
         ];
     }
 
@@ -336,27 +401,27 @@ class DishManagementService
     {
         $errors = [];
 
-        if (isset($queryParams['page']) && (! ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
+        if (isset($queryParams['page']) && (!ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
             $errors['page'] = 'The page field must be a positive integer.';
         }
 
-        if (isset($queryParams['perPage']) && (! ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
+        if (isset($queryParams['perPage']) && (!ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
             $errors['perPage'] = 'The perPage field must be an integer between 1 and 100.';
         }
 
-        if (isset($queryParams['paginate']) && ! in_array(strtolower((string) $queryParams['paginate']), ['true', 'false', '1', '0'], true)) {
+        if (isset($queryParams['paginate']) && !in_array(strtolower((string) $queryParams['paginate']), ['true', 'false', '1', '0'], true)) {
             $errors['paginate'] = 'The paginate field must be a boolean value.';
         }
 
-        if (isset($queryParams['is_active']) && ! in_array(strtolower((string) $queryParams['is_active']), ['true', 'false', '1', '0'], true)) {
+        if (isset($queryParams['is_active']) && !in_array(strtolower((string) $queryParams['is_active']), ['true', 'false', '1', '0'], true)) {
             $errors['is_active'] = 'The is_active field must be a boolean value.';
         }
 
-        if (isset($queryParams['sortBy']) && ! in_array($queryParams['sortBy'], DishModel::SORTABLE_COLUMNS, true)) {
+        if (isset($queryParams['sortBy']) && !in_array($queryParams['sortBy'], DishModel::SORTABLE_COLUMNS, true)) {
             $errors['sortBy'] = 'The sortBy field must be one of: ' . implode(', ', DishModel::SORTABLE_COLUMNS) . '.';
         }
 
-        if (isset($queryParams['sortDir']) && ! in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
+        if (isset($queryParams['sortDir']) && !in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
             $errors['sortDir'] = 'The sortDir field must be ASC or DESC.';
         }
 
@@ -375,7 +440,7 @@ class DishManagementService
             return true;
         }
 
-        return ! in_array(strtolower((string) $value), ['false', '0'], true);
+        return !in_array(strtolower((string) $value), ['false', '0'], true);
     }
 
     private function parseNullableBoolean(mixed $value): ?bool

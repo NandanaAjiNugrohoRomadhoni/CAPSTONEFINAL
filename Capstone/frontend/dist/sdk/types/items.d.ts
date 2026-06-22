@@ -30,14 +30,14 @@ export interface Item {
     /** Backend-managed. Do not send in requests. */
     updated_at: string;
     category: ItemCategorySummary;
-    item_unit_base?: {
+    item_unit_base: {
         id: number | null;
         name: string | null;
-    } | null;
-    item_unit_convert?: {
+    };
+    item_unit_convert: {
         id: number | null;
         name: string | null;
-    } | null;
+    };
 }
 /** Type-level XOR for item category lookup: send `item_category_id` OR `item_category_name`, not both. */
 type ItemCategoryIdentifier = XOR<{

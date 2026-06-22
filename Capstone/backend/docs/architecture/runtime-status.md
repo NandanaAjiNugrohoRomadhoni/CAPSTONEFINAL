@@ -59,6 +59,7 @@ Pemisahan ini memungkinkan fleksibilitas di mana user dengan grup Shield `user` 
 | SPK Calculations | Implemented | `/spk/basah/*`, `/spk/kering-pengemas/*` | Basah: input-day basis; Kering: monthly basis; generation membuat versi histori baru; stock posting adalah langkah eksplisit |
 | Stock Opnames | Implemented (Facade) | `/stock-opnames/*` | Dedicated opname workflow preserved as compatibility facade; `POSTED` opnames result in `OPNAME_ADJUSTMENT` ledger transactions |
 | Audit Reporting | Implemented (JSON) | `/reports/stocks`, `/reports/transactions`, `/reports/spk-history`, `/reports/evaluation`, `/reports/monthly-stock-export` | Dataset JSON siap ekspor tersedia runtime; period mandatory |
+| Audit Logs | Implemented | `/audit-logs` | Admin-only audit trail read endpoint; audit rows also persisted from stock, SPK override, and opname write flows |
 
 ## 4.2 Compact Runtime Cross-Reference Matrix
 

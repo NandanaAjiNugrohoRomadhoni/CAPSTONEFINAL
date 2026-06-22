@@ -4,6 +4,10 @@ This document maps backend API endpoints to their corresponding SDK methods and 
 
 | Backend Endpoint | SDK Method | Response Type |
 | :--- | :--- | :--- |
+ | **Audit Logs** | | |
+ | `GET /api/v1/audit-logs` | `sdk.auditLogs.list(query?)` | `AuditLogListResponse` |
+ | `GET /api/v1/audit-logs/types` | `sdk.auditLogs.types()` | `AuditLogTypesResponse` |
+
 | **Approval Statuses** | | |
 | `GET /api/v1/approval-statuses` | `sdk.approvalStatuses.list(query?)` | `ApiListResponse<ApprovalStatus>` |
 | **Auth** | | |

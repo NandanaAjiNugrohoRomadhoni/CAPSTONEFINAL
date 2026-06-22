@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
+
 use App\Models\ItemModel;
 use App\Models\StockTransactionDetailModel;
 use App\Models\StockTransactionModel;
@@ -103,7 +105,7 @@ class StockOpnameService
 
         $auditLogged = $this->auditService->log(
             $userId,
-            'stock_opname_create_draft',
+            AuditActionType::Create,
             'stock_opnames',
             (int) $stockOpnameId,
             'Stock opname draft created.',
@@ -240,7 +242,7 @@ class StockOpnameService
         $updatedHeader = $this->stockOpnameModel->findById($id);
         $auditLogged   = $this->auditService->log(
             $userId,
-            'stock_opname_update',
+            AuditActionType::Update,
             'stock_opnames',
             $id,
             'Stock opname updated.',
@@ -334,7 +336,7 @@ class StockOpnameService
         $newValues = $this->stockOpnameModel->find($id);
         $this->auditService->log(
             $userId,
-            'stock_opname_submit',
+            AuditActionType::Submit,
             'stock_opnames',
             $id,
             'Stock opname submitted.',
@@ -415,7 +417,7 @@ class StockOpnameService
         $newValues = $this->stockOpnameModel->find($id);
         $this->auditService->log(
             $userId,
-            'stock_opname_approve',
+            AuditActionType::Approval,
             'stock_opnames',
             $id,
             'Stock opname approved.',
@@ -519,7 +521,7 @@ class StockOpnameService
         $newValues = $this->stockOpnameModel->find($id);
         $this->auditService->log(
             $userId,
-            'stock_opname_reject',
+            AuditActionType::Rejection,
             'stock_opnames',
             $id,
             'Stock opname rejected.',
@@ -668,7 +670,7 @@ class StockOpnameService
         $newValues = $this->stockOpnameModel->find($id);
         $auditLogged = $this->auditService->log(
             $userId,
-            'stock_opname_post',
+            AuditActionType::Post,
             'stock_opnames',
             $id,
             'Stock opname posted.',

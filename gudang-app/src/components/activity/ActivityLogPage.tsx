@@ -46,17 +46,108 @@ export default function ActivityLogPage() {
   const [selectedModule, setSelectedModule] = useState("Semua Modul");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Total pages and count from server-side pagination meta
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverTotalCount, setServerTotalCount] = useState(0);
+
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // Debounce search term changes
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
+  // Reset page when filter inputs change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, selectedActivityType, selectedModule, dateRange]);
+
+  // Check if we can do server-side pagination for active filters
+  const canServerPaginate = useMemo(() => {
+    // Backend doesn't support date range filtering
+    if (dateRange.startDate !== "" || dateRange.endDate !== "") {
+      return false;
+    }
+
+    // selectedActivityType: "Semua Jenis", "Create", and "Delete" are server-paginated.
+    // "Update" maps to multiple backend action types, so it must be client-filtered.
+    if (selectedActivityType !== "Semua Jenis" && selectedActivityType !== "Create" && selectedActivityType !== "Delete") {
+      return false;
+    }
+
+    // selectedModule: "Semua Modul", "Master Barang", "Pengguna", and "Laporan" are server-paginated.
+    // "Transaksi", "Menu", "SPK", "Stok" map to multiple tables, so they must be client-filtered.
+    if (selectedModule !== "Semua Modul" && selectedModule !== "Master Barang" && selectedModule !== "Pengguna" && selectedModule !== "Laporan") {
+      return false;
+    }
+
+    return true;
+  }, [dateRange, selectedActivityType, selectedModule]);
+
+  // Effect to load data
   useEffect(() => {
     let cancelled = false;
 
     async function loadRows() {
       setLoading(true);
-      const rows = await loadActivityRows();
+
+      const query: any = {
+        sortBy: "created_at",
+        sortDir: "DESC",
+      };
+
+      if (debouncedSearchTerm.trim() !== "") {
+        query.q = debouncedSearchTerm.trim();
+      }
+
+      if (selectedActivityType === "Create") {
+        query.action_type = "create";
+      } else if (selectedActivityType === "Delete") {
+        query.action_type = "delete";
+      }
+
+      if (selectedModule === "Master Barang") {
+        query.table_name = "items";
+      } else if (selectedModule === "Pengguna") {
+        query.table_name = "users";
+      } else if (selectedModule === "Laporan") {
+        query.table_name = "reports";
+      }
+
+      if (canServerPaginate) {
+        query.paginate = true;
+        query.page = currentPage;
+        query.perPage = 10;
+      } else {
+        query.paginate = false;
+      }
+
+      const response = await loadActivityRows(query);
       if (cancelled) return;
-      setActivityRows(rows);
+
+      setActivityRows(response.data);
+
+      if (canServerPaginate) {
+        setServerTotalPages(response.meta.totalPages || 1);
+        setServerTotalCount(response.meta.total || 0);
+      } else {
+        setServerTotalPages(1);
+        setServerTotalCount(0);
+      }
+
       setLoading(false);
-      const latestTimestamp = rows.length > 0 ? new Date(`${rows[0].date}T${rows[0].time.replace(".", ":")}:00+07:00`).getTime() : 0;
-      markActivityLogSeen(latestTimestamp);
+
+      const data = response.data;
+      if (data.length > 0 && currentPage === 1) {
+        const latestTimestamp = new Date(`${data[0].date}T${data[0].time.replace(".", ":")}:00+07:00`).getTime();
+        markActivityLogSeen(latestTimestamp);
+      }
     }
 
     void loadRows();
@@ -64,37 +155,45 @@ export default function ActivityLogPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentPage, debouncedSearchTerm, selectedActivityType, selectedModule, dateRange, canServerPaginate]);
 
   const filteredRows = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    if (canServerPaginate) {
+      return activityRows;
+    }
 
     return activityRows.filter((row) => {
-      const matchesSearch =
-        query.length === 0 ||
-        row.actor.toLowerCase().includes(query) ||
-        row.detail.toLowerCase().includes(query) ||
-        row.module.toLowerCase().includes(query) ||
-        row.activityType.toLowerCase().includes(query);
-
       const matchesDate = isIsoDateInRange(row.date, dateRange);
+
       const matchesType =
         selectedActivityType === "Semua Jenis" || row.activityType === selectedActivityType;
+
       const matchesModule =
         selectedModule === "Semua Modul" || row.module === selectedModule;
 
-      return matchesSearch && matchesDate && matchesType && matchesModule;
+      return matchesDate && matchesType && matchesModule;
     });
-  }, [activityRows, dateRange, searchTerm, selectedActivityType, selectedModule]);
+  }, [activityRows, canServerPaginate, dateRange, selectedActivityType, selectedModule]);
 
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const pageStartIndex = (safeCurrentPage - 1) * pageSize;
-  const paginatedRows = useMemo(
-    () => filteredRows.slice(pageStartIndex, pageStartIndex + pageSize),
-    [filteredRows, pageStartIndex],
-  );
+  const totalPages = useMemo(() => {
+    if (canServerPaginate) {
+      return serverTotalPages;
+    }
+    return Math.max(1, Math.ceil(filteredRows.length / 10));
+  }, [canServerPaginate, serverTotalPages, filteredRows.length]);
+
+  const safeCurrentPage = useMemo(() => {
+    return Math.min(currentPage, totalPages);
+  }, [currentPage, totalPages]);
+
+  const pageStartIndex = (safeCurrentPage - 1) * 10;
+
+  const paginatedRows = useMemo(() => {
+    if (canServerPaginate) {
+      return filteredRows;
+    }
+    return filteredRows.slice(pageStartIndex, pageStartIndex + 10);
+  }, [canServerPaginate, filteredRows, pageStartIndex]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -102,7 +201,18 @@ export default function ActivityLogPage() {
     }
   }, [currentPage, totalPages]);
 
-  const totalLabel = `${filteredRows.length === 0 ? 0 : pageStartIndex + 1}-${Math.min(filteredRows.length, pageStartIndex + pageSize)} dari ${filteredRows.length} item`;
+  const totalLabel = useMemo(() => {
+    if (canServerPaginate) {
+      const start = serverTotalCount === 0 ? 0 : pageStartIndex + 1;
+      const end = Math.min(serverTotalCount, pageStartIndex + 10);
+      return `${start}-${end} dari ${serverTotalCount} item`;
+    } else {
+      const start = filteredRows.length === 0 ? 0 : pageStartIndex + 1;
+      const end = Math.min(filteredRows.length, pageStartIndex + 10);
+      return `${start}-${end} dari ${filteredRows.length} item`;
+    }
+  }, [canServerPaginate, serverTotalCount, filteredRows.length, pageStartIndex]);
+
 
   return (
     <div className="space-y-5">

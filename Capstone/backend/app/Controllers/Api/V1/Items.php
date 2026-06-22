@@ -158,20 +158,20 @@ class Items extends BaseController
     {
         $result = $this->itemService->getAllItems($this->request->getGet());
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
         return $this->response
             ->setStatusCode(200)
             ->setJSON([
-                'data'  => $result['data'],
-                'meta'  => $result['meta'],
+                'data' => $result['data'],
+                'meta' => $result['meta'],
                 'links' => $this->buildPaginationLinks($result['meta']),
             ]);
     }
@@ -327,6 +327,9 @@ class Items extends BaseController
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
         $forbiddenFieldErrors = $this->collectForbiddenFieldErrors($data);
         if ($forbiddenFieldErrors !== []) {
@@ -334,7 +337,7 @@ class Items extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $forbiddenFieldErrors,
+                    'errors' => $forbiddenFieldErrors,
                 ]);
         }
 
@@ -344,7 +347,7 @@ class Items extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'item_category_id' => 'Cannot specify both item_category_id and item_category_name.',
                         'item_category_name' => 'Cannot specify both item_category_id and item_category_name.',
                     ],
@@ -357,19 +360,19 @@ class Items extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'item_category_id' => 'Either item_category_id or item_category_name is required.',
                     ],
                 ]);
         }
 
         $rules = [
-            'name'             => 'required|max_length[100]',
-            'unit_base'        => 'required|max_length[20]',
-            'unit_convert'     => 'required|max_length[20]',
-            'conversion_base'  => 'required|is_natural_no_zero',
-            'min_stock'        => 'permit_empty|is_natural',
-            'is_active'        => 'permit_empty',
+            'name' => 'required|max_length[100]',
+            'unit_base' => 'required|max_length[20]',
+            'unit_convert' => 'required|max_length[20]',
+            'conversion_base' => 'required|is_natural_no_zero',
+            'min_stock' => 'permit_empty|is_natural',
+            'is_active' => 'permit_empty',
         ];
 
         if (isset($data['item_category_id'])) {
@@ -380,23 +383,23 @@ class Items extends BaseController
             $rules['item_category_name'] = 'required|max_length[50]';
         }
 
-        if (! $this->validateData($data, $rules)) {
+        if (!$this->validateData($data, $rules)) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $this->validator->getErrors(),
+                    'errors' => $this->validator->getErrors(),
                 ]);
         }
 
-        $result = $this->itemService->createItem($data);
+        $result = $this->itemService->createItem($data, $actorId, $ipAddress);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -404,7 +407,7 @@ class Items extends BaseController
             ->setStatusCode(201)
             ->setJSON([
                 'message' => 'Item created successfully.',
-                'data'    => $result['item'],
+                'data' => $result['item'],
             ]);
     }
 
@@ -493,6 +496,9 @@ class Items extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
         $forbiddenFieldErrors = $this->collectForbiddenFieldErrors($data);
         if ($forbiddenFieldErrors !== []) {
@@ -500,7 +506,7 @@ class Items extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $forbiddenFieldErrors,
+                    'errors' => $forbiddenFieldErrors,
                 ]);
         }
 
@@ -510,7 +516,7 @@ class Items extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'item_category_id' => 'Cannot specify both item_category_id and item_category_name.',
                         'item_category_name' => 'Cannot specify both item_category_id and item_category_name.',
                     ],
@@ -523,13 +529,13 @@ class Items extends BaseController
         ];
 
         $rules = [
-            'id'               => 'required|is_natural_no_zero',
-            'name'             => 'permit_empty|max_length[100]',
-            'unit_base'        => 'permit_empty|max_length[20]',
-            'unit_convert'     => 'permit_empty|max_length[20]',
-            'conversion_base'  => 'permit_empty|is_natural_no_zero',
-            'min_stock'        => 'permit_empty|is_natural',
-            'is_active'        => 'permit_empty',
+            'id' => 'required|is_natural_no_zero',
+            'name' => 'permit_empty|max_length[100]',
+            'unit_base' => 'permit_empty|max_length[20]',
+            'unit_convert' => 'permit_empty|max_length[20]',
+            'conversion_base' => 'permit_empty|is_natural_no_zero',
+            'min_stock' => 'permit_empty|is_natural',
+            'is_active' => 'permit_empty',
         ];
 
         if (isset($data['item_category_id'])) {
@@ -540,25 +546,25 @@ class Items extends BaseController
             $rules['item_category_name'] = 'permit_empty|max_length[50]';
         }
 
-        if (! $this->validateData($validationData, $rules)) {
+        if (!$this->validateData($validationData, $rules)) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $this->validator->getErrors(),
+                    'errors' => $this->validator->getErrors(),
                 ]);
         }
 
-        $result = $this->itemService->updateItem($id, $data);
+        $result = $this->itemService->updateItem($id, $data, $actorId, $ipAddress);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             $statusCode = $result['message'] === 'Item not found.' ? 404 : 400;
 
             return $this->response
                 ->setStatusCode($statusCode)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -566,7 +572,7 @@ class Items extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'Item updated successfully.',
-                'data'    => $result['item'],
+                'data' => $result['item'],
             ]);
     }
 
@@ -629,9 +635,13 @@ class Items extends BaseController
      */
     public function delete(int $id): ResponseInterface
     {
-        $result = $this->itemService->deleteItem($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
-        if (! $result['success']) {
+        $result = $this->itemService->deleteItem($id, $actorId, $ipAddress);
+
+        if (!$result['success']) {
             $statusCode = $result['code'] ?? 404;
             $payload = ['message' => $result['message']];
             if (isset($result['data'])) {
@@ -724,9 +734,13 @@ class Items extends BaseController
      */
     public function restore(int $id): ResponseInterface
     {
-        $result = $this->itemService->restoreItem($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
-        if (! $result['success']) {
+        $result = $this->itemService->restoreItem($id, $actorId, $ipAddress);
+
+        if (!$result['success']) {
             $statusCode = match ($result['message']) {
                 'Item not found.' => 404,
                 'Failed to restore item.' => 422,
@@ -737,7 +751,7 @@ class Items extends BaseController
                 ->setStatusCode($statusCode)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -745,14 +759,14 @@ class Items extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'Item restored successfully.',
-                'data'    => $result['item'],
+                'data' => $result['item'],
             ]);
     }
 
     private function collectForbiddenFieldErrors(array $data): array
     {
         $forbiddenFields = ItemManagementService::FORBIDDEN_FIELDS;
-        $errors          = [];
+        $errors = [];
 
         foreach ($forbiddenFields as $field) {
             if (array_key_exists($field, $data)) {
@@ -766,21 +780,21 @@ class Items extends BaseController
     private function buildPaginationLinks(array $meta): array
     {
         $queryParams = $this->request->getGet();
-        $path        = current_url();
+        $path = current_url();
 
         $buildLink = function (int $page) use ($path, $queryParams, $meta): string {
             return $path . '?' . http_build_query([
                 ...$queryParams,
-                'page'    => $page,
+                'page' => $page,
                 'perPage' => $meta['perPage'],
             ]);
         };
 
         return [
-            'self'     => $buildLink($meta['page']),
-            'first'    => $buildLink(1),
-            'last'     => $buildLink(max(1, $meta['totalPages'])),
-            'next'     => $meta['page'] < $meta['totalPages'] ? $buildLink($meta['page'] + 1) : null,
+            'self' => $buildLink($meta['page']),
+            'first' => $buildLink(1),
+            'last' => $buildLink(max(1, $meta['totalPages'])),
+            'next' => $meta['page'] < $meta['totalPages'] ? $buildLink($meta['page'] + 1) : null,
             'previous' => $meta['page'] > 1 ? $buildLink($meta['page'] - 1) : null,
         ];
     }

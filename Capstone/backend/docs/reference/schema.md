@@ -513,10 +513,10 @@ Fungsi: Menyimpan hasil rekomendasi item untuk satu kalkulasi SPK.
 | `spk_id` | bigint | not null, FK | Relasi ke `spk_calculations.id` |
 | `item_id` | bigint | not null, FK | Relasi ke `items.id` |
 | `target_date` | date | nullable | Tanggal spesifik kebutuhan (untuk SPK basah) |
-| `current_stock_qty` | decimal(12,2) | not null | Sisa stok saat generate |
-| `required_qty` | decimal(12,2) | not null | Kebutuhan bruto sistem |
-| `system_recommended_qty` | decimal(12,2) | not null | Rekomendasi belanja (bruto - stok) |
-| `recommended_qty` | decimal(12,2) | not null | Rekomendasi final setelah override |
+| `current_stock_qty` | decimal(12,4) | not null | Sisa stok saat generate |
+| `required_qty` | decimal(12,4) | not null | Kebutuhan bruto sistem |
+| `system_recommended_qty` | decimal(12,4) | not null | Rekomendasi belanja (bruto - stok) |
+| `recommended_qty` | decimal(12,4) | not null | Rekomendasi final setelah override |
 | `is_overridden` | boolean | default false | Penanda ada override manual |
 | `override_reason` | text | nullable | Alasan override |
 | `overridden_by` | bigint | nullable, FK | User yang melakukan override |

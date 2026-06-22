@@ -151,13 +151,13 @@ class RuntimeCurrentMonthSeederTest extends CIUnitTestCase
      */
     private function resolveExpectedGenerationDates(): array
     {
-        $dates  = [];
+        $dates = [];
         $cursor = new DateTimeImmutable('first day of this month');
-        $end    = new DateTimeImmutable('last day of this month');
+        $today = new DateTimeImmutable('today');
 
-        while ($cursor <= $end) {
+        while ($cursor->format('Y-m-d') <= $today->format('Y-m-d')) {
             $dates[] = $cursor->format('Y-m-d');
-            $cursor  = $cursor->modify('+2 days');
+            $cursor = $cursor->modify('+2 days');
         }
 
         return $dates;

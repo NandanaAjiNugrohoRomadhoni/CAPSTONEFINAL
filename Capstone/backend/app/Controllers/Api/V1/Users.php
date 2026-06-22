@@ -4,6 +4,7 @@ namespace App\Controllers\Api\V1;
 
 use App\Controllers\BaseController;
 use App\Services\UserManagementService;
+use CodeIgniter\Shield\Entities\User;
 use CodeIgniter\HTTP\ResponseInterface;
 use OpenApi\Annotations as OA;
 
@@ -51,20 +52,20 @@ class Users extends BaseController
     {
         $result = $this->userService->getAllUsers($this->request->getGet());
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
         return $this->response
             ->setStatusCode(200)
             ->setJSON([
-                'data'  => $result['data'],
-                'meta'  => $result['meta'],
+                'data' => $result['data'],
+                'meta' => $result['meta'],
                 'links' => $this->buildPaginationLinks($result['meta']),
             ]);
     }
@@ -119,18 +120,18 @@ class Users extends BaseController
      *                     required={"role_id","name","username","password"},
      *                     @OA\Property(property="role_id", type="integer", minimum=1, example=3),
      *                     @OA\Property(property="name", type="string", maxLength=255, example="Warehouse User"),
-      *                     @OA\Property(property="username", type="string", maxLength=100, example="example-warehouse-user"),
-      *                     @OA\Property(property="email", type="string", format="email", nullable=true, example="warehouse.user@example.test"),
- *                     @OA\Property(property="password", type="string", format="password", minLength=8, example="example-user-password"),
+     *                     @OA\Property(property="username", type="string", maxLength=100, example="example-warehouse-user"),
+     *                     @OA\Property(property="email", type="string", format="email", nullable=true, example="warehouse.user@example.test"),
+     *                     @OA\Property(property="password", type="string", format="password", minLength=8, example="example-user-password"),
      *                     @OA\Property(property="is_active", type="boolean", example=false)
      *                 ),
      *                 @OA\Schema(
      *                     required={"role_name","name","username","password"},
      *                     @OA\Property(property="role_name", type="string", maxLength=50, example="  gudang  "),
      *                     @OA\Property(property="name", type="string", maxLength=255, example="Warehouse User"),
-      *                     @OA\Property(property="username", type="string", maxLength=100, example="example-warehouse-user"),
-      *                     @OA\Property(property="email", type="string", format="email", nullable=true, example="warehouse.user@example.test"),
- *                     @OA\Property(property="password", type="string", format="password", minLength=8, example="example-user-password"),
+     *                     @OA\Property(property="username", type="string", maxLength=100, example="example-warehouse-user"),
+     *                     @OA\Property(property="email", type="string", format="email", nullable=true, example="warehouse.user@example.test"),
+     *                     @OA\Property(property="password", type="string", format="password", minLength=8, example="example-user-password"),
      *                     @OA\Property(property="is_active", type="boolean", example=true)
      *                 )
      *             }
@@ -146,6 +147,9 @@ class Users extends BaseController
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
         // Check for conflicting role_id and role_name
         if (isset($data['role_id']) && isset($data['role_name'])) {
@@ -153,7 +157,7 @@ class Users extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'role_id' => 'Cannot specify both role_id and role_name.',
                         'role_name' => 'Cannot specify both role_id and role_name.',
                     ],
@@ -161,10 +165,10 @@ class Users extends BaseController
         }
 
         $rules = [
-            'name'     => 'required|max_length[255]',
+            'name' => 'required|max_length[255]',
             'username' => 'required|max_length[100]',
             'password' => 'required|min_length[8]',
-            'email'    => 'permit_empty|valid_email|max_length[255]',
+            'email' => 'permit_empty|valid_email|max_length[255]',
         ];
 
         if (isset($data['role_id'])) {
@@ -181,20 +185,20 @@ class Users extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $this->validator->getErrors(),
+                    'errors' => $this->validator->getErrors(),
                 ]);
         }
 
-        $result = $this->userService->createUser($data);
+        $result = $this->userService->createUser($data, $actorId, $ipAddress);
 
         if (!$result['success']) {
             $statusCode = isset($result['errors']) ? 400 : 422;
             $response = ['message' => $result['message']];
-            
+
             if (isset($result['errors'])) {
                 $response['errors'] = $result['errors'];
             }
-            
+
             return $this->response
                 ->setStatusCode($statusCode)
                 ->setJSON($response);
@@ -204,7 +208,7 @@ class Users extends BaseController
             ->setStatusCode(201)
             ->setJSON([
                 'message' => 'User created successfully.',
-                'data'    => $result['user'],
+                'data' => $result['user'],
             ]);
     }
 
@@ -217,7 +221,7 @@ class Users extends BaseController
      *     description="Updates an existing active user. Admin only. This route behaves like a partial update even though it uses PUT. The client may change the assigned role using either role_id or role_name, but never both. role_name lookup is trimmed and case-insensitive. Reusing the username of another deleted user is blocked and returns HTTP 400 with restore guidance.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=2)),
-      *     @OA\RequestBody(required=true, @OA\JsonContent(type="object", @OA\Property(property="role_id", type="integer", minimum=1, example=3), @OA\Property(property="role_name", type="string", maxLength=50, example="gudang"), @OA\Property(property="name", type="string", maxLength=255, example="Updated Example User"), @OA\Property(property="username", type="string", maxLength=100, example="updated-example-user"), @OA\Property(property="email", type="string", format="email", nullable=true, example="updated.user@example.test"), @OA\Property(property="is_active", type="boolean", example=false))),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(type="object", @OA\Property(property="role_id", type="integer", minimum=1, example=3), @OA\Property(property="role_name", type="string", maxLength=50, example="gudang"), @OA\Property(property="name", type="string", maxLength=255, example="Updated Example User"), @OA\Property(property="username", type="string", maxLength=100, example="updated-example-user"), @OA\Property(property="email", type="string", format="email", nullable=true, example="updated.user@example.test"), @OA\Property(property="is_active", type="boolean", example=false))),
      *     @OA\Response(response=200, description="User updated successfully.", @OA\JsonContent(ref="#/components/schemas/UserMutationResponse")),
      *     @OA\Response(response=400, description="Validation failed for conflicting role_id/role_name, invalid role lookup, duplicate username, or deleted-username restore guidance.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
@@ -229,6 +233,9 @@ class Users extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
         // Check for conflicting role_id and role_name
         if (isset($data['role_id']) && isset($data['role_name'])) {
@@ -236,7 +243,7 @@ class Users extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'role_id' => 'Cannot specify both role_id and role_name.',
                         'role_name' => 'Cannot specify both role_id and role_name.',
                     ],
@@ -249,9 +256,9 @@ class Users extends BaseController
         ];
 
         $rules = [
-            'id'       => 'required|is_natural_no_zero',
-            'name'     => 'permit_empty|max_length[255]',
-            'email'    => 'permit_empty|valid_email|max_length[255]',
+            'id' => 'required|is_natural_no_zero',
+            'name' => 'permit_empty|max_length[255]',
+            'email' => 'permit_empty|valid_email|max_length[255]',
         ];
 
         if (isset($data['role_id'])) {
@@ -271,11 +278,11 @@ class Users extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $this->validator->getErrors(),
+                    'errors' => $this->validator->getErrors(),
                 ]);
         }
 
-        $result = $this->userService->updateUser($id, $data);
+        $result = $this->userService->updateUser($id, $data, $actorId, $ipAddress);
 
         if (!$result['success']) {
             // Determine status code
@@ -286,13 +293,13 @@ class Users extends BaseController
             } else {
                 $statusCode = 422; // Other processing errors
             }
-            
+
             $response = ['message' => $result['message']];
-            
+
             if (isset($result['errors'])) {
                 $response['errors'] = $result['errors'];
             }
-            
+
             return $this->response
                 ->setStatusCode($statusCode)
                 ->setJSON($response);
@@ -302,7 +309,7 @@ class Users extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'User updated successfully.',
-                'data'    => $result['user'],
+                'data' => $result['user'],
             ]);
     }
 
@@ -323,7 +330,11 @@ class Users extends BaseController
      */
     public function activate(int $id): ResponseInterface
     {
-        $result = $this->userService->activateUser($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+
+        $result = $this->userService->activateUser($id, $actorId, $ipAddress);
 
         if (!$result['success']) {
             return $this->response
@@ -337,7 +348,7 @@ class Users extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'User activated successfully.',
-                'data'    => $result['user'],
+                'data' => $result['user'],
             ]);
     }
 
@@ -358,7 +369,11 @@ class Users extends BaseController
      */
     public function deactivate(int $id): ResponseInterface
     {
-        $result = $this->userService->deactivateUser($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+
+        $result = $this->userService->deactivateUser($id, $actorId, $ipAddress);
 
         if (!$result['success']) {
             return $this->response
@@ -372,7 +387,7 @@ class Users extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'User deactivated successfully.',
-                'data'    => $result['user'],
+                'data' => $result['user'],
             ]);
     }
 
@@ -385,7 +400,7 @@ class Users extends BaseController
      *     description="Changes another user's password and revokes all of that user's access tokens. Admin only. Soft-deleted users are treated as not found.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=2)),
- *     @OA\RequestBody(required=true, @OA\JsonContent(required={"password"}, @OA\Property(property="password", type="string", format="password", minLength=8, example="example-reset-password"))),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(required={"password"}, @OA\Property(property="password", type="string", format="password", minLength=8, example="example-reset-password"))),
      *     @OA\Response(response=200, description="Password changed successfully and all access tokens were revoked.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=400, ref="#/components/responses/ValidationErrorResponse"),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
@@ -396,6 +411,9 @@ class Users extends BaseController
     public function changePassword(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
 
         $rules = [
             'password' => 'required|min_length[8]',
@@ -406,11 +424,11 @@ class Users extends BaseController
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => 'Validation failed.',
-                    'errors'  => $this->validator->getErrors(),
+                    'errors' => $this->validator->getErrors(),
                 ]);
         }
 
-        $result = $this->userService->changePassword($id, $data['password']);
+        $result = $this->userService->changePassword($id, $data['password'], $actorId, $ipAddress);
 
         if (!$result['success']) {
             return $this->response
@@ -444,7 +462,11 @@ class Users extends BaseController
      */
     public function delete(int $id): ResponseInterface
     {
-        $result = $this->userService->deleteUser($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+
+        $result = $this->userService->deleteUser($id, $actorId, $ipAddress);
 
         if (!$result['success']) {
             return $this->response
@@ -480,7 +502,11 @@ class Users extends BaseController
      */
     public function restore(int $id): ResponseInterface
     {
-        $result = $this->userService->restoreUser($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+
+        $result = $this->userService->restoreUser($id, $actorId, $ipAddress);
 
         if (!$result['success']) {
             $statusCode = match ($result['message']) {
@@ -493,7 +519,7 @@ class Users extends BaseController
                 ->setStatusCode($statusCode)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -501,28 +527,28 @@ class Users extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'User restored successfully.',
-                'data'    => $result['user'],
+                'data' => $result['user'],
             ]);
     }
 
     private function buildPaginationLinks(array $meta): array
     {
         $queryParams = $this->request->getGet();
-        $path        = current_url();
+        $path = current_url();
 
         $buildLink = function (int $page) use ($path, $queryParams, $meta): string {
             return $path . '?' . http_build_query([
                 ...$queryParams,
-                'page'    => $page,
+                'page' => $page,
                 'perPage' => $meta['perPage'],
             ]);
         };
 
         return [
-            'self'     => $buildLink($meta['page']),
-            'first'    => $buildLink(1),
-            'last'     => $buildLink(max(1, $meta['totalPages'])),
-            'next'     => $meta['page'] < $meta['totalPages'] ? $buildLink($meta['page'] + 1) : null,
+            'self' => $buildLink($meta['page']),
+            'first' => $buildLink(1),
+            'last' => $buildLink(max(1, $meta['totalPages'])),
+            'next' => $meta['page'] < $meta['totalPages'] ? $buildLink($meta['page'] + 1) : null,
             'previous' => $meta['page'] > 1 ? $buildLink($meta['page'] - 1) : null,
         ];
     }

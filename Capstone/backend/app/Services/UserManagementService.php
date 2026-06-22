@@ -2,19 +2,26 @@
 
 namespace App\Services;
 
+use App\Enums\AuditActionType;
 use App\Models\AppUserProvider;
 use App\Models\RoleModel;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
 use CodeIgniter\Shield\Entities\User;
 
 class UserManagementService
 {
     protected AppUserProvider $userProvider;
     protected RoleModel $roleModel;
+    protected AuditService $auditService;
 
+    protected BaseConnection $db;
     public function __construct()
     {
         $this->userProvider = new AppUserProvider();
-        $this->roleModel    = new RoleModel();
+        $this->roleModel = new RoleModel();
+        $this->auditService = new AuditService();
+        $this->db = Database::connect();
     }
 
     private const ALLOWED_QUERY_PARAMS = [
@@ -40,7 +47,7 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'query' => 'Unsupported query parameter(s): ' . implode(', ', $unknownParams),
                 ],
             ];
@@ -51,23 +58,23 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $queryErrors,
+                'errors' => $queryErrors,
             ];
         }
 
-        $page          = max(1, (int) ($queryParams['page'] ?? 1));
-        $perPage       = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
-        $search        = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
-        $sortBy        = (string) ($queryParams['sortBy'] ?? 'name');
-        $sortDir       = (string) ($queryParams['sortDir'] ?? 'ASC');
-        $roleId        = isset($queryParams['role_id']) ? (int) $queryParams['role_id'] : null;
-        $isActive      = isset($queryParams['is_active'])
+        $page = max(1, (int) ($queryParams['page'] ?? 1));
+        $perPage = max(1, min(100, (int) ($queryParams['perPage'] ?? 10)));
+        $search = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
+        $sortBy = (string) ($queryParams['sortBy'] ?? 'name');
+        $sortDir = (string) ($queryParams['sortDir'] ?? 'ASC');
+        $roleId = isset($queryParams['role_id']) ? (int) $queryParams['role_id'] : null;
+        $isActive = isset($queryParams['is_active'])
             ? filter_var($queryParams['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
             : null;
         $createdAtFrom = $queryParams['created_at_from'] ?? null;
-        $createdAtTo   = $queryParams['created_at_to'] ?? null;
+        $createdAtTo = $queryParams['created_at_to'] ?? null;
         $updatedAtFrom = $queryParams['updated_at_from'] ?? null;
-        $updatedAtTo   = $queryParams['updated_at_to'] ?? null;
+        $updatedAtTo = $queryParams['updated_at_to'] ?? null;
 
         $result = $this->userProvider->getAllWithRolesPaginated(
             $page,
@@ -85,11 +92,11 @@ class UserManagementService
 
         return [
             'success' => true,
-            'data'    => array_map(fn (array $user): array => $this->formatUserResponse($user), $result['users']),
-            'meta'    => [
-                'page'       => $result['page'],
-                'perPage'    => $result['perPage'],
-                'total'      => $result['total'],
+            'data' => array_map(fn(array $user): array => $this->formatUserResponse($user), $result['users']),
+            'meta' => [
+                'page' => $result['page'],
+                'perPage' => $result['perPage'],
+                'total' => $result['total'],
                 'totalPages' => $result['totalPages'],
             ],
         ];
@@ -98,7 +105,7 @@ class UserManagementService
     public function getUserById(int $id): ?array
     {
         $user = $this->userProvider->getUserWithRole($id);
-        
+
         if (!$user) {
             return null;
         }
@@ -106,7 +113,7 @@ class UserManagementService
         return $this->formatUserResponse($user);
     }
 
-    public function createUser(array $data): array
+    public function createUser(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         // Resolve role_name to role_id if provided
         if (isset($data['role_name']) && !isset($data['role_id'])) {
@@ -115,7 +122,7 @@ class UserManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['role_name' => 'The selected role is invalid.'],
+                    'errors' => ['role_name' => 'The selected role is invalid.'],
                 ];
             }
             $data['role_id'] = $roleId;
@@ -128,7 +135,7 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['role_id' => 'The selected role is invalid.'],
+                'errors' => ['role_id' => 'The selected role is invalid.'],
             ];
         }
 
@@ -137,7 +144,7 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['username' => 'The username has already been taken.'],
+                'errors' => ['username' => 'The username has already been taken.'],
             ];
         }
 
@@ -147,19 +154,19 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
-                    'username'   => 'The username belongs to a deleted user. Restore it instead.',
+                'errors' => [
+                    'username' => 'The username belongs to a deleted user. Restore it instead.',
                     'restore_id' => (string) $deletedMatch->id,
                 ],
             ];
         }
 
         $userData = [
-            'role_id'   => $data['role_id'],
-            'name'      => $data['name'],
-            'username'  => $data['username'],
+            'role_id' => $data['role_id'],
+            'name' => $data['name'],
+            'username' => $data['username'],
             'is_active' => $data['is_active'] ?? true,
-            'active'    => $data['is_active'] ?? true,
+            'active' => $data['is_active'] ?? true,
         ];
 
         if (isset($data['email'])) {
@@ -170,26 +177,54 @@ class UserManagementService
 
         $user->fill(['password' => $data['password']]);
 
+        $this->db->transStart();
         $inserted = $this->userProvider->insert($user, true);
 
         if (!$inserted) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to create user.',
-                'errors'  => $this->userProvider->errors(),
+                'errors' => $this->userProvider->errors(),
             ];
         }
 
         $userId = $this->userProvider->getInsertID();
         $createdUser = $this->getUserById((int) $userId);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Create,
+            'users',
+            (int) $userId,
+            'Created user ' . ($createdUser['username'] ?? (string) $userId),
+            null,
+            $createdUser,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to create user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to create user due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'user'    => $createdUser,
+            'user' => $createdUser,
         ];
     }
 
-    public function updateUser(int $id, array $data): array
+    public function updateUser(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findById($id);
 
@@ -207,7 +242,7 @@ class UserManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['role_name' => 'The selected role is invalid.'],
+                    'errors' => ['role_name' => 'The selected role is invalid.'],
                 ];
             }
             $data['role_id'] = $roleId;
@@ -221,7 +256,7 @@ class UserManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['role_id' => 'The selected role is invalid.'],
+                    'errors' => ['role_id' => 'The selected role is invalid.'],
                 ];
             }
         }
@@ -242,7 +277,7 @@ class UserManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => ['username' => 'The username has already been taken.'],
+                    'errors' => ['username' => 'The username has already been taken.'],
                 ];
             }
 
@@ -252,8 +287,8 @@ class UserManagementService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
-                        'username'   => 'The username belongs to a deleted user. Restore it instead.',
+                    'errors' => [
+                        'username' => 'The username belongs to a deleted user. Restore it instead.',
                         'restore_id' => (string) $deletedMatch->id,
                     ],
                 ];
@@ -269,14 +304,18 @@ class UserManagementService
             $updateData['active'] = (bool) $data['is_active'];
         }
 
+        $before = $this->getUserById($id);
+
+        $this->db->transStart();
         if ($updateData !== []) {
             $updated = $this->userProvider->update($id, $updateData);
 
             if (!$updated) {
+                $this->db->transRollback();
                 return [
                     'success' => false,
                     'message' => 'Failed to update user.',
-                    'errors'  => $this->userProvider->errors(),
+                    'errors' => $this->userProvider->errors(),
                 ];
             }
         }
@@ -285,6 +324,7 @@ class UserManagementService
             $identityUser = $this->userProvider->findById($id);
 
             if (!$identityUser) {
+                $this->db->transRollback();
                 return [
                     'success' => false,
                     'message' => 'User not found.',
@@ -296,23 +336,50 @@ class UserManagementService
             $identitySynced = $this->userProvider->save($identityUser);
 
             if (!$identitySynced) {
+                $this->db->transRollback();
                 return [
                     'success' => false,
                     'message' => 'Failed to update user.',
-                    'errors'  => $this->userProvider->errors(),
+                    'errors' => $this->userProvider->errors(),
                 ];
             }
         }
 
         $updatedUser = $this->getUserById($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Update,
+            'users',
+            $id,
+            'Updated user ' . ($updatedUser['username'] ?? (string) $id),
+            $before,
+            $updatedUser,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to update user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update user due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'user'    => $updatedUser,
+            'user' => $updatedUser,
         ];
     }
 
-    public function activateUser(int $id): array
+    public function activateUser(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findById($id);
 
@@ -323,12 +390,16 @@ class UserManagementService
             ];
         }
 
+        $before = $this->getUserById($id);
+
+        $this->db->transStart();
         $updated = $this->userProvider->update($id, [
             'is_active' => true,
-            'active'    => true,
+            'active' => true,
         ]);
 
         if (!$updated) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to activate user.',
@@ -337,13 +408,39 @@ class UserManagementService
 
         $updatedUser = $this->getUserById($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Activate,
+            'users',
+            $id,
+            'Activated user ' . ($updatedUser['username'] ?? (string) $id),
+            $before,
+            $updatedUser,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to activate user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to activate user due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'user'    => $updatedUser,
+            'user' => $updatedUser,
         ];
     }
 
-    public function deactivateUser(int $id): array
+    public function deactivateUser(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findById($id);
 
@@ -354,12 +451,16 @@ class UserManagementService
             ];
         }
 
+        $before = $this->getUserById($id);
+
+        $this->db->transStart();
         $updated = $this->userProvider->update($id, [
             'is_active' => false,
-            'active'    => false,
+            'active' => false,
         ]);
 
         if (!$updated) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to deactivate user.',
@@ -368,13 +469,39 @@ class UserManagementService
 
         $updatedUser = $this->getUserById($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Deactivate,
+            'users',
+            $id,
+            'Deactivated user ' . ($updatedUser['username'] ?? (string) $id),
+            $before,
+            $updatedUser,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to deactivate user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to deactivate user due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'user'    => $updatedUser,
+            'user' => $updatedUser,
         ];
     }
 
-    public function changePassword(int $id, string $newPassword): array
+    public function changePassword(int $id, string $newPassword, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findById($id);
 
@@ -386,9 +513,11 @@ class UserManagementService
         }
 
         $user->fill(['password' => $newPassword]);
+        $this->db->transStart();
         $updated = $this->userProvider->save($user);
 
         if (!$updated) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to update password.',
@@ -397,13 +526,39 @@ class UserManagementService
 
         $this->userProvider->revokeAllUserTokens($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::PasswordChange,
+            'users',
+            $id,
+            'Changed password for user ' . (is_object($user) && isset($user->username) ? $user->username : (string) $id),
+            null,
+            null,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to update password due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to update password due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
             'message' => 'Password changed successfully. All access tokens have been revoked.',
         ];
     }
 
-    public function deleteUser(int $id): array
+    public function deleteUser(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findById($id);
 
@@ -414,12 +569,41 @@ class UserManagementService
             ];
         }
 
+        $before = $this->getUserById($id);
+        $this->db->transStart();
         $deleted = $this->userProvider->delete($id);
 
         if (!$deleted) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to delete user.',
+            ];
+        }
+
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Delete,
+            'users',
+            $id,
+            'Deleted user ' . ($before['username'] ?? (string) $id),
+            $before,
+            null,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to delete user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to delete user due to a database error.',
             ];
         }
 
@@ -429,7 +613,7 @@ class UserManagementService
         ];
     }
 
-    public function restoreUser(int $id): array
+    public function restoreUser(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $user = $this->userProvider->findByIdIncludingDeleted($id);
 
@@ -443,18 +627,30 @@ class UserManagementService
         // Already active — idempotent: return current data
         if ($user->deleted_at === null) {
             $current = $this->getUserById($id);
+
+            $this->auditService->log(
+                $actorId,
+                AuditActionType::Restore,
+                'users',
+                $id,
+                'Restore requested for active user ' . ($current['username'] ?? (string) $id),
+                $current,
+                $current,
+                $ipAddress,
+            );
+
             return [
                 'success' => true,
-                'user'    => $current,
+                'user' => $current,
             ];
         }
 
         $role = $this->roleModel->find((int) $user->role_id);
-        if (! is_array($role)) {
+        if (!is_array($role)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['role_id' => 'Cannot restore: the assigned role is no longer active.'],
+                'errors' => ['role_id' => 'Cannot restore: the assigned role is no longer active.'],
             ];
         }
 
@@ -463,11 +659,13 @@ class UserManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['username' => 'Cannot restore: an active user with this username already exists.'],
+                'errors' => ['username' => 'Cannot restore: an active user with this username already exists.'],
             ];
         }
 
+        $this->db->transStart();
         if (!$this->userProvider->restore($id)) {
+            $this->db->transRollback();
             return [
                 'success' => false,
                 'message' => 'Failed to restore user.',
@@ -476,9 +674,35 @@ class UserManagementService
 
         $restoredUser = $this->getUserById($id);
 
+        if (!$this->auditService->log(
+            $actorId,
+            AuditActionType::Restore,
+            'users',
+            $id,
+            'Restored user ' . ($restoredUser['username'] ?? (string) $id),
+            null,
+            $restoredUser,
+            $ipAddress,
+        )) {
+            $this->db->transRollback();
+            return [
+                'success' => false,
+                'message' => 'Failed to restore user due to audit logging failure.',
+            ];
+        }
+
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return [
+                'success' => false,
+                'message' => 'Failed to restore user due to a database error.',
+            ];
+        }
+
         return [
             'success' => true,
-            'user'    => $restoredUser,
+            'user' => $restoredUser,
         ];
     }
 
@@ -487,19 +711,19 @@ class UserManagementService
         unset($userData['password']);
 
         $response = [
-            'id'         => $userData['id'],
-            'role_id'    => $userData['role_id'],
-            'name'       => $userData['name'],
-            'username'   => $userData['username'],
-            'email'      => $userData['email'] ?? null,
-            'is_active'  => (bool) $userData['is_active'],
+            'id' => $userData['id'],
+            'role_id' => $userData['role_id'],
+            'name' => $userData['name'],
+            'username' => $userData['username'],
+            'email' => $userData['email'] ?? null,
+            'is_active' => (bool) $userData['is_active'],
             'created_at' => $userData['created_at'],
             'updated_at' => $userData['updated_at'],
         ];
 
         if (isset($userData['role_name'])) {
             $response['role'] = [
-                'id'   => $userData['role_id'],
+                'id' => $userData['role_id'],
                 'name' => $userData['role_name'],
             ];
         }
@@ -516,28 +740,28 @@ class UserManagementService
     {
         $errors = [];
 
-        if (isset($queryParams['page']) && (! ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
+        if (isset($queryParams['page']) && (!ctype_digit((string) $queryParams['page']) || (int) $queryParams['page'] < 1)) {
             $errors['page'] = 'The page field must be a positive integer.';
         }
 
-        if (isset($queryParams['perPage']) && (! ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
+        if (isset($queryParams['perPage']) && (!ctype_digit((string) $queryParams['perPage']) || (int) $queryParams['perPage'] < 1 || (int) $queryParams['perPage'] > 100)) {
             $errors['perPage'] = 'The perPage field must be an integer between 1 and 100.';
         }
 
-        if (isset($queryParams['role_id']) && (! ctype_digit((string) $queryParams['role_id']) || (int) $queryParams['role_id'] < 1)) {
+        if (isset($queryParams['role_id']) && (!ctype_digit((string) $queryParams['role_id']) || (int) $queryParams['role_id'] < 1)) {
             $errors['role_id'] = 'The role_id field must be a positive integer.';
         }
 
-        if (isset($queryParams['is_active']) && ! in_array((string) $queryParams['is_active'], ['0', '1', 'true', 'false'], true)) {
+        if (isset($queryParams['is_active']) && !in_array((string) $queryParams['is_active'], ['0', '1', 'true', 'false'], true)) {
             $errors['is_active'] = 'The is_active field must be a boolean value.';
         }
 
         $validSortColumns = ['id', 'name', 'username', 'email', 'created_at', 'updated_at'];
-        if (isset($queryParams['sortBy']) && ! in_array($queryParams['sortBy'], $validSortColumns, true)) {
+        if (isset($queryParams['sortBy']) && !in_array($queryParams['sortBy'], $validSortColumns, true)) {
             $errors['sortBy'] = 'The sortBy field must be one of: ' . implode(', ', $validSortColumns) . '.';
         }
 
-        if (isset($queryParams['sortDir']) && ! in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
+        if (isset($queryParams['sortDir']) && !in_array(strtoupper((string) $queryParams['sortDir']), ['ASC', 'DESC'], true)) {
             $errors['sortDir'] = 'The sortDir field must be ASC or DESC.';
         }
 

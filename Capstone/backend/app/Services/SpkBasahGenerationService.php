@@ -156,10 +156,14 @@ class SpkBasahGenerationService
      */
     private function resolveBasahTargetDates(DateTimeImmutable $requestedDate): array
     {
-        return [
-            $requestedDate->modify('+1 day')->format('Y-m-d'),
-            $requestedDate->modify('+2 day')->format('Y-m-d'),
-        ];
+        $dates = [$requestedDate->format('Y-m-d')];
+        $next  = $requestedDate->modify('+1 day');
+
+        if ($requestedDate->format('Y-m') === $next->format('Y-m')) {
+            $dates[] = $next->format('Y-m-d');
+        }
+
+        return $dates;
     }
 
     private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array
@@ -190,12 +194,10 @@ class SpkBasahGenerationService
                 ];
             }
 
+            $dishIds = [];
+
             foreach ($assignments as $assignment) {
                 $menuId = (int) $assignment['menu_id'];
-                
-                // Every patient receives every menu in the schedule (Additive model)
-                $patientsForThisMenu = $estimatedPatients;
-
                 $menuDishes = $this->db
                     ->table('menu_dishes')
                     ->select('id, dish_id')
@@ -214,52 +216,55 @@ class SpkBasahGenerationService
                 }
 
                 foreach ($menuDishes as $menuDish) {
-                    $dishId       = (int) $menuDish['dish_id'];
-                    $compositions = $this->db
-                        ->table('dish_compositions')
-                        ->select('item_id, qty_per_patient')
-                        ->where('dish_id', $dishId)
-                        ->get()
-                        ->getResultArray();
+                    $dishIds[(int) $menuDish['dish_id']] = true;
+                }
+            }
 
-                    if ($compositions === []) {
+            foreach (array_keys($dishIds) as $dishId) {
+                $compositions = $this->db
+                    ->table('dish_compositions')
+                    ->select('item_id, qty_per_patient')
+                    ->where('dish_id', $dishId)
+                    ->get()
+                    ->getResultArray();
+
+                if ($compositions === []) {
+                    return [
+                        'success' => false,
+                        'message' => 'Validation failed.',
+                        'errors'  => [
+                            'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
+                        ],
+                    ];
+                }
+
+                foreach ($compositions as $composition) {
+                    $itemId = (int) $composition['item_id'];
+                    $item   = $this->itemModel->find($itemId);
+
+                    if ($item === null) {
                         return [
                             'success' => false,
                             'message' => 'Validation failed.',
                             'errors'  => [
-                                'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
+                                'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
                             ],
                         ];
                     }
 
-                    foreach ($compositions as $composition) {
-                        $itemId = (int) $composition['item_id'];
-                        $item   = $this->itemModel->find($itemId);
+                    if ((int) $item['item_category_id'] !== $basahCategoryId) {
+                        continue;
+                    }
 
-                        if ($item === null) {
-                            return [
-                                'success' => false,
-                                'message' => 'Validation failed.',
-                                'errors'  => [
-                                    'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
-                                ],
-                            ];
-                        }
+                    $requiredQty = ceil(((float) $composition['qty_per_patient']) * ($estimatedPatients + (int) ceil($estimatedPatients * 0.05)));
+                    if (! isset($requiredByDate[$targetDate])) {
+                        $requiredByDate[$targetDate] = [];
+                    }
 
-                        if ((int) $item['item_category_id'] !== $basahCategoryId) {
-                            continue;
-                        }
+                    $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
 
-                        $requiredQty = ((float) $composition['qty_per_patient']) * $patientsForThisMenu;
-                        if (! isset($requiredByDate[$targetDate])) {
-                            $requiredByDate[$targetDate] = [];
-                        }
-
-                        $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
-
-                        if (! isset($currentStockByItem[$itemId])) {
-                            $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
-                        }
+                    if (! isset($currentStockByItem[$itemId])) {
+                        $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
                     }
                 }
             }
@@ -295,8 +300,8 @@ class SpkBasahGenerationService
                     continue;
                 }
 
-                // Apply 5% safety buffer to total weight requirement and round to whole gram
-                $requiredQty = (float) ceil($rawRequiredQty * 1.05);
+                // Carry forward required qty already buffered per patient count.
+                $requiredQty = round($rawRequiredQty, 4);
 
                 $systemRecommended = max(0.0, $requiredQty - $remainingStock);
                 $remainingStock    = max(0.0, $remainingStock - $requiredQty);
