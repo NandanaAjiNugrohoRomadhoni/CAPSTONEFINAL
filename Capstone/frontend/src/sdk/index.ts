@@ -21,6 +21,7 @@ export * from "./resources/users";
 export * from "./resources/dashboard";
 export * from "./resources/reports";
 export * from "./resources/stockOpnames";
+export * from "./resources/stockSnapshots";
 export * from "./types";
 
 import { ApiClient, type ApiClientOptions } from "./client";
@@ -45,6 +46,7 @@ import { UsersResource } from "./resources/users";
 import { DashboardResource } from "./resources/dashboard";
 import { ReportsResource } from "./resources/reports";
 import { StockOpnamesResource } from "./resources/stockOpnames";
+import { StockSnapshotsResource } from "./resources/stockSnapshots";
 
 /**
  * High-level SDK entry point for the current Capstone API surface.
@@ -72,6 +74,7 @@ export class CapstoneSdk {
   public readonly dashboard: DashboardResource;
   public readonly reports: ReportsResource;
   public readonly stockOpnames: StockOpnamesResource;
+  public readonly stockSnapshots: StockSnapshotsResource;
 
   public constructor(options: ApiClientOptions) {
     this.client = new ApiClient(options);
@@ -96,6 +99,7 @@ export class CapstoneSdk {
     this.dashboard = new DashboardResource(this.client);
     this.reports = new ReportsResource(this.client);
     this.stockOpnames = new StockOpnamesResource(this.client);
+    this.stockSnapshots = new StockSnapshotsResource(this.client);
   }
 
   /**

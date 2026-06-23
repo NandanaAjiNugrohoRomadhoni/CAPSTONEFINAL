@@ -12,6 +12,7 @@ use App\Models\RoleModel;
 use App\Models\StockTransactionDetailModel;
 use App\Models\StockTransactionModel;
 use App\Models\TransactionTypeModel;
+use App\Services\StockSnapshotService;
 use App\Services\AuditService;
 use App\Services\StockTransactionService;
 use App\Database\Migrations\AddMinStockToItems;
@@ -722,6 +723,11 @@ class StockTransactionsTest extends CIUnitTestCase
     public function testSuccessfulCreateWritesAuditLog(): void
     {
         $token = $this->login('admin');
+        // Pre-create opening snapshot so auto-trigger in createTransaction is a no-op
+        // (otherwise ensureOpeningSnapshot logs an extra audit entry for 2026-04)
+        (new StockSnapshotService())->takeOpeningSnapshot('2026-04');
+
+        $typeModel = new TransactionTypeModel();
 
         $typeModel = new TransactionTypeModel();
         $inType    = $typeModel->where('name', 'IN')->first();
@@ -911,6 +917,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ]);
 
         $result->assertStatus(400);
+
         $json = json_decode($result->getJSON(), true);
         $this->assertArrayHasKey('fields', $json['errors']);
     }
@@ -921,6 +928,9 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $itemModel = new ItemModel();
         $before    = (float) $itemModel->find(2)['qty'];
+
+        // Pre-create opening snapshot so auto-trigger is a no-op
+        (new StockSnapshotService())->takeOpeningSnapshot('2026-04');
 
         $auditModel  = new AuditLogModel();
         $countBefore = $auditModel->countAllResults();
@@ -4317,4 +4327,78 @@ class StockTransactionsTest extends CIUnitTestCase
         $json = json_decode($result->getJSON(), true);
         return (int) $json['data']['id'];
     }
+
+    public function testCreateTransactionTriggersSnapshot(): void
+    {
+        $token = $this->login('admin');
+        $db = Database::connect();
+        
+        // Clean any existing snapshots for current month
+        $currentMonth = date('Y-m') . '-01';
+        $db->table('monthly_stock_snapshots')->where('period_month', $currentMonth)->delete();
+
+        $itemModel = new ItemModel();
+        $items = $itemModel->findAll();
+        $item = $items[0];
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_name'  => 'IN',
+                'transaction_date' => date('Y-m-d'),
+                'details'    => [
+                    [
+                        'item_id'  => $item['id'],
+                        'qty'      => 10,
+                    ],
+                ],
+            ]);
+
+        $result->assertStatus(201);
+
+        // Verify snapshot was created
+        $count = $db->table('monthly_stock_snapshots')
+            ->where('period_month', $currentMonth)
+            ->where('item_id', $item['id'])
+            ->countAllResults();
+
+        $this->assertSame(1, $count);
+    }
+
+    public function testSnapshotFailureDoesNotBlockTransaction(): void
+    {
+        $token = $this->login('admin');
+        $db = Database::connect();
+        $prefix = $db->getPrefix();
+        $tableName = $prefix . 'monthly_stock_snapshots';
+        $tempTableName = $prefix . 'monthly_stock_snapshots_temp';
+
+        // Rename table to simulate DB error
+        $db->query("ALTER TABLE {$tableName} RENAME TO {$tempTableName}");
+
+        try {
+            $itemModel = new ItemModel();
+            $items = $itemModel->findAll();
+            $item = $items[0];
+
+            $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+                ->withBodyFormat('json')
+                ->post('api/v1/stock-transactions', [
+                    'type_name'  => 'IN',
+                    'transaction_date' => date('Y-m-d'),
+                    'details'    => [
+                        [
+                            'item_id'  => $item['id'],
+                            'qty'      => 10,
+                        ],
+                    ],
+                ]);
+
+            $result->assertStatus(201);
+        } finally {
+            // Restore table name
+            $db->query("ALTER TABLE {$tempTableName} RENAME TO {$tableName}");
+        }
+    }
 }
+

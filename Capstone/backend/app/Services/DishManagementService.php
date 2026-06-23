@@ -107,7 +107,7 @@ class DishManagementService
         return $this->dishModel->findById($id);
     }
 
-    public function createDish(array $data): array
+    public function createDish(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $validation = service('validation');
 
@@ -143,7 +143,7 @@ class DishManagementService
             ];
         }
 
-        $this->auditService->log(null, AuditActionType::Create, 'dishes', (int) $created, 'Dish created.', null, ['name' => $name], null);
+        $this->auditService->log($actorId, AuditActionType::Create, 'dishes', (int) $created, 'Dish created.', null, ['name' => $name], $ipAddress);
 
         $this->db->transComplete();
 
@@ -160,7 +160,7 @@ class DishManagementService
         ];
     }
 
-    public function updateDish(int $id, array $data): array
+    public function updateDish(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishModel->findById($id);
 
@@ -217,7 +217,7 @@ class DishManagementService
             ];
         }
 
-        $this->auditService->log(null, AuditActionType::Update, 'dishes', $id, 'Dish updated.', $existing, ['name' => $name], null);
+        $this->auditService->log($actorId, AuditActionType::Update, 'dishes', $id, 'Dish updated.', $existing, ['name' => $name], $ipAddress);
 
         $this->db->transComplete();
 
@@ -234,7 +234,7 @@ class DishManagementService
         ];
     }
 
-    public function deleteDish(int $id): array
+    public function deleteDish(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishModel->findById($id);
 
@@ -272,7 +272,7 @@ class DishManagementService
             ];
         }
 
-        $this->auditService->log(null, AuditActionType::Delete, 'dishes', $id, 'Dish deleted.', $existing, null, null);
+        $this->auditService->log($actorId, AuditActionType::Delete, 'dishes', $id, 'Dish deleted.', $existing, null, $ipAddress);
 
         $this->db->transComplete();
 
@@ -289,7 +289,7 @@ class DishManagementService
         ];
     }
 
-    public function deactivateDish(int $id): array
+    public function deactivateDish(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishModel->findById($id);
 
@@ -332,7 +332,7 @@ class DishManagementService
             ];
         }
 
-        $this->auditService->log(null, AuditActionType::Deactivate, 'dishes', $id, 'Dish deactivated.', $existing, ['is_active' => false], null);
+        $this->auditService->log($actorId, AuditActionType::Deactivate, 'dishes', $id, 'Dish deactivated.', $existing, ['is_active' => false], $ipAddress);
 
         $this->db->transComplete();
 
@@ -350,7 +350,7 @@ class DishManagementService
         ];
     }
 
-    public function reactivateDish(int $id): array
+    public function reactivateDish(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishModel->findById($id);
 
@@ -380,7 +380,7 @@ class DishManagementService
             ];
         }
 
-        $this->auditService->log(null, AuditActionType::Activate, 'dishes', $id, 'Dish reactivated.', $existing, ['is_active' => true], null);
+        $this->auditService->log($actorId, AuditActionType::Activate, 'dishes', $id, 'Dish reactivated.', $existing, ['is_active' => true], $ipAddress);
 
         $this->db->transComplete();
 

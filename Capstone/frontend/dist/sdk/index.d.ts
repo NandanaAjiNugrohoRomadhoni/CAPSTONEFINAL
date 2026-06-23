@@ -21,6 +21,7 @@ export * from "./resources/users";
 export * from "./resources/dashboard";
 export * from "./resources/reports";
 export * from "./resources/stockOpnames";
+export * from "./resources/stockSnapshots";
 export * from "./types";
 import { ApiClient, type ApiClientOptions } from "./client";
 import { ApprovalStatusesResource } from "./resources/approvalStatuses";
@@ -44,6 +45,7 @@ import { UsersResource } from "./resources/users";
 import { DashboardResource } from "./resources/dashboard";
 import { ReportsResource } from "./resources/reports";
 import { StockOpnamesResource } from "./resources/stockOpnames";
+import { StockSnapshotsResource } from "./resources/stockSnapshots";
 /**
  * High-level SDK entry point for the current Capstone API surface.
  */
@@ -70,6 +72,7 @@ export declare class CapstoneSdk {
     readonly dashboard: DashboardResource;
     readonly reports: ReportsResource;
     readonly stockOpnames: StockOpnamesResource;
+    readonly stockSnapshots: StockSnapshotsResource;
     constructor(options: ApiClientOptions);
     /**
      * Updates the in-memory bearer token used by the shared client.

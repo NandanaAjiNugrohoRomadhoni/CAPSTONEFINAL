@@ -21,7 +21,7 @@ class RuntimeCurrentMonthSpkScenarioSeeder extends Seeder
         $bounds        = $this->resolveMonthBounds($runtimeAnchor);
         $users         = $this->resolveRequiredUsers();
 
-        $generationDates = $this->seedCurrentMonthDailyPatients($runtimeAnchor, $bounds['current_month_start']);
+        $generationDates = $this->seedCurrentMonthDailyPatients($runtimeAnchor, $bounds['current_month_start'], $bounds['current_month_end']);
 
         $this->seedPreviousMonthApprovedOutTransactions(
             $bounds['previous_month_start'],
@@ -88,36 +88,19 @@ class RuntimeCurrentMonthSpkScenarioSeeder extends Seeder
     }
 
     /**
-     * Seed runtime daily patient prerequisites only up to today.
-     *
-     * Daily patient input is an operational prerequisite for the requested SPK
-     * service date. Seeding future rows makes dashboards and "latest" patient
-     * lookups prefer non-operational dates, so keep this runtime scenario bounded
-     * by the current day instead of the end of the current month.
-     *
      * @return list<string>
      */
     private function seedCurrentMonthDailyPatients(
         DateTimeImmutable $runtimeAnchor,
-        DateTimeImmutable $currentMonthStart
+        DateTimeImmutable $currentMonthStart,
+        DateTimeImmutable $currentMonthEnd
     ): array {
         $rows            = [];
         $generationDates = [];
         $cursor          = $currentMonthStart;
-        $today           = $runtimeAnchor;
 
-        while ($cursor <= $today) {
+        while ($cursor <= $currentMonthEnd) {
             $serviceDate = $cursor->format('Y-m-d');
-
-            $existing = $this->db->table('daily_patients')
-                ->where('service_date', $serviceDate)
-                ->countAllResults();
-
-            if ($existing > 0) {
-                $generationDates[] = $serviceDate;
-                $cursor            = $cursor->modify('+2 days');
-                continue;
-            }
 
             $rows[] = [
                 'service_date'   => $serviceDate,
@@ -129,11 +112,16 @@ class RuntimeCurrentMonthSpkScenarioSeeder extends Seeder
             $cursor            = $cursor->modify('+2 days');
         }
 
-        if ($rows !== []) {
-            $inserted = $this->db->table('daily_patients')->insertBatch($rows);
-            if ($inserted === false) {
-                throw new RuntimeException('RuntimeCurrentMonthSpkScenarioSeeder failed to insert current-month daily patient prerequisites.');
-            }
+        // Ensure idempotency by cleaning up target dates first
+        if ($generationDates !== []) {
+            $this->db->table('daily_patients')
+                ->whereIn('service_date', $generationDates)
+                ->delete();
+        }
+
+        $inserted = $this->db->table('daily_patients')->insertBatch($rows);
+        if ($inserted === false) {
+            throw new RuntimeException('RuntimeCurrentMonthSpkScenarioSeeder failed to insert current-month daily patient prerequisites.');
         }
 
         return $generationDates;

@@ -39,14 +39,10 @@ class TestSeeder extends Seeder
         $this->call("UserSeeder"); // Users: admin, spkgizi, gudang (with roles)
         $this->call("ItemSeeder"); // Items: Beras, Ayam, Minyak Goreng, Telur (with categories/units)
 
-        // === PHASE 3: Domain Entities (depend on Phase 1) ===
-        // Dishes are independent; menu dishes depend on menus and meal times.
-        $this->call("DishSeeder"); // Dishes: 33 named dishes
-
-        // === PHASE 4: Composed Entities (depend on Phase 2 & 3) ===
-        // Compositions and menu assignments depend on items, dishes, and menus.
-        $this->call("DishCompositionSeeder"); // Dish compositions: item assignments per dish
-        $this->call("MenuDishSeeder"); // Menu dishes: meal-time slots per menu
+        // === PHASE 3: Domain Entities (depend on Phase 1 & 2) ===
+        // CsvMenuPlanSeeder imports the full menu plan from JSON:
+        // dishes, dish compositions, and menu_dishes.
+        $this->call("CsvMenuPlanSeeder"); // Full menu plan from JSON (replaces DishSeeder, DishCompositionSeeder, MenuDishSeeder)
 
         // === PHASE 5: Operational Baseline (depend on all above) ===
         // Schedules, patients, transactions, opnames, and SPK depend on the full baseline.

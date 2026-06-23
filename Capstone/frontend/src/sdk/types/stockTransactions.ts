@@ -86,6 +86,7 @@ export type CreateStockTransactionRequest = TransactionTypeIdentifier & {
 export interface SubmitRevisionRequest {
   transaction_date: string;
   spk_id?: number | null;
+  reason?: string;
   details: StockTransactionDetailInput[];
 }
 

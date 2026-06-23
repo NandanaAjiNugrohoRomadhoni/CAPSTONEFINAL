@@ -242,6 +242,9 @@ export default function LaporanEvaluationPage() {
     ];
   }, [stockRows]);
 
+  const monthOptions = useMemo(() => buildMonthOptions(selectedYear), [selectedYear]);
+  const yearOptions = useMemo(() => buildYearOptions(), []);
+
   const stockQtyByItemId = useMemo(() => {
     const map = new Map<number, number>();
 
@@ -749,6 +752,22 @@ export default function LaporanEvaluationPage() {
                 placeholder="Semua Jenis"
               />
             </div>
+            <div className="min-w-[170px]">
+              <ThemedSelect
+                value={String(selectedMonth)}
+                onChange={(value) => setSelectedMonth(Number(value) || CURRENT_MONTH)}
+                options={monthOptions}
+                placeholder="Pilih Bulan"
+              />
+            </div>
+            <div className="min-w-[130px]">
+              <ThemedSelect
+                value={String(selectedYear)}
+                onChange={(value) => setSelectedYear(Number(value) || new Date().getFullYear())}
+                options={yearOptions}
+                placeholder="Pilih Tahun"
+              />
+            </div>
           </div>
 
           <div className="ml-auto">
@@ -1098,7 +1117,7 @@ function buildMonthOptions(year: number): SelectOption[] {
 
 function buildYearOptions(): SelectOption[] {
   const currentYear = new Date().getFullYear();
-  return [currentYear, currentYear - 1, currentYear - 2].map((year) => ({
+  return [currentYear, currentYear + 1].map((year) => ({
     value: String(year),
     label: String(year),
   }));

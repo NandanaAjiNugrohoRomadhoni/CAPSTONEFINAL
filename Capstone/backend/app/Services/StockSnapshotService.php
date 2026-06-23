@@ -107,4 +107,76 @@ class StockSnapshotService
             'count' => count($batch),
         ];
     }
+
+    /**
+     * Return the current month's snapshot status.
+     *
+     * @return array{month: string, has_snapshot: bool, item_count: int|null}
+     */
+    public function getCurrentMonthStatus(): array
+    {
+        $month = date('Y-m');
+        $periodMonth = $month . '-01';
+
+        $count = $this->db->table('monthly_stock_snapshots')
+            ->where('period_month', $periodMonth)
+            ->countAllResults();
+
+        return [
+            'month'        => $month,
+            'has_snapshot'  => $count > 0,
+            'item_count'   => $count > 0 ? $count : null,
+        ];
+    }
+
+    /**
+     * Ensure a snapshot exists for the given month. Idempotent, failure-safe.
+     * Designed to be called from auto-trigger hooks (transactions, login).
+     * NEVER throws — all errors are logged and swallowed.
+     *
+     * @param string $month YYYY-MM format
+     */
+    public function ensureOpeningSnapshot(string $month): void
+    {
+        try {
+            $periodMonth = $month . '-01';
+            $exists = $this->db->table('monthly_stock_snapshots')
+                ->where('period_month', $periodMonth)
+                ->countAllResults();
+
+            if ($exists === 0) {
+                $this->takeOpeningSnapshot($month);
+            }
+        } catch (\Throwable $e) {
+            log_message('error', '[StockSnapshot] Auto-trigger failed for {month}: {error}', [
+                'month' => $month,
+                'error' => $e->getMessage(),
+            ]);
+            // Intentionally swallowed — never block the calling operation
+        }
+    }
+
+    /**
+     * Force-retake: deletes existing rows for the month, then re-snapshots.
+     * Use when snapshot data is incorrect (e.g., captured after a data fix).
+     *
+     * @param string $month YYYY-MM format
+     * @return array Same shape as takeOpeningSnapshot()
+     */
+    public function retakeOpeningSnapshot(string $month): array
+    {
+        $periodMonth = $month . '-01';
+
+        $this->db->transStart();
+        $this->db->table('monthly_stock_snapshots')
+            ->where('period_month', $periodMonth)
+            ->delete();
+        $this->db->transComplete();
+
+        if (!$this->db->transStatus()) {
+            return ['success' => false, 'message' => 'Failed to delete existing snapshot.', 'count' => 0];
+        }
+
+        return $this->takeOpeningSnapshot($month);
+    }
 }

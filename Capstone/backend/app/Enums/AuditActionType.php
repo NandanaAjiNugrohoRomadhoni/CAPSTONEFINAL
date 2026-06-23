@@ -16,4 +16,6 @@ enum AuditActionType: string
     case Deactivate = 'deactivate';
     case PasswordChange = 'password_change';
     case Restore = 'restore';
+    case Login = 'login';
+    case Logout = 'logout';
 }

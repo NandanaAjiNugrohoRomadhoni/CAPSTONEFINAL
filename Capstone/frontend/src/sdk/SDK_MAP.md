@@ -100,15 +100,15 @@ This document maps backend API endpoints to their corresponding SDK methods and 
 | `POST /api/v1/spk/kering-pengemas/history/{id}/override` | `sdk.spk.overrideKeringPengemas(id, payload)` | `SpkOverrideResponse` |
 | `POST /api/v1/spk/kering-pengemas/history/{id}/post-stock` | `sdk.spk.postKeringPengemasStock(id)` | `SpkPostStockResponse` |
 | `GET /api/v1/spk/stock-in-prefill/{id}` | `sdk.spk.stockInPrefill(id)` | `SpkStockInPrefillResponse` |
-| **Stock Opnames** | | |
-| `POST /api/v1/stock-opnames` | `sdk.stockOpnames.create(request)` | `StockOpnameActionResponse` |
-| `GET /api/v1/stock-opnames/{id}` | `sdk.stockOpnames.get(id)` | `StockOpnameResponse` |
-| `PUT /api/v1/stock-opnames/{id}` | `sdk.stockOpnames.update(id, request)` | `StockOpnameActionResponse` |
-| `POST /api/v1/stock-opnames/{id}/submit` | `sdk.stockOpnames.submit(id)` | `StockOpnameActionResponse` |
-| `POST /api/v1/stock-opnames/{id}/approve` | `sdk.stockOpnames.approve(id)` | `StockOpnameActionResponse` |
-| `POST /api/v1/stock-opnames/{id}/reject` | `sdk.stockOpnames.reject(id, request)` | `StockOpnameActionResponse` |
-| `POST /api/v1/stock-opnames/{id}/post` | `sdk.stockOpnames.post(id)` | `StockOpnameActionResponse` |
-| **Stock Transactions** | | |
+ | **Stock Opnames** | | |
+ | `POST /api/v1/stock-opnames` | `sdk.stockOpnames.create(request)` | `StockOpnameActionResponse` |
+ | `GET /api/v1/stock-opnames` | `sdk.stockOpnames.list(query?)` | `ApiListResponse<StockOpnameHeader>` |
+ | `GET /api/v1/stock-opnames/{id}` | `sdk.stockOpnames.get(id)` | `StockOpnameResponse` |
+ | `PUT /api/v1/stock-opnames/{id}` | `sdk.stockOpnames.update(id, request)` | `StockOpnameActionResponse` |
+ | `POST /api/v1/stock-opnames/{id}/submit` | `sdk.stockOpnames.submit(id)` | `StockOpnameActionResponse` |
+ | `POST /api/v1/stock-opnames/{id}/approve` | `sdk.stockOpnames.approve(id)` | `StockOpnameActionResponse` |
+ | `POST /api/v1/stock-opnames/{id}/reject` | `sdk.stockOpnames.reject(id, request)` | `StockOpnameActionResponse` |
+ | `POST /api/v1/stock-opnames/{id}/post` | `sdk.stockOpnames.post(id)` | `StockOpnameActionResponse` |
 | `GET /api/v1/stock-transactions` | `sdk.stockTransactions.list(query?)` | `ApiListResponse<StockTransaction>` |
 | `GET /api/v1/stock-transactions/{id}` | `sdk.stockTransactions.get(id)` | `ApiDataResponse<StockTransaction>` |
 | `GET /api/v1/stock-transactions/{id}/details` | `sdk.stockTransactions.details(id)` | `ApiDataResponse<StockTransactionDetail[]>` |

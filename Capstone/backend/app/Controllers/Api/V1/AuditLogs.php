@@ -64,8 +64,9 @@ class AuditLogs extends BaseController
 
         $builder = $this->auditLogModel
             ->builder()
-            ->select('audit_logs.id, audit_logs.user_id, audit_logs.action_type, audit_logs.table_name, audit_logs.record_id, audit_logs.message, audit_logs.old_values, audit_logs.new_values, audit_logs.ip_address, audit_logs.created_at, users.name AS user_name, users.username AS user_username')
-            ->join('users', 'users.id = audit_logs.user_id', 'left');
+            ->select('audit_logs.id, audit_logs.user_id, audit_logs.action_type, audit_logs.table_name, audit_logs.record_id, audit_logs.message, audit_logs.old_values, audit_logs.new_values, audit_logs.ip_address, audit_logs.created_at, users.name AS user_name, users.username AS user_username, roles.name AS user_role')
+            ->join('users', 'users.id = audit_logs.user_id', 'left')
+            ->join('roles', 'roles.id = users.role_id', 'left');
 
         if ($search !== '') {
             $builder->groupStart()
@@ -83,6 +84,18 @@ class AuditLogs extends BaseController
 
         if (!empty($queryParams['table_name'])) {
             $builder->where('audit_logs.table_name', (string) $queryParams['table_name']);
+        }
+
+        if (!empty($queryParams['start_date'])) {
+            $builder->where('audit_logs.created_at >=', (string) $queryParams['start_date'] . ' 00:00:00');
+        }
+
+        if (!empty($queryParams['end_date'])) {
+            $builder->where('audit_logs.created_at <=', (string) $queryParams['end_date'] . ' 23:59:59');
+        }
+
+        if (!empty($queryParams['user_id'])) {
+            $builder->where('audit_logs.user_id', (int) $queryParams['user_id']);
         }
 
         $allowedSortColumns = ['id', 'created_at', 'action_type', 'table_name', 'record_id'];
@@ -159,6 +172,61 @@ class AuditLogs extends BaseController
         ]);
     }
 
+    public function summary(): ResponseInterface
+    {
+        $actionTypeSummary = $this->auditLogModel
+            ->builder()
+            ->select('audit_logs.action_type, COUNT(*) AS count')
+            ->groupBy('audit_logs.action_type')
+            ->get()
+            ->getResultArray();
+
+        $moduleSummary = $this->auditLogModel
+            ->builder()
+            ->select('audit_logs.table_name, COUNT(*) AS count')
+            ->groupBy('audit_logs.table_name')
+            ->get()
+            ->getResultArray();
+
+        $roleSummary = $this->auditLogModel
+            ->builder()
+            ->select('roles.name AS role_name, COUNT(*) AS count')
+            ->join('users', 'users.id = audit_logs.user_id', 'left')
+            ->join('roles', 'roles.id = users.role_id', 'left')
+            ->groupBy('roles.name')
+            ->get()
+            ->getResultArray();
+
+        $total = $this->auditLogModel->builder()->countAllResults();
+
+        $byActionType = [];
+        foreach ($actionTypeSummary as $row) {
+            $byActionType[$row['action_type']] = (int) $row['count'];
+        }
+
+        $byModule = [];
+        foreach ($moduleSummary as $row) {
+            $module = $this->resolveModule($row['table_name']);
+            $byModule[$module] = ($byModule[$module] ?? 0) + (int) $row['count'];
+        }
+
+        $byRole = [];
+        foreach ($roleSummary as $row) {
+            if ($row['role_name'] !== null) {
+                $byRole[$row['role_name']] = (int) $row['count'];
+            }
+        }
+
+        return $this->response->setStatusCode(200)->setJSON([
+            'data' => [
+                'total' => $total,
+                'byRole' => $byRole,
+                'byActionType' => $byActionType,
+                'byModule' => $byModule,
+            ],
+        ]);
+    }
+
     private function validateListParams(array $queryParams): array
     {
         $allowedParams = [
@@ -170,6 +238,9 @@ class AuditLogs extends BaseController
             'table_name',
             'sortBy',
             'sortDir',
+            'start_date',
+            'end_date',
+            'user_id',
         ];
 
         $unknownParams = array_diff(array_keys($queryParams), $allowedParams);
@@ -220,6 +291,7 @@ class AuditLogs extends BaseController
         $actorId = isset($row['user_id']) ? (int) $row['user_id'] : null;
         $actorName = $row['user_name'] ?: 'Sistem';
         $actorUsername = $row['user_username'] ?: null;
+        $actorRole = $row['user_role'] ?? null;
         $activityType = $this->resolveActivityType((string) $row['action_type']);
         $before = $this->decodeJsonObject($row['old_values'] ?? null);
         $after = $this->decodeJsonObject($row['new_values'] ?? null);
@@ -234,6 +306,7 @@ class AuditLogs extends BaseController
                 'id' => $actorId,
                 'name' => $actorName,
                 'username' => $actorUsername,
+                'role' => $actorRole,
             ],
             'activityType' => $activityType,
             'activityLabel' => $this->resolveActivityLabel($activityType),

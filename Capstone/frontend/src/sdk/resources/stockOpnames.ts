@@ -1,10 +1,13 @@
 import type { ApiClient } from "../client";
 import type {
+  ApiListResponse,
   CreateStockOpnameRequest,
+  ListStockOpnamesQuery,
   RejectStockOpnameRequest,
+  StockOpnameHeader,
   StockOpnameResponse,
   StockOpnameActionResponse
-} from "../types/stockOpnames";
+} from "../types";
 
 // Aligned with api-contract.md §5.5.8 and §5.5.10 — 2026-04-29
 /**
@@ -21,6 +24,26 @@ export class StockOpnamesResource {
 
   public constructor(client: ApiClient) {
     this.client = client;
+  }
+
+  /**
+   * Lists stock opnames with pagination, filtering, and search.
+   *
+   * @endpoint GET /api/v1/stock-opnames
+   * @access   admin | gudang (gudang sees only own opnames)
+   * @param query - Supports `page`, `perPage`, `q`/`search`, `sortBy`, `sortDir`, `state`, `opname_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
+   * @returns {Promise<ApiListResponse<StockOpnameHeader>>}
+   * @throws {ValidationApiError} if query validation fails (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @sideeffect None
+   */
+  public list(query?: ListStockOpnamesQuery): Promise<ApiListResponse<StockOpnameHeader>> {
+    return this.client.request<ApiListResponse<StockOpnameHeader>>({
+      method: "GET",
+      path: "/stock-opnames",
+      ...(query ? { query: buildStockOpnamesQuery(query) } : {})
+    });
   }
 
   /**
@@ -156,4 +179,22 @@ export class StockOpnamesResource {
       path: `/stock-opnames/${id}/post`
     });
   }
+}
+
+function buildStockOpnamesQuery(query: ListStockOpnamesQuery): Record<string, string | number> {
+  const params: Record<string, string | number> = {};
+  if (query.page !== undefined) params.page = query.page;
+  if (query.perPage !== undefined) params.perPage = query.perPage;
+  if (query.state !== undefined) params.state = query.state;
+  if (query.q !== undefined) params.q = query.q;
+  if (query.search !== undefined) params.search = query.search;
+  if (query.sortBy !== undefined) params.sortBy = query.sortBy;
+  if (query.sortDir !== undefined) params.sortDir = query.sortDir;
+  if (query.opname_date_from !== undefined) params.opname_date_from = query.opname_date_from;
+  if (query.opname_date_to !== undefined) params.opname_date_to = query.opname_date_to;
+  if (query.created_at_from !== undefined) params.created_at_from = query.created_at_from;
+  if (query.created_at_to !== undefined) params.created_at_to = query.created_at_to;
+  if (query.updated_at_from !== undefined) params.updated_at_from = query.updated_at_from;
+  if (query.updated_at_to !== undefined) params.updated_at_to = query.updated_at_to;
+  return params;
 }

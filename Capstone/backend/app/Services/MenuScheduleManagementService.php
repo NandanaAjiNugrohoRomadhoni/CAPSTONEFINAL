@@ -50,7 +50,7 @@ class MenuScheduleManagementService
         return $row === null ? null : $this->formatSchedule($row);
     }
 
-    public function createSchedule(array $data): array
+    public function createSchedule(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateWritePayload($data);
         if (!$validated['success']) {
@@ -76,7 +76,7 @@ class MenuScheduleManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Create, 'menu_schedules', (int) $created, 'Menu schedule created.', null, $data, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Create, 'menu_schedules', (int) $created, 'Menu schedule created.', null, $data, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -99,7 +99,7 @@ class MenuScheduleManagementService
         ];
     }
 
-    public function updateSchedule(int $id, array $data): array
+    public function updateSchedule(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->menuScheduleModel->find($id);
         if ($existing === null) {
@@ -174,7 +174,7 @@ class MenuScheduleManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Update, 'menu_schedules', $id, 'Menu schedule updated.', $existing, $updateData, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Update, 'menu_schedules', $id, 'Menu schedule updated.', $existing, $updateData, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,

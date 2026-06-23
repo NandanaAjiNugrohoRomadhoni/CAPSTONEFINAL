@@ -1,5 +1,5 @@
 import type { ApiClient } from "../client";
-import type { CreateStockOpnameRequest, RejectStockOpnameRequest, StockOpnameResponse, StockOpnameActionResponse } from "../types/stockOpnames";
+import type { ApiListResponse, CreateStockOpnameRequest, ListStockOpnamesQuery, RejectStockOpnameRequest, StockOpnameHeader, StockOpnameResponse, StockOpnameActionResponse } from "../types";
 /**
  * StockOpnames SDK Resource
  *
@@ -12,6 +12,19 @@ import type { CreateStockOpnameRequest, RejectStockOpnameRequest, StockOpnameRes
 export declare class StockOpnamesResource {
     private readonly client;
     constructor(client: ApiClient);
+    /**
+     * Lists stock opnames with pagination, filtering, and search.
+     *
+     * @endpoint GET /api/v1/stock-opnames
+     * @access   admin | gudang (gudang sees only own opnames)
+     * @param query - Supports `page`, `perPage`, `q`/`search`, `sortBy`, `sortDir`, `state`, `opname_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
+     * @returns {Promise<ApiListResponse<StockOpnameHeader>>}
+     * @throws {ValidationApiError} if query validation fails (400)
+     * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+     * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+     * @sideeffect None
+     */
+    list(query?: ListStockOpnamesQuery): Promise<ApiListResponse<StockOpnameHeader>>;
     /**
      * Creates a stock opname draft.
      *

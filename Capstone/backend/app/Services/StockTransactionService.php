@@ -11,6 +11,7 @@ use App\Models\StockTransactionModel;
 use App\Models\TransactionTypeModel;
 use App\Services\NotificationService;
 use CodeIgniter\Database\BaseConnection;
+use App\Services\StockSnapshotService;
 use Config\Database;
 
 class StockTransactionService
@@ -44,6 +45,7 @@ class StockTransactionService
         'transaction_date',
         'spk_id',
         'details',
+        'reason',
     ];
 
     private const ALLOWED_DIRECT_CORRECTION_FIELDS = [
@@ -307,6 +309,9 @@ class StockTransactionService
                 }
             }
         }
+
+        // Auto-trigger opening stock snapshot for the transaction's month (idempotent, failure-safe)
+        (new StockSnapshotService())->ensureOpeningSnapshot(substr((string) $data['transaction_date'], 0, 7));
 
         $this->db->transStart();
 
@@ -651,6 +656,9 @@ class StockTransactionService
                 'errors' => [],
             ];
         }
+
+        // Auto-trigger opening stock snapshot for the transaction's month (idempotent, failure-safe)
+        (new StockSnapshotService())->ensureOpeningSnapshot(substr((string) $data['transaction_date'], 0, 7));
 
         $this->db->transStart();
 

@@ -232,4 +232,18 @@ class NotificationService
             "total" => $total,
         ];
     }
+
+    /**
+     * Count unread notifications for a given user.
+     *
+     * Used by PendingActionCounter to surface unread count in dashboard aggregates
+     * without exposing raw SQL outside of the notification service boundary.
+     */
+    public function countUnread(int $userId): int
+    {
+        return (int) $this->notificationModel
+            ->where('user_id', $userId)
+            ->where('is_read', 0)
+            ->countAllResults();
+    }
 }

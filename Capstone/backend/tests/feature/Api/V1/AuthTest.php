@@ -512,4 +512,81 @@ class AuthTest extends CIUnitTestCase
 
         $result->assertStatus(401);
     }
+
+    public function testLoginTriggersSnapshot(): void
+    {
+        $db = \Config\Database::connect();
+        
+        // Clean any existing snapshots for current month
+        $currentMonth = date('Y-m') . '-01';
+        $db->table('monthly_stock_snapshots')->where('period_month', $currentMonth)->delete();
+
+        // Seed a temporary item so there is something to snapshot
+        $db->table('item_categories')->insert([
+            'id' => 9999,
+            'name' => 'TEMP_CAT',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $db->table('item_units')->insert([
+            'id' => 9999,
+            'name' => 'temp_unit',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $db->table('items')->insert([
+            'id' => 9999,
+            'item_category_id' => 9999,
+            'name' => 'Temp Item',
+            'unit_base' => 'temp_unit',
+            'unit_convert' => 'temp_unit',
+            'item_unit_base_id' => 9999,
+            'conversion_base' => 1.0,
+            'is_active' => 1,
+            'qty' => 50.0,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $result = $this->withBodyFormat('json')
+            ->post('api/v1/auth/login', [
+                'username' => 'activeuser',
+                'password' => 'password123',
+            ]);
+
+        $result->assertStatus(200);
+
+        // Verify snapshot was created
+        $count = $db->table('monthly_stock_snapshots')
+            ->where('period_month', $currentMonth)
+            ->where('item_id', 9999)
+            ->countAllResults();
+
+        $this->assertSame(1, $count);
+    }
+
+    public function testSnapshotFailureDoesNotBlockLogin(): void
+    {
+        $db = \Config\Database::connect();
+        $prefix = $db->getPrefix();
+        $tableName = $prefix . 'monthly_stock_snapshots';
+        $tempTableName = $prefix . 'monthly_stock_snapshots_temp';
+        
+        // Rename table to simulate DB error
+        $db->query("ALTER TABLE {$tableName} RENAME TO {$tempTableName}");
+
+        try {
+            $result = $this->withBodyFormat('json')
+                ->post('api/v1/auth/login', [
+                    'username' => 'activeuser',
+                    'password' => 'password123',
+                ]);
+
+            $result->assertStatus(200);
+        } finally {
+            // Restore table name
+            $db->query("ALTER TABLE {$tempTableName} RENAME TO {$tableName}");
+        }
+    }
 }
+

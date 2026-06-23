@@ -44,6 +44,7 @@ __export(index_exports, {
   RolesResource: () => RolesResource,
   SpkResource: () => SpkResource,
   StockOpnamesResource: () => StockOpnamesResource,
+  StockSnapshotsResource: () => StockSnapshotsResource,
   StockTransactionsResource: () => StockTransactionsResource,
   TransactionTypesResource: () => TransactionTypesResource,
   UsersResource: () => UsersResource,
@@ -1235,17 +1236,26 @@ var AuditLogsResource = class {
       path: "/audit-logs/types"
     });
   }
+  summary() {
+    return this.client.request({
+      method: "GET",
+      path: "/audit-logs/summary"
+    });
+  }
 };
 function buildAuditLogQuery(query) {
   const result = {};
   if (query.page !== void 0) result.page = query.page;
   if (query.perPage !== void 0) result.perPage = query.perPage;
-  if (query.paginate !== void 0) result.paginate = query.paginate;
+  if (query.paginate !== void 0) result.paginate = query.paginate ? "true" : "false";
   if (query.q !== void 0) result.q = query.q;
   if (query.action_type !== void 0) result.action_type = query.action_type;
   if (query.table_name !== void 0) result.table_name = query.table_name;
   if (query.sortBy !== void 0) result.sortBy = query.sortBy;
   if (query.sortDir !== void 0) result.sortDir = query.sortDir;
+  if (query.start_date !== void 0) result.start_date = query.start_date;
+  if (query.end_date !== void 0) result.end_date = query.end_date;
+  if (query.user_id !== void 0) result.user_id = query.user_id;
   return result;
 }
 
@@ -2207,6 +2217,25 @@ var StockOpnamesResource = class {
     this.client = client;
   }
   /**
+   * Lists stock opnames with pagination, filtering, and search.
+   *
+   * @endpoint GET /api/v1/stock-opnames
+   * @access   admin | gudang (gudang sees only own opnames)
+   * @param query - Supports `page`, `perPage`, `q`/`search`, `sortBy`, `sortDir`, `state`, `opname_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
+   * @returns {Promise<ApiListResponse<StockOpnameHeader>>}
+   * @throws {ValidationApiError} if query validation fails (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @sideeffect None
+   */
+  list(query) {
+    return this.client.request({
+      method: "GET",
+      path: "/stock-opnames",
+      ...query ? { query: buildStockOpnamesQuery(query) } : {}
+    });
+  }
+  /**
    * Creates a stock opname draft.
    *
    * @endpoint POST /api/v1/stock-opnames
@@ -2334,6 +2363,80 @@ var StockOpnamesResource = class {
     });
   }
 };
+function buildStockOpnamesQuery(query) {
+  const params = {};
+  if (query.page !== void 0) params.page = query.page;
+  if (query.perPage !== void 0) params.perPage = query.perPage;
+  if (query.state !== void 0) params.state = query.state;
+  if (query.q !== void 0) params.q = query.q;
+  if (query.search !== void 0) params.search = query.search;
+  if (query.sortBy !== void 0) params.sortBy = query.sortBy;
+  if (query.sortDir !== void 0) params.sortDir = query.sortDir;
+  if (query.opname_date_from !== void 0) params.opname_date_from = query.opname_date_from;
+  if (query.opname_date_to !== void 0) params.opname_date_to = query.opname_date_to;
+  if (query.created_at_from !== void 0) params.created_at_from = query.created_at_from;
+  if (query.created_at_to !== void 0) params.created_at_to = query.created_at_to;
+  if (query.updated_at_from !== void 0) params.updated_at_from = query.updated_at_from;
+  if (query.updated_at_to !== void 0) params.updated_at_to = query.updated_at_to;
+  return params;
+}
+
+// src/sdk/resources/stockSnapshots.ts
+var StockSnapshotsResource = class {
+  client;
+  constructor(client) {
+    this.client = client;
+  }
+  /**
+   * List paginated stock snapshots with item and category details.
+   *
+   * @endpoint GET /api/v1/stock-snapshots
+   * @access admin, gudang
+   * @param query - Optional filters and pagination
+   * @returns Paginated list of snapshot rows
+   * @throws {AuthenticationApiError} 401 if not authenticated
+   * @throws {AuthorizationApiError} 403 if role not allowed
+   */
+  async list(query) {
+    return this.client.request({
+      method: "GET",
+      path: "/stock-snapshots",
+      query
+    });
+  }
+  /**
+   * Take (or retake) an opening stock snapshot for a month.
+   *
+   * @endpoint POST /api/v1/stock-snapshots
+   * @access admin, gudang
+   * @param request - Optional month and force flag
+   * @returns Creation result with item count
+   * @throws {AuthenticationApiError} 401 if not authenticated
+   * @throws {AuthorizationApiError} 403 if role not allowed
+   * @throws {ValidationApiError} 400 if month format invalid
+   */
+  async take(request) {
+    return this.client.request({
+      method: "POST",
+      path: "/stock-snapshots",
+      body: request
+    });
+  }
+  /**
+   * Check current month's snapshot status.
+   *
+   * @endpoint GET /api/v1/stock-snapshots/current
+   * @access admin, dapur, gudang
+   * @returns Status object with has_snapshot flag and item count
+   * @throws {AuthenticationApiError} 401 if not authenticated
+   */
+  async current() {
+    return this.client.request({
+      method: "GET",
+      path: "/stock-snapshots/current"
+    });
+  }
+};
 
 // src/sdk/index.ts
 var CapstoneSdk = class {
@@ -2359,6 +2462,7 @@ var CapstoneSdk = class {
   dashboard;
   reports;
   stockOpnames;
+  stockSnapshots;
   constructor(options) {
     this.client = new ApiClient(options);
     this.approvalStatuses = new ApprovalStatusesResource(this.client);
@@ -2382,6 +2486,7 @@ var CapstoneSdk = class {
     this.dashboard = new DashboardResource(this.client);
     this.reports = new ReportsResource(this.client);
     this.stockOpnames = new StockOpnamesResource(this.client);
+    this.stockSnapshots = new StockSnapshotsResource(this.client);
   }
   /**
    * Updates the in-memory bearer token used by the shared client.

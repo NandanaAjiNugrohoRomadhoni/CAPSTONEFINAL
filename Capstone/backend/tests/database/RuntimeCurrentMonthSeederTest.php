@@ -153,9 +153,9 @@ class RuntimeCurrentMonthSeederTest extends CIUnitTestCase
     {
         $dates = [];
         $cursor = new DateTimeImmutable('first day of this month');
-        $today = new DateTimeImmutable('today');
+        $end = new DateTimeImmutable('last day of this month');
 
-        while ($cursor->format('Y-m-d') <= $today->format('Y-m-d')) {
+        while ($cursor->format('Y-m-d') <= $end->format('Y-m-d')) {
             $dates[] = $cursor->format('Y-m-d');
             $cursor = $cursor->modify('+2 days');
         }

@@ -112,7 +112,7 @@ class DishCompositionManagementService
         return $this->formatCompositionResponse($composition);
     }
 
-    public function createComposition(array $data): array
+    public function createComposition(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $validation = service('validation');
         if (
@@ -162,7 +162,7 @@ class DishCompositionManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Create, 'dish_compositions', (int) $created, 'Dish composition created.', null, $data, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Create, 'dish_compositions', (int) $created, 'Dish composition created.', null, $data, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -185,7 +185,7 @@ class DishCompositionManagementService
         ];
     }
 
-    public function updateComposition(int $id, array $data): array
+    public function updateComposition(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishCompositionModel->findById($id);
         if ($existing === null) {
@@ -265,7 +265,7 @@ class DishCompositionManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Update, 'dish_compositions', $id, 'Dish composition updated.', $existing, $updateData, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Update, 'dish_compositions', $id, 'Dish composition updated.', $existing, $updateData, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -288,7 +288,7 @@ class DishCompositionManagementService
         ];
     }
 
-    public function deleteComposition(int $id): array
+    public function deleteComposition(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $existing = $this->dishCompositionModel->find($id);
         if ($existing === null) {
@@ -308,7 +308,7 @@ class DishCompositionManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Delete, 'dish_compositions', $id, 'Dish composition deleted.', $existing, null, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Delete, 'dish_compositions', $id, 'Dish composition deleted.', $existing, null, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,

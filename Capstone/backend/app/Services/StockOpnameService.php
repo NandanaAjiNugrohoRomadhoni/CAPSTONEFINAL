@@ -713,6 +713,31 @@ class StockOpnameService
         ];
     }
 
+    public function list(
+        int $page,
+        int $perPage,
+        string $search,
+        string $sortBy,
+        string $sortDir,
+        ?string $state,
+        ?string $opnameDateFrom,
+        ?string $opnameDateTo,
+        ?int $createdBy,
+        ?string $createdAtFrom,
+        ?string $createdAtTo,
+        ?string $updatedAtFrom,
+        ?string $updatedAtTo,
+    ): array {
+        return $this->stockOpnameModel->getAllPaginatedFiltered(
+            $page, $perPage, $search, $sortBy, $sortDir,
+            $state,
+            $opnameDateFrom, $opnameDateTo,
+            $createdBy,
+            $createdAtFrom, $createdAtTo,
+            $updatedAtFrom, $updatedAtTo,
+        );
+    }
+
     public function findByIdWithDetails(int $id): ?array
     {
         $header = $this->stockOpnameModel->findById($id);

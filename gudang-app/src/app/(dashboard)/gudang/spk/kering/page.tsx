@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage, toIsoMonth } from "@/lib/admin-utils";
 import { buildExportFilename } from "@/lib/export-filename";
@@ -44,6 +44,9 @@ function formatTargetMonthLabel(value: string) {
 
 export default function Page() {
   const [rows, setRows] = useState<RecommendationRow[]>([]);
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0) > 0);
+  }, [rows]);
   const [detailData, setDetailData] = useState<RecommendationDetail | null>(null);
   const [hasLoadedRecommendation, setHasLoadedRecommendation] = useState(false);
   const [targetMonth] = useState(toIsoMonth(new Date()));
@@ -107,7 +110,7 @@ export default function Page() {
   }
 
   function handleExport() {
-    if (typeof window === "undefined" || rows.length === 0) {
+    if (typeof window === "undefined" || visibleRows.length === 0) {
       setError("Belum ada hasil rekomendasi yang bisa diexport.");
       return;
     }
@@ -124,11 +127,11 @@ export default function Page() {
             }).format(new Date(detailData.calculation_date))
           : "-",
         targetLabel: formatTargetMonthLabel(targetMonth),
-        itemCountLabel: `${rows.length} Produk`,
+        itemCountLabel: `${visibleRows.length} Produk`,
         formulaTitle: "Rumus KERING & PENGEMAS",
         formulaDescription: "Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini",
         },
-      rows.map((row) => ({
+      visibleRows.map((row) => ({
         itemName: row.item_name ?? "-",
         categoryName: getItemCategory(row),
         currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
@@ -180,7 +183,7 @@ export default function Page() {
               </tr>
             </thead>
             <tbody className="text-base text-[#16213E]">
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-[#F8FAFC]">
                   <td className="px-6 py-4 font-bold">{row.item_name ?? "-"}</td>
                   <td className="px-6 py-4 uppercase">{getItemCategory(row)}</td>
@@ -189,7 +192,7 @@ export default function Page() {
                   <td className="px-6 py-4">{formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base)}</td>
                 </tr>
               ))}
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={5}>
                     {hasLoadedRecommendation

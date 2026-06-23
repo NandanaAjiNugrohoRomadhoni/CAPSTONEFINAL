@@ -1842,9 +1842,9 @@ Endpoint ini mengembalikan agregasi dashboard minimum sesuai SRS dengan payload 
 
 **Role payload keys (minimum contract):**
 
-- `admin`: `stock_summary`, `dry_stock_status`, `spending_trend`, `current_menu_cycle`, `latest_spk_history`, `patient_fluctuation`
-- `gudang`: `stock_summary`, `dry_stock_status`, `spending_trend`, `latest_spk_history`, `patient_fluctuation`
-- `dapur`: `current_menu_cycle`, `current_menu_composition`, `latest_spk_history`, `stock_summary`, `dry_stock_status`
+- `admin`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `current_menu_cycle` (enhanced with `total_ingredient_items`, `total_required_qty`, `sufficient_items`, `insufficient_items`, `top_shortages`), `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `pending_actions` (new)
+- `gudang`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `today_outgoing` (new), `pending_actions` (new)
+- `dapur`: `current_menu_cycle` (enhanced), `current_menu_composition`, `menu_ingredient_summary` (new), `latest_spk_history` (enhanced with `summary_items` inline), `stock_summary` (enhanced), `dry_stock_status`, `pending_actions` (new)
 
 Unauthorized/forbidden behavior mengikuti filter runtime:
 

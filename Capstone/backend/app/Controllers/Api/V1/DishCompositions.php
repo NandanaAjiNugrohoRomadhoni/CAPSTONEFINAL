@@ -133,8 +133,11 @@ class DishCompositions extends BaseController
      */
     public function create(): ResponseInterface
     {
-        $data = $this->request->getJSON(true) ?? [];
-        $result = $this->compositionService->createComposition($data);
+    $data = $this->request->getJSON(true) ?? [];
+    $actor = auth()->user();
+    $actorId = $actor?->id;
+    $ipAddress = $this->request->getIPAddress();
+    $result = $this->compositionService->createComposition($data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             return $this->response
@@ -182,7 +185,10 @@ class DishCompositions extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->compositionService->updateComposition($id, $data);
+    $actor = auth()->user();
+    $actorId = $actor?->id;
+    $ipAddress = $this->request->getIPAddress();
+    $result = $this->compositionService->updateComposition($id, $data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {
@@ -225,7 +231,10 @@ class DishCompositions extends BaseController
      */
     public function delete(int $id): ResponseInterface
     {
-        $result = $this->compositionService->deleteComposition($id);
+    $actor = auth()->user();
+    $actorId = $actor?->id;
+    $ipAddress = $this->request->getIPAddress();
+    $result = $this->compositionService->deleteComposition($id, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = $result['message'] === 'Dish composition not found.' ? 404 : 422;

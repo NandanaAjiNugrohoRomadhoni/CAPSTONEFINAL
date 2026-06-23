@@ -7,6 +7,7 @@ import sdk from "@/lib";
 import { formatCompactDate, formatNumber, formatQuantity, getCurrentMonthPeriod, getErrorMessage, getStockTone, normaliseMealLabel, toIsoDate } from "@/lib/admin-utils";
 import { MiniActionButton, SurfaceCard } from "@/components/admin/ui";
 import type { MenuSlot, SpkBasahDetail, SpkKeringPengemasDetail } from "@/sdk";
+import { listAllItems } from "@/lib/items";
 
 type DashboardState = {
   stock_summary?: {
@@ -38,7 +39,7 @@ type DashboardState = {
 export default function Page() {
   const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardState>({});
-  const [stockRows, setStockRows] = useState<Array<{ item_id?: number; item_name?: string; category_name?: string; qty?: number; unit_base?: string }>>([]);
+  const [stockRows, setStockRows] = useState<Array<{ item_id?: number; item_name?: string; category_name?: string; qty?: number; unit_base?: string; min_stock?: number }>>([]);
   const [menuSlots, setMenuSlots] = useState<MenuSlot[]>([]);
   const [menuCalendarMenu, setMenuCalendarMenu] = useState<{ menu_id?: number | null; menu_name?: string | null; date?: string | null }>({});
   const [basahDetail, setBasahDetail] = useState<SpkBasahDetail | null>(null);
@@ -56,18 +57,30 @@ export default function Page() {
 
       try {
         const period = getCurrentMonthPeriod();
-        const [dashboardResponse, stocksResponse, menuSlotsResponse, menuCalendarResponse] = await Promise.all([
+        const [dashboardResponse, stocksResponse, menuSlotsResponse, menuCalendarResponse, itemsResponse] = await Promise.all([
           sdk.dashboard.getAggregate(),
           sdk.reports.getStocks(period),
           sdk.menus.slots(),
           sdk.menuSchedules.calendarProjection({ date: todayIso }),
+          listAllItems(),
         ]);
 
         if (cancelled) return;
 
         const dashboardData = (dashboardResponse.data?.aggregates ?? {}) as DashboardState;
         setDashboard(dashboardData);
-        setStockRows((stocksResponse.data.rows as Array<{ item_id?: number; item_name?: string; category_name?: string; qty?: number; unit_base?: string }>) ?? []);
+
+        const itemsMap = new Map(itemsResponse.map((item) => [item.id, item]));
+        const rawStockRows = (stocksResponse.data.rows as Array<{ item_id?: number; item_name?: string; category_name?: string; qty?: number; unit_base?: string }>) ?? [];
+        const enrichedStockRows = rawStockRows.map((row) => {
+          const itemId = Number(row.item_id ?? 0);
+          const item = itemsMap.get(itemId);
+          return {
+            ...row,
+            min_stock: item ? item.min_stock : 1,
+          };
+        });
+        setStockRows(enrichedStockRows);
         setMenuSlots((menuSlotsResponse.data ?? []) as MenuSlot[]);
         if ("data" in menuCalendarResponse && menuCalendarResponse.data) {
           setMenuCalendarMenu({
@@ -130,7 +143,7 @@ export default function Page() {
     () =>
       stockRows
         .filter((row) => {
-          const tone = getStockTone(Number(row.qty ?? 0), 1).tone;
+          const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
           return tone === "critical" || tone === "danger";
         })
         .slice(0, 5),
@@ -139,7 +152,7 @@ export default function Page() {
   const stockSummaryBoxes = useMemo(() => {
     const counts = stockRows.reduce(
       (acc, row) => {
-        const tone = getStockTone(Number(row.qty ?? 0), 1).tone;
+        const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
         acc[tone] += 1;
         return acc;
       },
@@ -356,7 +369,7 @@ export default function Page() {
           </div>
           <div className="space-y-3">
             {warningRows.map((row) => {
-              const tone = getStockTone(Number(row.qty ?? 0), 1);
+              const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1));
               const palette =
                 tone.tone === "danger"
                   ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"

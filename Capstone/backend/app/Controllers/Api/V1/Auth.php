@@ -51,6 +51,7 @@ class Auth extends BaseController
     public function login(): ResponseInterface
     {
         $data = $this->request->getJSON(true);
+        $ipAddress = $this->request->getIPAddress();
 
         $rules = [
             'username' => 'required',
@@ -68,7 +69,8 @@ class Auth extends BaseController
 
         $result = $this->authService->attemptLogin(
             $data['username'],
-            $data['password']
+            $data['password'],
+            $ipAddress
         );
 
         if (!$result['success']) {
@@ -152,6 +154,7 @@ class Auth extends BaseController
     public function logout(): ResponseInterface
     {
         $user = auth()->user();
+        $ipAddress = $this->request->getIPAddress();
 
         if (!$user) {
             return $this->response
@@ -161,7 +164,7 @@ class Auth extends BaseController
                 ]);
         }
 
-        $this->authService->logout($user);
+        $this->authService->logout($user, $ipAddress);
 
         return $this->response
             ->setStatusCode(200)

@@ -82,6 +82,7 @@ export type CreateStockTransactionRequest = TransactionTypeIdentifier & {
 export interface SubmitRevisionRequest {
     transaction_date: string;
     spk_id?: number | null;
+    reason?: string;
     details: StockTransactionDetailInput[];
 }
 /** Optional request payload for admin-only `POST /api/v1/stock-transactions/{id}/reject`. */

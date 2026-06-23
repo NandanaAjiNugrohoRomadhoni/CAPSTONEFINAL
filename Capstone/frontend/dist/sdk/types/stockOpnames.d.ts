@@ -57,3 +57,18 @@ export interface StockOpnameActionResponse {
         state: StockOpnameState;
     };
 }
+export interface ListStockOpnamesQuery {
+    page?: number;
+    perPage?: number;
+    state?: StockOpnameState;
+    q?: string;
+    search?: string;
+    sortBy?: "id" | "opname_date" | "state" | "created_at" | "updated_at";
+    sortDir?: "ASC" | "DESC";
+    opname_date_from?: string;
+    opname_date_to?: string;
+    created_at_from?: string;
+    created_at_to?: string;
+    updated_at_from?: string;
+    updated_at_to?: string;
+}

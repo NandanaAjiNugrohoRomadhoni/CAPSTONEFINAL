@@ -131,7 +131,10 @@ class Dishes extends BaseController
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->dishService->createDish($data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->dishService->createDish($data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             return $this->response
@@ -177,7 +180,10 @@ class Dishes extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->dishService->updateDish($id, $data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->dishService->updateDish($id, $data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {
@@ -221,7 +227,10 @@ class Dishes extends BaseController
      */
     public function delete(int $id): ResponseInterface
     {
-        $result = $this->dishService->deleteDish($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->dishService->deleteDish($id, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {
@@ -263,7 +272,10 @@ class Dishes extends BaseController
      */
     public function deactivate(int $id): ResponseInterface
     {
-        $result = $this->dishService->deactivateDish($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->dishService->deactivateDish($id, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {
@@ -306,7 +318,10 @@ class Dishes extends BaseController
      */
     public function reactivate(int $id): ResponseInterface
     {
-        $result = $this->dishService->reactivateDish($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->dishService->reactivateDish($id, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {

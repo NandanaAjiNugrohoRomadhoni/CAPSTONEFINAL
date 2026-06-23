@@ -303,13 +303,14 @@ class SpkBasahGenerationService
                 // Carry forward required qty already buffered per patient count.
                 $requiredQty = round($rawRequiredQty, 4);
 
-                $systemRecommended = max(0.0, $requiredQty - $remainingStock);
+                $stockBeforeDay    = $remainingStock;
+                $systemRecommended = max(0.0, $requiredQty - $stockBeforeDay);
                 $remainingStock    = max(0.0, $remainingStock - $requiredQty);
 
                 $rows[] = [
                     'item_id'                => (int) $itemId,
                     'target_date'            => $targetDate,
-                    'current_stock_qty'      => $initialStock,
+                    'current_stock_qty'      => $stockBeforeDay,
                     'required_qty'           => $requiredQty,
                     'system_recommended_qty' => $systemRecommended,
                     'recommended_qty'        => $systemRecommended,

@@ -8,6 +8,8 @@ use App\Models\TransactionTypeModel;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
+use App\Enums\AuditActionType;
+use App\Services\AuditService;
 
 class ReportingService
 {
@@ -15,6 +17,7 @@ class ReportingService
     protected TransactionTypeModel $transactionTypeModel;
     protected ApprovalStatusModel $approvalStatusModel;
     protected SpkReportCompatibilityService $spkReportCompatibilityService;
+    protected AuditService $auditService;
 
     public function __construct()
     {
@@ -22,6 +25,7 @@ class ReportingService
         $this->transactionTypeModel = new TransactionTypeModel();
         $this->approvalStatusModel = new ApprovalStatusModel();
         $this->spkReportCompatibilityService = new SpkReportCompatibilityService();
+        $this->auditService = new AuditService();
     }
 
     public function getStockReport(array $query): array
@@ -66,6 +70,21 @@ class ReportingService
             }
         }
 
+        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
+        try {
+            $this->auditService->log(
+                null,
+                AuditActionType::Create,
+                'reports',
+                0,
+                'Exported stock report',
+                null,
+                ['report_type' => 'getStockReport', 'query_params' => json_encode($query)],
+                $ipAddress
+            );
+        } catch (\Throwable $e) {
+            // silently ignore audit failures
+        }
         return [
             'success' => true,
             'data' => [
@@ -137,6 +156,21 @@ class ReportingService
         $totalQty = 0.0;
         foreach ($rows as $row) {
             $totalQty += (float) $row['qty'];
+        }
+        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
+        try {
+            $this->auditService->log(
+                null,
+                AuditActionType::Create,
+                'reports',
+                0,
+                'Exported transaction report',
+                null,
+                ['report_type' => 'getTransactionReport', 'query_params' => json_encode($query)],
+                $ipAddress
+            );
+        } catch (\Throwable $e) {
+            // silently ignore audit failures
         }
 
         return [
@@ -244,7 +278,7 @@ class ReportingService
 
         $builder = $this->db
             ->table('spk_calculations sc')
-            ->select('sc.id, sc.spk_type, sc.version, sc.calculation_scope, sc.calculation_date, sc.target_date_start, sc.target_date_end, sc.target_month, sc.estimated_patients, sc.is_finish, sc.category_id, ic.name AS category_name, sc.user_id, u.name AS user_name, COUNT(sr.id) AS total_recommendations, COALESCE(SUM(sr.required_qty), 0) AS total_required_qty, COALESCE(SUM(sr.recommended_qty), 0) AS total_recommended_qty')
+            ->select('sc.id, sc.spk_type, sc.version, sc.calculation_scope, sc.calculation_date, sc.target_date_start, sc.target_date_end, sc.target_month, sc.estimated_patients, sc.is_finish, sc.category_id, ic.name AS category_name, sc.user_id, u.name AS user_name, COUNT(DISTINCT sr.item_id) AS total_recommendations, COALESCE(SUM(sr.required_qty), 0) AS total_required_qty, COALESCE(SUM(sr.recommended_qty), 0) AS total_recommended_qty')
             ->join('item_categories ic', 'ic.id = sc.category_id', 'left')
             ->join('users u', 'u.id = sc.user_id', 'left')
             ->join('spk_recommendations sr', 'sr.spk_id = sc.id', 'left')
@@ -277,6 +311,21 @@ class ReportingService
                 ->getResultArray();
 
             $compatibilityRows[] = $this->spkReportCompatibilityService->projectForSrs($headerRow, $recommendationRows);
+        }
+        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
+        try {
+            $this->auditService->log(
+                null,
+                AuditActionType::Create,
+                'reports',
+                0,
+                'Exported SPK history report',
+                null,
+                ['report_type' => 'getSpkHistoryReport', 'query_params' => json_encode($query)],
+                $ipAddress
+            );
+        } catch (\Throwable $e) {
+            // silently ignore audit failures
         }
 
         return [
@@ -406,6 +455,21 @@ class ReportingService
                 'variance_qty' => round($variance, 2),
             ];
         }
+        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
+        try {
+            $this->auditService->log(
+                null,
+                AuditActionType::Create,
+                'reports',
+                0,
+                'Exported evaluation report',
+                null,
+                ['report_type' => 'getEvaluationReport', 'query_params' => json_encode($query)],
+                $ipAddress
+            );
+        } catch (\Throwable $e) {
+            // silently ignore audit failures
+        }
 
         return [
             'success' => true,
@@ -525,13 +589,18 @@ class ReportingService
             }
         }
 
+        $periodMonth = substr($validated['period_start'], 0, 7);
+
+        // Auto-trigger snapshot if none exists for this month (idempotent, failure-safe)
+        (new \App\Services\StockSnapshotService())->ensureOpeningSnapshot($periodMonth);
+
         $snapshotMap = [];
         if ($itemRows !== []) {
             $itemIds = array_map(static fn(array $row): int => (int) $row['id'], $itemRows);
             $snapshotRows = $this->db
                 ->table('monthly_stock_snapshots')
                 ->select('item_id, opening_qty')
-                ->where('period_month', substr($validated['period_start'], 0, 7) . '-01')
+                ->where('period_month', $periodMonth . '-01')
                 ->whereIn('item_id', $itemIds)
                 ->get()
                 ->getResultArray();
@@ -577,6 +646,21 @@ class ReportingService
                 'harian' => $harian,
             ];
         }
+        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
+        try {
+            $this->auditService->log(
+                null,
+                AuditActionType::Create,
+                'reports',
+                0,
+                'Exported monthly stock export',
+                null,
+                ['report_type' => 'getMonthlyStockExport', 'query_params' => json_encode($query)],
+                $ipAddress
+            );
+        } catch (\Throwable $e) {
+            // silently ignore audit failures
+        }
 
         return [
             'success' => true,
@@ -602,7 +686,7 @@ class ReportingService
      */
     private function validateReportQuery(array $query, array $allowedFilterKeys): array
     {
-        $allowedParams = array_merge(['period_start', 'period_end'], $allowedFilterKeys);
+        $allowedParams = array_merge(['period_start', 'period_end', 'month', 'year'], $allowedFilterKeys);
         $unknown = array_values(array_diff(array_keys($query), $allowedParams));
         if ($unknown !== []) {
             return [
@@ -616,23 +700,43 @@ class ReportingService
         }
 
         $errors = [];
-
         $periodStart = trim((string) ($query['period_start'] ?? ''));
         $periodEnd = trim((string) ($query['period_end'] ?? ''));
+        $month = trim((string) ($query['month'] ?? ''));
+        $year = trim((string) ($query['year'] ?? ''));
+
+        // Resolve month/year shorthand into period_start/period_end
+        if ($periodStart === '' && $periodEnd === '') {
+            if ($month !== '') {
+                if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+                    $errors['month'] = 'The month field must be in YYYY-MM format.';
+                } else {
+                    $periodStart = $month . '-01';
+                    $periodEnd = date('Y-m-t', strtotime($periodStart));
+                }
+            } elseif ($year !== '') {
+                if (!preg_match('/^\d{4}$/', $year)) {
+                    $errors['year'] = 'The year field must be in YYYY format.';
+                } else {
+                    $periodStart = $year . '-01-01';
+                    $periodEnd = $year . '-12-31';
+                }
+            }
+        }
 
         if ($periodStart === '') {
-            $errors['period_start'] = 'The period_start field is required.';
+            $errors['period_start'] = 'The period_start field is required (or provide month or year).';
         }
 
         if ($periodEnd === '') {
-            $errors['period_end'] = 'The period_end field is required.';
+            $errors['period_end'] = 'The period_end field is required (or provide month or year).';
         }
 
-        if ($periodStart !== '' && ! $this->isValidDate($periodStart)) {
+        if (! isset($errors['period_start']) && ! $this->isValidDate($periodStart)) {
             $errors['period_start'] = 'The period_start field must be a valid date in Y-m-d format.';
         }
 
-        if ($periodEnd !== '' && ! $this->isValidDate($periodEnd)) {
+        if (! isset($errors['period_end']) && ! $this->isValidDate($periodEnd)) {
             $errors['period_end'] = 'The period_end field must be a valid date in Y-m-d format.';
         }
 

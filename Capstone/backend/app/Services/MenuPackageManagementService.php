@@ -68,7 +68,7 @@ class MenuPackageManagementService
         ];
     }
 
-    public function assignDishToSlot(array $data): array
+    public function assignDishToSlot(array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         $validation = service('validation');
         if (
@@ -145,7 +145,7 @@ class MenuPackageManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Create, 'menu_dishes', (int) $created, 'Menu dish assigned.', null, $data, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Create, 'menu_dishes', (int) $created, 'Menu dish assigned.', null, $data, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -177,7 +177,7 @@ class MenuPackageManagementService
         ];
     }
 
-    public function updateSlotAssignment(int $id, array $data): array
+    public function updateSlotAssignment(int $id, array $data, ?int $actorId = null, ?string $ipAddress = null): array
     {
         // Check if slot exists
         $existing = $this->menuDishModel->find($id);
@@ -311,7 +311,7 @@ class MenuPackageManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Update, 'menu_dishes', $id, 'Menu dish assignment updated.', $existing, $updateData, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Update, 'menu_dishes', $id, 'Menu dish assignment updated.', $existing, $updateData, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -337,7 +337,7 @@ class MenuPackageManagementService
         ];
     }
 
-    public function deleteSlotAssignment(int $id): array
+    public function deleteSlotAssignment(int $id, ?int $actorId = null, ?string $ipAddress = null): array
     {
         // Check if slot exists
         $existing = $this->menuDishModel->find($id);
@@ -360,7 +360,7 @@ class MenuPackageManagementService
             ];
         }
 
-        if (!$this->auditService->log(null, AuditActionType::Delete, 'menu_dishes', $id, 'Menu dish assignment deleted.', $existing, null, null)) {
+        if (!$this->auditService->log($actorId, AuditActionType::Delete, 'menu_dishes', $id, 'Menu dish assignment deleted.', $existing, null, $ipAddress)) {
             $this->db->transRollback();
             return [
                 'success' => false,

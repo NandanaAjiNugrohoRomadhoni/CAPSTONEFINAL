@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
+import { listAllItems } from "@/lib/items";
 import {
   formatNumber,
   formatQuantity,
@@ -114,16 +115,33 @@ export default function StocksReportPage() {
       setError(null);
 
       try {
-        const [reportResponse] = await Promise.allSettled([
+        const [reportResponse, itemsResponse] = await Promise.allSettled([
           sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
+          listAllItems(),
         ]);
 
         if (cancelled) return;
 
         const nextReportRows =
           reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
+        const nextItems =
+          itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
 
-        setReportRows(nextReportRows);
+        const itemsMap = new Map(nextItems.map((item) => [item.id, item]));
+
+        const enrichedReportRows = nextReportRows.map((row) => {
+          const itemId = firstNumber(row, ["item_id", "id"]);
+          const item = itemsMap.get(itemId);
+          if (item) {
+            return {
+              ...row,
+              min_stock: item.min_stock,
+            };
+          }
+          return row;
+        });
+
+        setReportRows(enrichedReportRows);
 
         if (nextReportRows.length === 0) {
           const loadError =
@@ -162,7 +180,7 @@ export default function StocksReportPage() {
     return reportRows.map((row, index) => {
       const itemId = firstNumber(row, ["item_id", "id"], index + 1);
       const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
-      const minimumQty = firstNumber(row, ["minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1) || 1;
+      const minimumQty = firstNumber(row, ["min_stock", "minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1);
       const unit = firstString(row, ["unit", "satuan", "unit_base"], "");
       const stock = getStockTone(qty, minimumQty);
 

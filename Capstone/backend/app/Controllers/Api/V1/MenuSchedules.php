@@ -50,7 +50,10 @@ class MenuSchedules extends BaseController
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->menuScheduleService->createSchedule($data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->menuScheduleService->createSchedule($data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             return $this->response
@@ -72,7 +75,10 @@ class MenuSchedules extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->menuScheduleService->updateSchedule($id, $data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->menuScheduleService->updateSchedule($id, $data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {

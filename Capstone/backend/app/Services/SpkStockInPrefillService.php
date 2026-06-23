@@ -72,7 +72,7 @@ class SpkStockInPrefillService
 
         $details = [];
         foreach ($detailsByItem as $itemId => $totalQty) {
-            if ($totalQty <= 0.0) {
+            if ($totalQty < 0.0) {
                 continue;
             }
 

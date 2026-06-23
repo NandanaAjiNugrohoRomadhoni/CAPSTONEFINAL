@@ -18,7 +18,8 @@ use OpenApi\Annotations as OA;
  *         type="object",
  *         @OA\Property(property="id", type="integer", nullable=true, example=7),
  *         @OA\Property(property="name", type="string", example="Admin User"),
- *         @OA\Property(property="username", type="string", nullable=true, example="admin")
+ *         @OA\Property(property="username", type="string", nullable=true, example="admin"),
+ *         @OA\Property(property="role", type="string", nullable=true, example="admin"),
  *     ),
  *     @OA\Property(property="activityType", type="string", example="update"),
  *     @OA\Property(property="activityLabel", type="string", example="Update"),
@@ -65,6 +66,19 @@ use OpenApi\Annotations as OA;
  *     @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/AuditLogEntry")),
  *     @OA\Property(property="meta", ref="#/components/schemas/LookupCollectionMeta"),
  *     @OA\Property(property="links", ref="#/components/schemas/PaginationLinks")
+ * )
+ * @OA\Schema(
+ *     schema="AuditLogSummaryResponse",
+ *     type="object",
+ *     required={"data"},
+ *     @OA\Property(
+ *         property="data",
+ *         type="object",
+ *         @OA\Property(property="total", type="integer", example=150),
+ *         @OA\Property(property="byRole", type="object", example={"admin":45,"dapur":60,"gudang":45}),
+ *         @OA\Property(property="byActionType", type="object", example={"create":30,"update":50,"delete":10,"approval":20,"rejection":5}),
+ *         @OA\Property(property="byModule", type="object", example={"Transaksi":40,"Menu":30,"Stok":35,"SPK":25,"Pengguna":10})
+ *     )
  * )
  */
 final class AuditLogSchemas

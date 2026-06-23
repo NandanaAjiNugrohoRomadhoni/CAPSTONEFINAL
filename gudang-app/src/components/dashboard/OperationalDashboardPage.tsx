@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin-utils";
 import { listAllPaginatedRows } from "@/lib/pagination";
 import { MiniActionButton, StatusPill, SurfaceCard } from "@/components/admin/ui";
+import { listAllItems } from "@/lib/items";
 import type {
   DailyPatient,
   MenuSlot,
@@ -74,6 +75,7 @@ type StockReportRow = {
   category_name?: string;
   qty?: number;
   unit_base?: string;
+  min_stock?: number;
 };
 
 type CompositionGroup = {
@@ -132,6 +134,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           stocksResponse,
           menuSlotsResponse,
           menuCalendarResponse,
+          itemsResponse,
         ] = await Promise.all([
           sdk.dashboard.getAggregate(),
           listAllPaginatedRows<DailyPatientRow>(sdk.dailyPatients.list.bind(sdk.dailyPatients), {
@@ -142,6 +145,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           sdk.reports.getStocks(period),
           sdk.menus.slots(),
           sdk.menuSchedules.calendarProjection({ date: todayIso }),
+          listAllItems(),
         ]);
 
         if (cancelled) return;
@@ -154,7 +158,19 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
         setDashboard(dashboardData);
         setDailyPatients(patientRows);
         setTransactionRows((transactionsResponse.data.rows as TransactionReportRow[]) ?? []);
-        setStockRows((stocksResponse.data.rows as StockReportRow[]) ?? []);
+
+        const itemsMap = new Map(itemsResponse.map((item) => [item.id, item]));
+        const rawStockRows = (stocksResponse.data.rows as StockReportRow[]) ?? [];
+        const enrichedStockRows = rawStockRows.map((row) => {
+          const itemId = Number(row.item_id ?? 0);
+          const item = itemsMap.get(itemId);
+          return {
+            ...row,
+            min_stock: item ? item.min_stock : 1,
+          };
+        });
+        setStockRows(enrichedStockRows);
+
         setMenuSlots((menuSlotsResponse.data ?? []) as MenuSlot[]);
         if ("data" in menuCalendarResponse && menuCalendarResponse.data) {
           setMenuCalendarMenu({
@@ -285,7 +301,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
       .slice(0, 5)
       .map((row) => {
         const relatedStock = stockRows.find((stock) => stock.item_name === row.item_name);
-        const tone = getStockTone(Number(relatedStock?.qty ?? 0), 1);
+        const tone = getStockTone(Number(relatedStock?.qty ?? 0), Number(relatedStock?.min_stock ?? 1));
 
         return {
           id: row.transaction_id ?? Number(`${row.transaction_date ?? "0"}${row.item_name ?? ""}`.length),
@@ -302,7 +318,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
   const stockSummaryBoxes = useMemo(() => {
     const counts = stockRows.reduce(
       (acc, row) => {
-        const tone = getStockTone(Number(row.qty ?? 0), 1).tone;
+        const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
         acc[tone] += 1;
         return acc;
       },
@@ -706,12 +722,12 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
             <div className="space-y-3">
               {stockRows
                 .filter((row) => {
-                  const tone = getStockTone(Number(row.qty ?? 0), 1).tone;
+                  const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
                   return tone === "critical" || tone === "danger";
                 })
                 .slice(0, 5)
                 .map((row) => {
-                  const tone = getStockTone(Number(row.qty ?? 0), 1);
+                  const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1));
               const palette =
                 tone.tone === "danger"
                   ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"
@@ -732,7 +748,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
                 })}
               {!loading &&
               stockRows.filter((row) => {
-                const tone = getStockTone(Number(row.qty ?? 0), 1).tone;
+                const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
                 return tone === "critical" || tone === "danger";
               }).length === 0 ? (
                 <div className="rounded-xl bg-[#F8FAFC] px-4 py-8 text-center text-sm text-gray-400">

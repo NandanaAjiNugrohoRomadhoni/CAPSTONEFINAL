@@ -16,9 +16,27 @@ export interface AuditLogEntry {
   time: string;
   actor: string;
   actorInitials: string;
+  actorInfo?: {
+    id: number | null;
+    name: string;
+    username?: string | null;
+  };
   activityType: AuditLogActivityType;
+  activityLabel?: string;
   module: AuditLogModule;
   detail: string;
+  description?: string;
+  target?: {
+    table?: string | null;
+    recordId?: number | null;
+  };
+  changes?: {
+    before?: unknown;
+    after?: unknown;
+    diff?: unknown[];
+  };
+  ipAddress?: string | null;
+  rawActionType?: string | null;
   created_at?: string | null;
 }
 

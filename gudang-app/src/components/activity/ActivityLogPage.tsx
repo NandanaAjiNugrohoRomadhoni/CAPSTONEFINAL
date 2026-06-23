@@ -2,14 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import sdk from "@/lib";
 import {
   AdminPageHeading,
+  ExportButton,
   Pagination,
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
 import DateRangePicker from "@/components/filters/DateRangePicker";
+import { buildExportFilename } from "@/lib/export-filename";
 import { isIsoDateInRange } from "@/lib/date-range";
+import {
+  buildSpreadsheetDocument,
+  downloadSpreadsheetHtml,
+  escapeSpreadsheetHtml,
+  formatSpreadsheetNumber,
+} from "@/lib/spreadsheet-export";
+import { listAllPaginatedRows } from "@/lib/pagination";
 import {
   formatActivityDate,
   loadActivityRows,
@@ -18,6 +28,7 @@ import {
   type ActivityModule,
   type ActivityRow,
 } from "@/data/activity-log";
+import type { User } from "@/sdk/types/users";
 
 const ACTIVITY_TYPE_OPTIONS = [
   { value: "Semua Jenis", label: "Semua Jenis" },
@@ -37,9 +48,147 @@ const MODULE_OPTIONS = [
   { value: "Laporan", label: "Laporan" },
 ];
 
+type ExportActivityRow = {
+  no: number;
+  rawDate: string;
+  dateTimeLabel: string;
+  actor: string;
+  role: string;
+  module: string;
+  activity: string;
+  detail: string;
+  activityType: ActivityType;
+};
+
+async function loadAllUsersSortedByCreatedAt(): Promise<User[]> {
+  return listAllPaginatedRows<User>(
+    sdk.users.list.bind(sdk.users),
+    {
+      sortBy: "created_at",
+      sortDir: "DESC",
+    },
+    100,
+    50,
+  );
+}
+
+function getUserRoleName(user: User) {
+  const rawUser = user as User & { role_name?: string };
+  return rawUser.role_name ?? user.role?.name ?? null;
+}
+
+function getRoleLabel(roleName: string | null | undefined) {
+  const normalized = String(roleName ?? "").trim().toLowerCase();
+
+  switch (normalized) {
+    case "admin":
+      return "Super Admin";
+    case "gudang":
+      return "Petugas Gudang";
+    case "dapur":
+      return "Petugas Gizi";
+    default:
+      return roleName?.trim() || "-";
+  }
+}
+
+function getModuleExportLabel(module: ActivityModule) {
+  switch (module) {
+    case "Transaksi":
+      return "Transaksi Barang";
+    case "Master Barang":
+      return "Manajemen Master Barang";
+    case "Menu":
+      return "Manajemen Menu";
+    case "Pengguna":
+      return "Manajemen Pengguna";
+    case "SPK":
+      return "SPK";
+    case "Stok":
+      return "Manajemen Stok";
+    case "Laporan":
+      return "Laporan";
+    default:
+      return module;
+  }
+}
+
+function matchesActivityFilters(
+  row: ActivityRow,
+  filters: {
+    searchTerm: string;
+    dateRange: { startDate: string; endDate: string };
+    selectedActivityType: string;
+    selectedModule: string;
+  },
+) {
+  const query = filters.searchTerm.trim().toLowerCase();
+  const matchesSearch =
+    query.length === 0 ||
+    [
+      row.actor,
+      row.activityLabel ?? row.activityType,
+      row.module,
+      row.detail,
+      formatActivityDate(row.date),
+      row.time,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+
+  const matchesDate = isIsoDateInRange(row.date, filters.dateRange);
+
+  const matchesType =
+    filters.selectedActivityType === "Semua Jenis" || row.activityType === filters.selectedActivityType;
+
+  const matchesModule =
+    filters.selectedModule === "Semua Modul" || row.module === filters.selectedModule;
+
+  return matchesSearch && matchesDate && matchesType && matchesModule;
+}
+
+function getExportPeriodLabel(rows: ActivityRow[]) {
+  const timestamps = rows
+    .map((row) => {
+      const value = row.created_at
+        ? new Date(row.created_at.replace(" ", "T") + "Z").getTime()
+        : new Date(`${row.date}T${row.time.replace(".", ":")}:00+07:00`).getTime();
+      return Number.isFinite(value) ? value : null;
+    })
+    .filter((value): value is number => value !== null);
+
+  if (timestamps.length === 0) {
+    return "-";
+  }
+
+  const start = new Date(Math.min(...timestamps));
+  const end = new Date(Math.max(...timestamps));
+  const startLabel = formatActivityDate(start.toISOString().slice(0, 10));
+  const endLabel = formatActivityDate(end.toISOString().slice(0, 10));
+
+  return startLabel === endLabel ? startLabel : `${startLabel} s/d ${endLabel}`;
+}
+
+function buildCategoryActivityLabels() {
+  return [
+    "Login Sistem",
+    "Logout Sistem",
+    "Tambah Data",
+    "Ubah Data",
+    "Hapus Data",
+    "Approval Data",
+    "Generate SPK",
+    "Export Laporan",
+    "Penyesuaian Stok",
+    "Transaksi Barang Masuk",
+    "Transaksi Barang Keluar",
+  ];
+}
+
 export default function ActivityLogPage() {
   const [activityRows, setActivityRows] = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [selectedActivityType, setSelectedActivityType] = useState("Semua Jenis");
@@ -132,6 +281,7 @@ export default function ActivityLogPage() {
       if (cancelled) return;
 
       setActivityRows(response.data);
+      setError(null);
 
       if (canServerPaginate) {
         setServerTotalPages(response.meta.totalPages || 1);
@@ -213,6 +363,224 @@ export default function ActivityLogPage() {
     }
   }, [canServerPaginate, serverTotalCount, filteredRows.length, pageStartIndex]);
 
+  async function handleExport() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const exportQuery: Parameters<typeof loadActivityRows>[0] = {
+        sortBy: "created_at",
+        sortDir: "DESC",
+        paginate: false,
+      };
+
+      if (debouncedSearchTerm.trim() !== "") {
+        exportQuery.q = debouncedSearchTerm.trim();
+      }
+
+      if (selectedActivityType === "Create") {
+        exportQuery.action_type = "create";
+      } else if (selectedActivityType === "Delete") {
+        exportQuery.action_type = "delete";
+      }
+
+      if (selectedModule === "Master Barang") {
+        exportQuery.table_name = "items";
+      } else if (selectedModule === "Pengguna") {
+        exportQuery.table_name = "users";
+      } else if (selectedModule === "Laporan") {
+        exportQuery.table_name = "reports";
+      }
+
+      const [rowsResponse, users] = await Promise.all([
+        loadActivityRows(exportQuery),
+        loadAllUsersSortedByCreatedAt(),
+      ]);
+
+      const userRoleMap = new Map<string, string>();
+      for (const user of users) {
+        const roleLabel = getRoleLabel(getUserRoleName(user));
+        userRoleMap.set(`id:${user.id}`, roleLabel);
+        userRoleMap.set(`username:${String(user.username).trim().toLowerCase()}`, roleLabel);
+        userRoleMap.set(`name:${String(user.name).trim().toLowerCase()}`, roleLabel);
+      }
+
+      const exportSource = rowsResponse.data.filter((row) =>
+        matchesActivityFilters(row, {
+          searchTerm: debouncedSearchTerm,
+          dateRange,
+          selectedActivityType,
+          selectedModule,
+        }),
+      );
+
+      if (exportSource.length === 0) {
+        setError("Belum ada data log aktivitas yang bisa diexport dari filter saat ini.");
+        return;
+      }
+
+      const exportRows: ExportActivityRow[] = exportSource.map((row, index) => {
+        const actorId = row.actorInfo?.id ?? null;
+        const actorName = String(row.actor ?? "").trim().toLowerCase();
+        const actorUsername = String(row.actorInfo?.username ?? "").trim().toLowerCase();
+        const role =
+          row.actor === "Sistem"
+            ? "Sistem"
+            : (actorId !== null && userRoleMap.get(`id:${actorId}`)) ||
+              (actorUsername && userRoleMap.get(`username:${actorUsername}`)) ||
+              (actorName && userRoleMap.get(`name:${actorName}`)) ||
+              "-";
+        return {
+          no: index + 1,
+          rawDate: row.date,
+          dateTimeLabel: `${formatActivityDate(row.date)}<br />${row.time || "-"}`,
+          actor: row.actor,
+          role,
+          module: getModuleExportLabel(row.module),
+          activity: row.activityLabel?.trim() || row.activityType,
+          detail: row.detail || "-",
+          activityType: row.activityType,
+        };
+      });
+
+      const totalActivities = exportRows.length;
+      const roleCounts = {
+        superAdmin: exportRows.filter((row) => row.role === "Super Admin").length,
+        gudang: exportRows.filter((row) => row.role === "Petugas Gudang").length,
+        gizi: exportRows.filter((row) => row.role === "Petugas Gizi").length,
+      };
+      const activityCounts = {
+        create: exportRows.filter((row) => row.activityType === "Create").length,
+        update: exportRows.filter((row) => row.activityType === "Update").length,
+        delete: exportRows.filter((row) => row.activityType === "Delete").length,
+      };
+      const periodLabel = getExportPeriodLabel(exportSource);
+      const todayLabel = formatActivityDate(
+        new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      );
+
+      const summaryHtml = `
+        <table class="summary">
+          <tr><td class="summary-label">Total Aktivitas Tercatat</td><td class="summary-value">${formatSpreadsheetNumber(totalActivities, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Super Admin</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.superAdmin, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Petugas Gudang</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.gudang, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Petugas Gizi</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.gizi, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Create</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.create, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Update</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.update, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Delete</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.delete, 0)} item</td></tr>
+        </table>
+      `;
+
+      const filterSummaryHtml = `
+        <table>
+          <tr><td class="section" colspan="2">RINGKASAN FILTER</td></tr>
+          <tr class="head"><th>Jenis</th><th>Keterangan</th></tr>
+          <tr><td>Periode</td><td>${escapeSpreadsheetHtml(periodLabel)}</td></tr>
+          <tr><td>Nama Pengguna</td><td>${escapeSpreadsheetHtml(debouncedSearchTerm.trim() || "Semua Nama")}</td></tr>
+          <tr><td>Role</td><td>${escapeSpreadsheetHtml("Semua Role")}</td></tr>
+          <tr><td>Modul</td><td>${escapeSpreadsheetHtml(selectedModule)}</td></tr>
+          <tr><td>Jenis Aktivitas</td><td>${escapeSpreadsheetHtml(selectedActivityType)}</td></tr>
+        </table>
+      `;
+
+      const categoryRows = buildCategoryActivityLabels()
+        .map((label, index) => `
+          <tr>
+            <td class="rank">${index + 1}</td>
+            <td>${escapeSpreadsheetHtml(label)}</td>
+          </tr>
+        `)
+        .join("");
+
+      const exportRowsHtml = exportRows
+        .map((row) => `
+          <tr>
+            <td class="rank">${row.no}</td>
+            <td class="text-strong">${row.dateTimeLabel}</td>
+            <td class="text-strong">${escapeSpreadsheetHtml(row.actor)}</td>
+            <td>${escapeSpreadsheetHtml(row.role)}</td>
+            <td>${escapeSpreadsheetHtml(row.module)}</td>
+            <td>${escapeSpreadsheetHtml(row.activity)}</td>
+            <td>${escapeSpreadsheetHtml(row.detail)}</td>
+          </tr>
+        `)
+        .join("");
+
+      const html = buildSpreadsheetDocument({
+        title: "LAPORAN LOG AKTIVITAS SISTEM INSTALASI GIZI RSD BALUNG",
+        subtitle: "Laporan ini digunakan untuk memantau dan merekam seluruh aktivitas pengguna pada sistem sebagai bentuk audit trail, pengawasan penggunaan sistem, serta pelacakan perubahan data yang dilakukan oleh pengguna.",
+        extraStyles: `
+          .report-note { color: #475569; font-size: 13px; line-height: 1.45; margin-bottom: 14px; }
+          .section-title { background: #DCFCE7; color: #14532D; font-weight: 800; font-size: 14px; }
+          .signature-block { margin-top: 18px; width: 260px; text-align: center; }
+          .signature-space { height: 58px; }
+          .row-gap { margin-top: 14px; }
+        `,
+        body: `
+          <div class="title">LAPORAN LOG AKTIVITAS SISTEM INSTALASI GIZI RSD BALUNG</div>
+          <div class="subtitle">Periode : ${escapeSpreadsheetHtml(periodLabel)} &nbsp;&nbsp;&nbsp; Tanggal Cetak : ${escapeSpreadsheetHtml(todayLabel)}</div>
+
+          <div class="report-note">
+            Tujuan: Laporan ini digunakan untuk memantau dan merekam seluruh aktivitas pengguna pada sistem sebagai bentuk audit trail, pengawasan penggunaan sistem, serta pelacakan perubahan data yang dilakukan oleh pengguna.
+          </div>
+
+          <table class="no-border section-gap">
+            <tr>
+              <td style="width: 34%; padding: 0 12px 12px 0;">${summaryHtml}</td>
+              <td style="width: 66%; padding: 0 0 12px 0;">${filterSummaryHtml}</td>
+            </tr>
+          </table>
+
+          <table>
+            <tr class="head">
+              <th>No</th>
+              <th>Tanggal &amp; Waktu</th>
+              <th>Nama Pengguna</th>
+              <th>Role</th>
+              <th>Modul</th>
+              <th>Aktivitas</th>
+              <th>Detail Aktivitas</th>
+            </tr>
+            ${exportRowsHtml}
+          </table>
+
+          <table class="no-border row-gap">
+            <tr>
+              <td style="width: 55%; padding: 0 12px 0 0; vertical-align: top;">
+                <table>
+                  <tr><td class="section-title" colspan="2">Kategori Aktivitas</td></tr>
+                  <tr class="head"><th style="width: 60px;">No</th><th>Kategori</th></tr>
+                  ${categoryRows}
+                </table>
+              </td>
+              <td style="width: 45%; padding: 0; vertical-align: top;">
+                <table>
+                  <tr><td class="section-title">Keterangan</td></tr>
+                  <tr><td>Setiap aktivitas penting yang dilakukan pengguna akan tercatat secara otomatis oleh sistem.</td></tr>
+                  <tr><td>Data log aktivitas tidak dapat diubah atau dihapus oleh pengguna.</td></tr>
+                  <tr><td>Laporan ini digunakan untuk kebutuhan audit, monitoring penggunaan sistem, dan investigasi apabila terjadi kesalahan data.</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <div class="signature-block">
+            <div>Mengetahui,</div>
+            <div class="text-strong" style="margin-top: 6px;">Super Admin</div>
+            <div class="signature-space"></div>
+            <div>Nama Terang</div>
+          </div>
+        `,
+      });
+
+      downloadSpreadsheetHtml(buildExportFilename("laporan-log-aktivitas-sistem"), html);
+    } catch (error) {
+      console.error("Failed to export activity log:", error);
+      setError("Gagal mengekspor log aktivitas.");
+    }
+  }
+
 
   return (
     <div className="space-y-5">
@@ -220,6 +588,12 @@ export default function ActivityLogPage() {
         title="Log Aktivitas"
         subtitle="Melihat log aktivitas yang terjadi di sistem"
       />
+
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
+          {error}
+        </div>
+      ) : null}
 
       <SurfaceCard className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4">
@@ -264,6 +638,10 @@ export default function ActivityLogPage() {
                 placeholder="Semua Modul"
               />
             </div>
+          </div>
+
+          <div className="ml-auto">
+            <ExportButton onClick={handleExport}>Export Log</ExportButton>
           </div>
         </div>
 

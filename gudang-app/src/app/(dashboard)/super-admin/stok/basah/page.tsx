@@ -226,7 +226,7 @@ export default function Page() {
       id: selectedItem.id,
       name: selectedItem.name,
       categoryName: selectedItem.category?.name ?? "",
-      minimumStock: String(Number(selectedItem.conversion_base ?? 0) || 0),
+      minimumStock: String(selectedItem.min_stock ?? 0),
       unitName: selectedItem.unit_base ?? "",
       unitConvertName: selectedItem.unit_convert ?? "",
     };
@@ -239,7 +239,7 @@ export default function Page() {
     const trimmedUnitConvertName = formValue.unitConvertName?.trim() || getUnitConvertName(trimmedUnitName);
     const minimumStock = Number(formValue.minimumStock);
 
-    if (!trimmedName || !trimmedCategory || !trimmedUnitName || !Number.isFinite(minimumStock) || minimumStock <= 0) {
+    if (!trimmedName || !trimmedCategory || !trimmedUnitName || !Number.isFinite(minimumStock) || minimumStock < 0) {
       setModalError("Mohon lengkapi nama bahan, jenis bahan, satuan item, dan minimal stock dengan benar.");
       return;
     }
@@ -251,7 +251,7 @@ export default function Page() {
       trimmedCategory === (selectedItem.category?.name ?? "").trim() &&
       trimmedUnitName === (selectedItem.unit_base ?? "").trim() &&
       trimmedUnitConvertName === (selectedItem.unit_convert ?? "").trim() &&
-      minimumStock === (Number(selectedItem.conversion_base ?? 0) || 0)
+      minimumStock === (selectedItem.min_stock ?? 0)
     ) {
       setSuccessState({
         title: "Informasi",
@@ -265,7 +265,8 @@ export default function Page() {
     const payload = {
       name: trimmedName,
       item_category_name: trimmedCategory,
-      conversion_base: minimumStock,
+      min_stock: minimumStock,
+      conversion_base: selectedItem ? selectedItem.conversion_base : 1,
       unit_base: trimmedUnitName,
       unit_convert: trimmedUnitConvertName,
       is_active: true,
@@ -343,9 +344,9 @@ export default function Page() {
 
   const itemRows = useMemo(() => {
     return items.map((item) => {
-      const minimum = Number(item.conversion_base ?? 0) || 0;
+      const minimum = Number(item.min_stock ?? 0);
       const qty = Number(item.qty ?? 0);
-      const stock = getStockTone(qty, minimum || 1);
+      const stock = getStockTone(qty, minimum);
       return {
         idLabel: `BR-${String(item.id).padStart(4, "0")}`,
         name: item.name,

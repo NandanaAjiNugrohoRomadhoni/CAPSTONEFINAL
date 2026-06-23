@@ -103,7 +103,10 @@ class Menus extends BaseController
     public function assignSlot(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->menuService->assignDishToSlot($data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->menuService->assignDishToSlot($data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             return $this->response
@@ -151,7 +154,10 @@ class Menus extends BaseController
     public function updateSlot(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->menuService->updateSlotAssignment($id, $data);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->menuService->updateSlotAssignment($id, $data, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {
@@ -194,7 +200,10 @@ class Menus extends BaseController
      */
     public function deleteSlot(int $id): ResponseInterface
     {
-        $result = $this->menuService->deleteSlotAssignment($id);
+        $actor = auth()->user();
+        $actorId = $actor?->id;
+        $ipAddress = $this->request->getIPAddress();
+        $result = $this->menuService->deleteSlotAssignment($id, $actorId, $ipAddress);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {

@@ -70,43 +70,20 @@ function formatSpkDateRange(dates: string[]) {
 function getBasahTargetDates(serviceDate?: string | null) {
   if (!serviceDate) return [];
   const date = serviceDate.slice(0, 10);
-  return [addDaysIsoDate(date, 1), addDaysIsoDate(date, 2)];
-}
-
-function overlayBasahRowsWithCurrentStock(rows: RecommendationRow[], stockRows: StockReportRow[]) {
-  const stockMap = new Map<number, number>();
-
-  for (const row of stockRows) {
-    const itemId = Number(row.item_id ?? 0);
-    const qty = Number(row.qty ?? row.current_stock ?? row.stock ?? row.stock_qty ?? 0);
-    if (Number.isFinite(itemId) && itemId > 0 && Number.isFinite(qty)) {
-      stockMap.set(itemId, qty);
-    }
+  const nextDate = addDaysIsoDate(date, 1);
+  if (date.slice(0, 7) === nextDate.slice(0, 7)) {
+    return [date, nextDate];
   }
-
-  return rows.map((row) => {
-    const latestStock = stockMap.get(Number(row.item_id));
-    if (!Number.isFinite(latestStock)) {
-      return row;
-    }
-
-    const resolvedLatestStock = Number(latestStock);
-    const requiredQty = Number(row.required_qty ?? 0);
-    const nextRecommendedQty = Math.max(requiredQty - resolvedLatestStock, 0);
-
-    return {
-      ...row,
-      current_stock_qty: resolvedLatestStock,
-      system_recommended_qty: nextRecommendedQty,
-      final_recommended_qty: nextRecommendedQty,
-    };
-  });
+  return [date];
 }
 
 export default function Page() {
   const [latestPatient, setLatestPatient] = useState<LatestPatient | null>(null);
   const [basahCategoryId, setBasahCategoryId] = useState<number | null>(null);
   const [rows, setRows] = useState<RecommendationRow[]>([]);
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => Number(row.final_recommended_qty ?? 0) > 0);
+  }, [rows]);
   const [detailData, setDetailData] = useState<RecommendationDetail | null>(null);
   const [spkMeta, setSpkMeta] = useState<{ targetDates: string[]; estimatedPatients: number } | null>(null);
   const [hasLoadedRecommendation, setHasLoadedRecommendation] = useState(false);
@@ -136,10 +113,9 @@ export default function Page() {
     async function loadInitial() {
       setLoading(true);
       try {
-        const [latestSnapshot, categoriesResponse, stockResponse] = await Promise.all([
+        const [latestSnapshot, categoriesResponse] = await Promise.all([
           loadLatestPatientSnapshot(),
           sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
-          sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } })),
         ]);
         if (cancelled) return;
         const basahCategory = (categoriesResponse.data ?? []).find((category) =>
@@ -157,12 +133,8 @@ export default function Page() {
           if (matchingSpk) {
             const detail = await sdk.spk.getBasah(matchingSpk.id);
             if (cancelled) return;
-            const hydratedRows = overlayBasahRowsWithCurrentStock(
-              detail.data.items ?? [],
-              (stockResponse.data.rows as StockReportRow[]) ?? [],
-            );
             setDetailData(detail.data);
-            setRows(aggregateRecommendationRows(hydratedRows));
+            setRows(aggregateRecommendationRows(detail.data.items ?? []));
             setHasLoadedRecommendation(true);
             setSpkMeta({
               targetDates: detail.data.print_ready.target_dates ?? [],
@@ -196,9 +168,12 @@ export default function Page() {
   }, [latestPatient]);
 
   const displayedTargetDates = useMemo(() => {
+    if (hasLoadedRecommendation && spkMeta?.targetDates && spkMeta.targetDates.length > 0) {
+      return spkMeta.targetDates;
+    }
     if (latestPatient) return getBasahTargetDates(latestPatient.date);
-    return spkMeta?.targetDates ?? [];
-  }, [latestPatient, spkMeta]);
+    return [];
+  }, [hasLoadedRecommendation, spkMeta, latestPatient]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -212,12 +187,12 @@ export default function Page() {
         throw new Error("Kategori bahan BASAH belum tersedia untuk generate SPK basah.");
       }
       let detail: Awaited<ReturnType<typeof sdk.spk.getBasah>>;
-      const stockResponse = await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD).catch(() => ({ data: { rows: [] } }));
       const generatePayload = {
         daily_patient_id: freshLatestPatient.id,
         service_date: freshLatestPatient.date ?? toIsoDate(new Date()),
         category_id: basahCategoryId,
       };
+
       try {
         const generated = await sdk.spk.generateBasah({
           ...generatePayload,
@@ -229,12 +204,9 @@ export default function Page() {
         if (!conflictSpkId) throw generateError;
         detail = await sdk.spk.getBasah(conflictSpkId);
       }
-      const hydratedRows = overlayBasahRowsWithCurrentStock(
-        detail.data.items ?? [],
-        (stockResponse.data.rows as StockReportRow[]) ?? [],
-      );
+
       setDetailData(detail.data);
-      setRows(aggregateRecommendationRows(hydratedRows));
+      setRows(aggregateRecommendationRows(detail.data.items ?? []));
       setHasLoadedRecommendation(true);
       setSpkMeta({
         targetDates: detail.data.print_ready.target_dates ?? [],
@@ -249,7 +221,7 @@ export default function Page() {
   }
 
   function handleExport() {
-    if (typeof window === "undefined" || rows.length === 0) {
+    if (typeof window === "undefined" || visibleRows.length === 0) {
       setError("Belum ada hasil rekomendasi yang bisa diexport.");
       return;
     }
@@ -272,11 +244,11 @@ export default function Page() {
             }).format(new Date(detailData.calculation_date))
           : "-",
         targetLabel: formatSpkDateRange(displayedTargetDates),
-        itemCountLabel: `${rows.length} Produk`,
+        itemCountLabel: `${visibleRows.length} Produk`,
         formulaTitle: "Rumus BAHAN BASAH",
         formulaDescription: "(Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok",
       },
-      rows.map((row) => ({
+      visibleRows.map((row) => ({
         itemName: row.item_name ?? "-",
         categoryName: detailData?.category?.name ?? "BASAH",
         currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
@@ -354,7 +326,7 @@ export default function Page() {
               </tr>
             </thead>
             <tbody className="text-base text-[#16213E]">
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-[#F8FAFC]">
                   <td className="px-6 py-4 font-bold">{row.item_name ?? "-"}</td>
                   <td className="px-6 py-4">{formatQuantity(row.current_stock_qty, row.item_unit_base)}</td>
@@ -362,7 +334,7 @@ export default function Page() {
                   <td className="px-6 py-4">{formatQuantity(row.final_recommended_qty, row.item_unit_base)}</td>
                 </tr>
               ))}
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={4}>
                     {hasLoadedRecommendation
