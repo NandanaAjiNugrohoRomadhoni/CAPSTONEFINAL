@@ -227,11 +227,7 @@ export default function Page() {
       } catch (generateError) {
         const conflictSpkId = getSpkConflictId(generateError);
         if (!conflictSpkId) throw generateError;
-        const regenerated = await sdk.spk.generateBasah({
-          ...generatePayload,
-          regenerate: true,
-        });
-        detail = await sdk.spk.getBasah(regenerated.data.id);
+        detail = await sdk.spk.getBasah(conflictSpkId);
       }
       const hydratedRows = overlayBasahRowsWithCurrentStock(
         detail.data.items ?? [],

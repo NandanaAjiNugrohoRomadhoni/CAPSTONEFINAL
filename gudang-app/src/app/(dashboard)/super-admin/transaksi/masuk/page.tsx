@@ -242,23 +242,11 @@ export default function BarangMasukPage() {
 
     try {
       let details: PrefillDetail[] = [];
-      try {
-        const response = await sdk.spk.stockInPrefill(selectedSpkId);
-        details = normalizePrefillDetails(response);
-      } catch (prefillApiError) {
-        const errorMessage = getErrorMessage(prefillApiError, "");
-        if (!errorMessage.toLowerCase().includes("insufficient permissions")) {
-          throw prefillApiError;
-        }
-      }
-
-      if (details.length === 0) {
-        const detailResponse =
-          activeTab === "basah"
-            ? await sdk.spk.getBasah(selectedSpkId)
-            : await sdk.spk.getKeringPengemas(selectedSpkId);
-        details = normalizePrefillDetails(detailResponse);
-      }
+      const detailResponse =
+        activeTab === "basah"
+          ? await sdk.spk.getBasah(selectedSpkId)
+          : await sdk.spk.getKeringPengemas(selectedSpkId);
+      details = normalizePrefillDetails(detailResponse);
 
       if (details.length === 0) {
         throw new Error("SPK yang dipilih belum memiliki detail bahan untuk prefill.");
@@ -465,7 +453,7 @@ export default function BarangMasukPage() {
                         )
                       }}
                     />
-                    <div className="col-span-2 text-sm text-gray-600">{row.qty_spk > 0 ? row.qty_spk : "-"}</div>
+                    <div className="col-span-2 text-sm text-gray-600">{row.qty_spk >= 0 ? row.qty_spk : "-"}</div>
 
                     <div className="col-span-2 flex items-center gap-2">
                       <input

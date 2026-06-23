@@ -93,11 +93,7 @@ export default function Page() {
       } catch (generateError) {
         const conflictSpkId = getSpkConflictId(generateError);
         if (!conflictSpkId) throw generateError;
-        const regenerated = await sdk.spk.generateKeringPengemas({
-          target_month: targetMonth,
-          regenerate: true,
-        });
-        detail = await sdk.spk.getKeringPengemas(regenerated.data.id);
+        detail = await sdk.spk.getKeringPengemas(conflictSpkId);
       }
       setDetailData(detail.data);
       setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
