@@ -380,10 +380,9 @@ export function Pagination({
   })();
 
   return (
-    <div className="flex flex-col items-center gap-4 border-t bg-[#F8FAFC] px-6 py-4 text-sm text-[#94A3B8] lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col items-center gap-4 border-t bg-[#F8FAFC] px-6 py-4 text-center text-sm text-[#94A3B8]">
       <span className="text-sm text-[#94A3B8]">{totalLabel}</span>
-      <div className="flex flex-1 justify-center">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D7E0EE] bg-white text-[#64748B] transition-all duration-200 hover:bg-[#EEF4FF] disabled:cursor-not-allowed disabled:opacity-45"
             disabled={safeCurrentPage <= 1}
@@ -414,9 +413,7 @@ export function Pagination({
           >
             <ChevronRight size={16} />
           </button>
-        </div>
       </div>
-      <div className="hidden lg:block lg:w-[120px]" />
     </div>
   );
 }

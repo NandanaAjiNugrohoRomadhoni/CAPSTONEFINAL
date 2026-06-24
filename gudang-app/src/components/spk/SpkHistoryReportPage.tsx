@@ -7,6 +7,7 @@ import { formatDate, formatQuantity, getCurrentMonthPeriod, getErrorMessage } fr
 import { addDaysIsoDate } from "@/lib/spk-recommendations";
 import { isIsoDateInRange } from "@/lib/date-range";
 import { buildExportFilename } from "@/lib/export-filename";
+import { downloadSpreadsheetHtml } from "@/lib/spreadsheet-export";
 import {
   AdminPageHeading,
   FilterSearch,
@@ -37,11 +38,11 @@ type SpkExportRow = {
   key: string;
   itemName: string;
   categoryName: string;
-  currentStock: string;
-  requiredQty: string;
-  recommendedQty: string;
+  currentStock: number;
+  requiredQty: number;
+  recommendedQty: number;
   numericRecommendedQty: number;
-  volume: string;
+  unit?: string | null;
 };
 
 export default function SpkHistoryReportPage() {
@@ -166,10 +167,9 @@ export default function SpkHistoryReportPage() {
   return (
     <>
       <div className="space-y-5">
-        <AdminPageHeading
-          title="Riwayat SPK"
-          subtitle="Riwayat Sistem Pengambilan Keputusan Belanja Basah, Kering & Pengemas"
-        />
+      <AdminPageHeading
+        title="Riwayat SPK"
+      />
 
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
@@ -279,7 +279,13 @@ export default function SpkHistoryReportPage() {
       </div>
 
       {detailState ? <SpkDetailModal detailState={detailState} onClose={() => setDetailState(null)} /> : null}
-      {exportState ? <SpkExportModal detailState={exportState} onClose={() => setExportState(null)} /> : null}
+      {exportState ? (
+        <SpkExportModal
+          detailState={exportState}
+          filters={{ dateRange, search, selectedType }}
+          onClose={() => setExportState(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -410,7 +416,7 @@ function SpkDetailModal({
         <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
           <div>
             <h2 className="text-[24px] font-semibold text-[#16213E]">Detail SPK {typeLabel}</h2>
-            <p className="mt-1 text-sm text-[#94A3B8]">Rincian hasil rekomendasi belanja yang tersimpan di backend.</p>
+            <p className="mt-1 text-sm text-[#94A3B8]">Rincian hasil rekomendasi belanja yang tersimpan.</p>
           </div>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#EEF4FF] hover:text-[#2155CD]"
@@ -425,7 +431,7 @@ function SpkDetailModal({
           <div className="space-y-4">
             <div className="grid gap-3 rounded-2xl bg-[#EEF4FF] px-4 py-3 md:grid-cols-3">
               <InfoBlock label="ID SPK" value={`SPK-${String(detail.id).padStart(4, "0")}`} />
-              <InfoBlock label="Tanggal Hitung" value={formatDate(detail.calculation_date)} />
+              <InfoBlock label="Tanggal SPK Dibuat" value={formatDate(detail.calculation_date)} />
               <InfoBlock label="Jenis SPK" value={typeLabel} />
               <InfoBlock label="Kategori" value={detail.category?.name ?? "-"} />
               <InfoBlock label="Target" value={targetLabel} />
@@ -484,9 +490,11 @@ function SpkDetailModal({
 
 function SpkExportModal({
   detailState,
+  filters,
   onClose,
 }: {
   detailState: SpkDetailState;
+  filters: { dateRange: { startDate: string; endDate: string }; search: string; selectedType: string };
   onClose: () => void;
 }) {
   const detail = detailState.detail;
@@ -495,7 +503,7 @@ function SpkExportModal({
   const recommendationDateLabel = getSpkRecommendationDateLabel(detailState);
 
   function handleExport() {
-    downloadSpkExport(detailState, rows);
+    downloadSpkExport(detailState, rows, filters);
     onClose();
   }
 
@@ -506,9 +514,6 @@ function SpkExportModal({
         <div className="flex items-start justify-between border-b border-[#E2E8F0] px-6 py-5">
           <div>
             <h2 className="text-[26px] font-semibold text-[#16213E]">Export SPK {typeLabel}</h2>
-            <p className="mt-1 text-base text-[#94A3B8]">
-              Periksa tanggal rekomendasi dan total volume belanja per item sebelum file diunduh.
-            </p>
           </div>
           <button
             className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#EEF4FF] hover:text-[#2155CD]"
@@ -522,7 +527,7 @@ function SpkExportModal({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="mb-5 grid gap-3 rounded-2xl bg-[#EEF4FF] px-5 py-4 md:grid-cols-4">
             <InfoBlock label="ID SPK" value={`SPK-${String(detail.id).padStart(4, "0")}`} />
-            <InfoBlock label="Tanggal Rekomendasi" value={recommendationDateLabel} />
+              <InfoBlock label="Tanggal SPK Dibuat" value={recommendationDateLabel} />
             <InfoBlock label="Jenis SPK" value={typeLabel} />
             <InfoBlock label="Jumlah Pasien" value={`${detail.estimated_patients} orang`} />
           </div>
@@ -541,7 +546,7 @@ function SpkExportModal({
                 >
                   <div>{index + 1}</div>
                   <div className="font-semibold text-[#16213E]">{row.itemName}</div>
-                  <div>{row.volume}</div>
+                  <div>{formatQuantity(row.recommendedQty, row.unit)}</div>
                 </div>
               ))}
               {rows.length === 0 ? (
@@ -630,9 +635,6 @@ function buildSpkExportRows(detailState: SpkDetailState): SpkExportRow[] {
   const grouped = new Map<
     string,
     SpkExportRow & {
-      numericCurrentStock: number;
-      numericRequiredQty: number;
-      numericRecommendedQty: number;
       unit?: string | null;
     }
   >();
@@ -644,11 +646,8 @@ function buildSpkExportRows(detailState: SpkDetailState): SpkExportRow[] {
     const key = String(item.item_id ?? item.item_name ?? item.id);
     const current = grouped.get(key);
     if (current) {
-      current.numericRequiredQty += Number(item.required_qty ?? 0) || 0;
-      current.numericRecommendedQty += numericVolume;
-      current.requiredQty = formatQuantity(current.numericRequiredQty, current.unit);
-      current.recommendedQty = formatQuantity(current.numericRecommendedQty, current.unit);
-      current.volume = current.recommendedQty;
+      current.requiredQty += Number(item.required_qty ?? 0) || 0;
+      current.recommendedQty += numericVolume;
       return;
     }
 
@@ -659,44 +658,61 @@ function buildSpkExportRows(detailState: SpkDetailState): SpkExportRow[] {
       key,
       itemName: item.item_name ?? "-",
       categoryName: detail.category?.name ?? getSpkTypeLabel(detail.spk_type),
-      currentStock: formatQuantity(numericCurrentStock, item.item_unit_base),
-      requiredQty: formatQuantity(numericRequiredQty, item.item_unit_base),
-      recommendedQty: formatQuantity(numericVolume, item.item_unit_base),
-      numericCurrentStock,
-      numericRequiredQty,
+      currentStock: numericCurrentStock,
+      requiredQty: numericRequiredQty,
+      recommendedQty: numericVolume,
       numericRecommendedQty: numericVolume,
       unit: item.item_unit_base,
-      volume: formatQuantity(numericVolume, item.item_unit_base),
     });
   });
 
   return [...grouped.values()];
 }
 
-function downloadSpkExport(detailState: SpkDetailState, rows: SpkExportRow[]) {
+function downloadSpkExport(
+  detailState: SpkDetailState,
+  rows: SpkExportRow[],
+  filters: { dateRange: { startDate: string; endDate: string }; search: string; selectedType: string },
+) {
   const detail = detailState.detail;
-  const html = buildSpkExportSpreadsheet(detailState, rows);
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = buildExportFilename(`sps-rekomendasi-belanja-spk-${String(detail.id).padStart(4, "0")}`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  const html = buildSpkExportSpreadsheet(detailState, rows, filters);
+  downloadSpreadsheetHtml(buildExportFilename(`sps-rekomendasi-belanja-spk-${String(detail.id).padStart(4, "0")}`), html);
 }
 
-function buildSpkExportSpreadsheet(detailState: SpkDetailState, rows: SpkExportRow[]) {
+function buildSpkExportSpreadsheet(
+  detailState: SpkDetailState,
+  rows: SpkExportRow[],
+  filters: { dateRange: { startDate: string; endDate: string }; search: string; selectedType: string },
+) {
   const detail = detailState.detail;
   const typeLabel = detailState.type === "BASAH" ? "Basah" : "Kering & Pengemas";
   const recommendationDateLabel = getSpkRecommendationDateLabel(detailState);
   const formula =
     detailState.type === "BASAH"
-      ? "(Jumlah Pasien Terakhir x 5%) x Komposisi per Paket Menu - Sisa Stok"
-      : "Total Pengeluaran Bulan Lalu x 10% - Sisa Stok Saat Ini";
+      ? "(Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok"
+      : "Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini";
   const generatedBy = detail.user?.name ?? detail.user?.username ?? "-";
-  const totalRecommended = rows.reduce((total, row) => total + row.numericRecommendedQty, 0);
+  const summaryRows = [
+    { label: "Nama Pengaju", value: generatedBy },
+    { label: "Jenis SPK", value: typeLabel },
+    { label: "Tanggal SPK Dibuat", value: formatDate(detail.calculation_date) },
+    { label: "ID SPK", value: `SPK-${String(detail.id).padStart(4, "0")}` },
+    { label: "Target", value: recommendationDateLabel },
+  ];
+  const filterRows = [
+    {
+      label: "Rentang Tanggal",
+      value:
+        filters.dateRange.startDate && filters.dateRange.endDate
+          ? `${formatDate(filters.dateRange.startDate)} - ${formatDate(filters.dateRange.endDate)}`
+          : "Semua Tanggal",
+    },
+    { label: "Pencarian", value: filters.search.trim() || "Semua Data" },
+    {
+      label: "Jenis SPK",
+      value: filters.selectedType === "all" ? "Semua Jenis" : getSpkTypeLabel(filters.selectedType),
+    },
+  ];
 
   return `<!doctype html>
 <html>
@@ -722,35 +738,29 @@ function buildSpkExportSpreadsheet(detailState: SpkDetailState, rows: SpkExportR
     .muted { color: #64748B; }
   </style>
 </head>
-<body>
+  <body>
   <div class="title">SPS - REKOMENDASI BELANJA</div>
   <div class="subtitle">Hasil rekomendasi belanja berdasarkan data SPK dan stok bahan pada sistem.</div>
 
   <table class="no-border">
     <tr>
-      <td style="width: 38%; padding: 0 12px 12px 0;">
+      <td style="width: 52%; padding: 0 12px 12px 0;">
         <table class="summary">
-          <tr><td class="summary-label">Nama Pengaju</td><td class="summary-value">${escapeHtml(generatedBy)}</td></tr>
-          <tr><td class="summary-label">Jenis SPK</td><td class="summary-value">${escapeHtml(typeLabel)}</td></tr>
-          <tr><td class="summary-label">Tanggal Berlaku</td><td class="summary-value">${escapeHtml(recommendationDateLabel)}</td></tr>
-          <tr><td class="summary-label">Jumlah Produk</td><td class="summary-value">${rows.length} Produk</td></tr>
-          <tr><td class="summary-label">Total Item Rekomendasi</td><td class="summary-value">${formatPlainNumber(totalRecommended)}</td></tr>
+          ${summaryRows
+            .map(
+              (row) => `<tr><td class="summary-label">${escapeHtml(row.label)}</td><td class="summary-value">${escapeHtml(row.value)}</td></tr>`,
+            )
+            .join("")}
         </table>
       </td>
-      <td style="width: 40%; padding: 0 12px 12px 0;">
-        <table>
-          <tr><td class="section" colspan="4">KRITERIA YANG DIGUNAKAN</td></tr>
-          <tr class="head"><th>Kode</th><th>Kriteria</th><th>Tipe</th><th>Keterangan</th></tr>
-          <tr><td>C1</td><td>Stok Saat Ini</td><td>Cost</td><td>Semakin rendah, semakin prioritas</td></tr>
-          <tr><td>C2</td><td>Kebutuhan</td><td>Benefit</td><td>Semakin tinggi, semakin prioritas</td></tr>
-          <tr><td>C3</td><td>Rekomendasi Sistem</td><td>Benefit</td><td>Jumlah belanja akhir dari sistem</td></tr>
-        </table>
-      </td>
-      <td style="width: 22%; padding: 0 0 12px 0;">
-        <table>
-          <tr><td class="pill">Tanggal Perhitungan</td><td>${escapeHtml(formatDate(detail.calculation_date))}</td></tr>
-          <tr><td class="pill">ID SPK</td><td>SPK-${String(detail.id).padStart(4, "0")}</td></tr>
-          <tr><td class="method" colspan="2">METODE<br/>SPK</td></tr>
+      <td style="width: 48%; padding: 0 0 12px 0;">
+        <table class="summary">
+          <tr><td class="section" colspan="2">RINGKASAN FILTER</td></tr>
+          ${filterRows
+            .map(
+              (row) => `<tr><td class="summary-label">${escapeHtml(row.label)}</td><td class="summary-value">${escapeHtml(row.value)}</td></tr>`,
+            )
+            .join("")}
         </table>
       </td>
     </tr>
@@ -763,13 +773,13 @@ function buildSpkExportSpreadsheet(detailState: SpkDetailState, rows: SpkExportR
 
   <table>
     <tr class="head">
-      <th>Ranking</th>
+      <th>No</th>
       <th>Nama Bahan</th>
       <th>Kategori</th>
       <th>Stok Saat Ini</th>
       <th>Kebutuhan</th>
       <th>Rekomendasi Beli</th>
-      <th>Rekomendasi</th>
+      <th>Satuan</th>
     </tr>
     ${rows
       .map(
@@ -778,10 +788,10 @@ function buildSpkExportSpreadsheet(detailState: SpkDetailState, rows: SpkExportR
       <td class="rank">${index + 1}</td>
       <td><strong>${escapeHtml(row.itemName)}</strong></td>
       <td>${escapeHtml(row.categoryName)}</td>
-      <td class="number">${escapeHtml(row.currentStock)}</td>
-      <td class="number">${escapeHtml(row.requiredQty)}</td>
-      <td class="number"><strong>${escapeHtml(row.recommendedQty)}</strong></td>
-      <td class="${row.numericRecommendedQty > 0 ? "ok" : "muted"}">${row.numericRecommendedQty > 0 ? "Direkomendasikan" : "Tidak ada tambahan"}</td>
+      <td class="number">${formatQuantity(row.currentStock)}</td>
+      <td class="number">${formatQuantity(row.requiredQty)}</td>
+      <td class="number"><strong>${formatQuantity(row.recommendedQty)}</strong></td>
+      <td>${escapeHtml(row.unit ?? "-")}</td>
     </tr>`,
       )
       .join("")}
@@ -797,12 +807,6 @@ function escapeHtml(value: unknown) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function formatPlainNumber(value: number) {
-  return new Intl.NumberFormat("id-ID", {
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function formatMonthLabel(value?: string | null) {

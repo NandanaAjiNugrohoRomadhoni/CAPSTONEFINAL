@@ -30,8 +30,20 @@ type CsvMenuPlan = {
 
 const parsedPlan = menuCsvPlan as CsvMenuPlan;
 
+function formatCsvMenuPackageLabel(label: string | null | undefined, index: number) {
+  const trimmed = String(label ?? "").trim();
+  if (!trimmed) return `Paket ${index + 1}`;
+  if (/^Paket\s+[IVXLCDM]+$/i.test(trimmed)) {
+    return `Paket ${index + 1}`;
+  }
+  return trimmed;
+}
+
 export const CSV_MENU_PACKAGE_ORDER = parsedPlan.packageOrder;
-export const CSV_MENU_PACKAGES = parsedPlan.packages;
+export const CSV_MENU_PACKAGES = parsedPlan.packages.map((pkg, index) => ({
+  ...pkg,
+  label: formatCsvMenuPackageLabel(pkg.label, index),
+}));
 export const CSV_MENU_RECIPES = parsedPlan.recipes;
 
 export function getCsvMenuPackageLabel(index: number) {

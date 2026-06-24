@@ -304,7 +304,7 @@ export default function BarangKeluarPage() {
       setSavedRecommendation(nextSavedRecommendation);
       setSuccessState({
         headline: "Barang keluar bahan basah berhasil disimpan",
-        message: "Data pengeluaran bahan basah sudah tersimpan ke backend dan stok telah diperbarui oleh sistem.",
+        message: "",
       });
       setValidatedRows([]);
       setValidatedMeta(
@@ -351,7 +351,7 @@ export default function BarangKeluarPage() {
 
       setSuccessState({
         headline: "Barang keluar berhasil disimpan",
-        message: "Transaksi bahan kering & pengemas telah tersimpan ke backend.",
+        message: "",
       });
       setRows([createManualRow()]);
     } catch (saveError) {
@@ -383,7 +383,7 @@ export default function BarangKeluarPage() {
         <div>
           <h1 className="text-[22px] font-semibold text-gray-900">Barang Keluar</h1>
           <p className="text-sm text-gray-400">
-            Input barang keluar khusus jenis bahan kering & pengemas. Bahan basah disiapkan melalui validasi jumlah pasien hari ini.
+            Bahan basah dihitung berdasarkan jumlah pasien hari ini, sedangkan bahan kering & pengemas diinput secara manual.
           </p>
         </div>
 
@@ -859,9 +859,12 @@ function ConfirmBasahSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600">
-            Sistem akan menyimpan data pengeluaran untuk <span className="font-semibold text-slate-900">{patientCount} pasien</span> dengan <span className="font-semibold text-slate-900">{totalRows} bahan</span>.
-          </div>
+          <div
+            aria-hidden="true"
+            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
+            data-patient-count={patientCount}
+            data-total-rows={totalRows}
+          />
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">

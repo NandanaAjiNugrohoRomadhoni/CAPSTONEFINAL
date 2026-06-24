@@ -97,6 +97,19 @@ type MenuIngredientRow = {
   label: string;
 };
 
+function getStockPriority(tone: MenuIngredientRow["tone"]) {
+  switch (tone) {
+    case "danger":
+      return 0;
+    case "critical":
+      return 1;
+    case "warning":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 type SpkPanelDetail = {
   id: number;
   title: string;
@@ -131,7 +144,6 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           dashboardResponse,
           patientsResponse,
           transactionsResponse,
-          stocksResponse,
           menuSlotsResponse,
           menuCalendarResponse,
           itemsResponse,
@@ -142,7 +154,6 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
             sortDir: "ASC",
           }),
           sdk.reports.getTransactions(period),
-          sdk.reports.getStocks(period),
           sdk.menus.slots(),
           sdk.menuSchedules.calendarProjection({ date: todayIso }),
           listAllItems(),
@@ -159,16 +170,14 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
         setDailyPatients(patientRows);
         setTransactionRows((transactionsResponse.data.rows as TransactionReportRow[]) ?? []);
 
-        const itemsMap = new Map(itemsResponse.map((item) => [item.id, item]));
-        const rawStockRows = (stocksResponse.data.rows as StockReportRow[]) ?? [];
-        const enrichedStockRows = rawStockRows.map((row) => {
-          const itemId = Number(row.item_id ?? 0);
-          const item = itemsMap.get(itemId);
-          return {
-            ...row,
-            min_stock: item ? item.min_stock : 1,
-          };
-        });
+        const enrichedStockRows = itemsResponse.map((item) => ({
+          item_id: item.id,
+          item_name: item.name,
+          category_name: item.category?.name ?? "Lainnya",
+          qty: Number(item.qty),
+          unit_base: item.unit_base,
+          min_stock: item.min_stock,
+        }));
         setStockRows(enrichedStockRows);
 
         setMenuSlots((menuSlotsResponse.data ?? []) as MenuSlot[]);
@@ -329,14 +338,26 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
     );
 
     return [
-      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
-      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
-      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
       { label: "HABIS", value: counts.danger, tone: "bg-[#E0E7FF] text-[#3730A3]" },
+      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
+      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
+      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
     ];
   }, [stockRows]);
 
-  const stockFocusRows = useMemo(() => stockRows.slice(0, 6), [stockRows]);
+  const stockFocusRows = useMemo(
+    () =>
+      [...stockRows]
+        .sort((left, right) => {
+          const priority = (row: StockReportRow) => {
+            const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
+            return getStockPriority(tone as MenuIngredientRow["tone"]);
+          };
+          return priority(left) - priority(right) || Number(left.qty ?? 0) - Number(right.qty ?? 0);
+        })
+        .slice(0, 6),
+    [stockRows],
+  );
 
   const compositionRows = useMemo(() => {
     if (mode !== "dapur") {
@@ -423,7 +444,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
       });
 
     return [...compositionMap.values()]
-      .sort((a, b) => a.tone.localeCompare(b.tone) || a.itemName.localeCompare(b.itemName))
+      .sort((a, b) => getStockPriority(a.tone) - getStockPriority(b.tone) || a.itemName.localeCompare(b.itemName))
       .slice(0, 6);
   }, [dishCompositionRows, latestPatients, menuSlots, resolvedMenuId, stockRows]);
 
@@ -484,7 +505,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
   const subtitle =
     mode === "gudang"
       ? "Ringkasan operasional gudang hari ini"
-      : "Ringkasan operasional instalasi gizi hari ini";
+      : "";
 
   return (
     <div className="space-y-6">
@@ -627,17 +648,17 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
 
         <SurfaceCard className="overflow-hidden p-6">
           <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari Terakhir</h3>
-          <div className="mt-5 flex h-[220px] items-end gap-3">
+          <div className="mt-4 flex h-[240px] items-end gap-3">
             {patientPoints.map((point) => {
               const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
-              const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 160, 24);
+              const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 170, 24);
 
               return (
                 <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
                   <div className="text-xs font-semibold text-[#94A3B8]">
                     {formatNumber(Number(point.total_patients ?? 0))}
                   </div>
-                  <div className="flex h-[170px] w-full items-end">
+                  <div className="flex h-[180px] w-full items-end">
                     <div
                       className="w-full rounded-t-xl bg-[#D9E7FF] shadow-[0_8px_20px_rgba(33,85,205,0.12)]"
                       style={{ height: `${barHeight}px` }}
@@ -719,18 +740,17 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
             <MiniActionButton>Detail</MiniActionButton>
           </div>
           {mode === "gudang" ? (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
               {stockRows
                 .filter((row) => {
                   const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
-                  return tone === "critical" || tone === "danger";
+                  return tone === "danger";
                 })
-                .slice(0, 5)
                 .map((row) => {
                   const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1));
               const palette =
                 tone.tone === "danger"
-                  ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"
+                  ? "border-[#FCA5A5] bg-[#FEE2E2] text-[#DC2626]"
                   : tone.tone === "critical"
                     ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
                     : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";
@@ -749,7 +769,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
               {!loading &&
               stockRows.filter((row) => {
                 const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
-                return tone === "critical" || tone === "danger";
+                return tone === "danger";
               }).length === 0 ? (
                 <div className="rounded-xl bg-[#F8FAFC] px-4 py-8 text-center text-sm text-gray-400">
                   Tidak ada stok kritis yang perlu perhatian saat ini.

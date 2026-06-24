@@ -173,10 +173,10 @@ export default function JenisBahanPage() {
           },
         ]);
         await sdk.itemCategories.create({ name: nextValue });
-        setSuccessState({
-          headline: "Jenis Bahan Berhasil Ditambahkan",
-          message: `Jenis bahan ${nextValue} telah ditambahkan ke daftar utama.`,
-        });
+          setSuccessState({
+            headline: "Jenis Bahan Berhasil Ditambahkan",
+            message: "",
+          });
       }
 
       if (modalMode === "edit" && selectedItem) {
@@ -188,7 +188,7 @@ export default function JenisBahanPage() {
         await sdk.itemCategories.update(selectedItem.id, { name: nextValue });
         setSuccessState({
           headline: "Jenis Bahan Berhasil Diedit",
-          message: `Jenis bahan ${nextValue} berhasil diperbarui.`,
+          message: "",
         });
       }
 
@@ -245,7 +245,7 @@ export default function JenisBahanPage() {
       setSuccessState({
         title: "Berhasil",
         headline: "Jenis Bahan Berhasil Dihapus",
-        message: `Jenis bahan ${deletedName} berhasil dihapus dari sistem.`,
+        message: "",
         tone: "danger",
         icon: <Trash2 size={36} strokeWidth={2.1} />,
       });
@@ -277,9 +277,6 @@ export default function JenisBahanPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[22px] font-semibold text-[#16213E]">Data Jenis Bahan</h1>
-            <p className="mt-1 text-base text-[#94A3B8]">
-              Untuk melihat dan mengelola data jenis bahan
-            </p>
           </div>
 
           <PrimaryAction onClick={openAddModal}>
@@ -381,7 +378,7 @@ export default function JenisBahanPage() {
                     {modalMode === "add" ? "Tambah Jenis Bahan" : "Edit Jenis Bahan"}
                   </h2>
                   <p className="mt-2 text-sm text-slate-400">
-                    {modalMode === "add" ? "Masukkan jenis bahan" : "Ubah jenis bahan"}
+                    {modalMode === "add" ? "Masukkan jenis bahan" : ""}
                   </p>
                 </div>
 
@@ -436,7 +433,7 @@ export default function JenisBahanPage() {
       <DeleteConfirmModal
         open={modalMode === "delete"}
         headline="Hapus jenis bahan ini?"
-        description={`Jenis bahan ${selectedItem?.name ?? ""} akan dipindahkan ke arsip dan tidak tampil di daftar utama.`}
+        description="Apakah anda yakin untuk menghapus jenis bahan ini?"
         submitting={submitting}
         error={modalError}
         onClose={closeModal}

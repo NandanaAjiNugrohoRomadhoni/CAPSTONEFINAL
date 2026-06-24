@@ -195,7 +195,7 @@ export default function TransactionRevisionPage({
   }
 
   function getRevisionUserLabel(revision: TransactionRevisionRow) {
-    return revision.user_name || revision.user?.name || revision.user?.username || `User #${revision.user_id}`;
+    return revision.user?.username || revision.user_name || revision.user?.name || `User #${revision.user_id}`;
   }
 
   function getRevisionReasonLabel(revision: TransactionRevisionRow) {
@@ -507,6 +507,20 @@ export default function TransactionRevisionPage({
       </table>
     `;
 
+    const filterSummaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Pencarian</td><td class="summary-value">${escapeSpreadsheetHtml(search.trim() || "Semua Nama")}</td></tr>
+        <tr><td class="summary-label">Rentang Tanggal</td><td class="summary-value">${escapeSpreadsheetHtml(
+          dateRange.startDate && dateRange.endDate
+            ? `${formatDate(dateRange.startDate)} - ${formatDate(dateRange.endDate)}`
+            : "Semua Tanggal",
+        )}</td></tr>
+        <tr><td class="summary-label">Status</td><td class="summary-value">${escapeSpreadsheetHtml(
+          selectedStatus ? getStatusLabel(Number(selectedStatus)) : "Semua Status",
+        )}</td></tr>
+      </table>
+    `;
+
     const rowsHtml = rowGroups
       .map((row, index) => {
         const revisionLabel = `REV-${String(row.revision.id).padStart(4, "0")}`;
@@ -515,6 +529,9 @@ export default function TransactionRevisionPage({
         const unitLabel = row.detail.satuan ?? "-";
         const reasonLabel = getRevisionReasonLabel(row.revision);
         const statusLabel = getRevisionStatusLabel(row.revision);
+        const rejectionReasonLabel =
+          row.revision.rejection_reason?.trim() ||
+          (statusLabel === "Ditolak" ? "Alasan penolakan belum tersedia." : "-");
         const petugasLabel = getRevisionUserLabel(row.revision);
         const rowspan = row.totalRows;
         const isFirstRow = row.rowIndex === 0;
@@ -532,6 +549,7 @@ export default function TransactionRevisionPage({
             <td class="number">${escapeSpreadsheetHtml(formatSpreadsheetNumber(row.previousQty, 0))}</td>
             <td class="number">${escapeSpreadsheetHtml(formatSpreadsheetNumber(row.revisedQty, 0))}</td>
             ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(reasonLabel)}</td>` : ""}
+            ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(rejectionReasonLabel)}</td>` : ""}
             ${isFirstRow ? `<td class="${statusLabel === "Disetujui" ? "safe" : statusLabel === "Ditolak" ? "danger" : "warning"}" rowspan="${rowspan}">${escapeSpreadsheetHtml(statusLabel)}</td>` : ""}
             ${isFirstRow ? `<td rowspan="${rowspan}">${escapeSpreadsheetHtml(petugasLabel)}</td>` : ""}
           </tr>
@@ -550,6 +568,7 @@ export default function TransactionRevisionPage({
           <tr>
             <td style="width: 40%; padding: 0 12px 12px 0;">${summaryHtml}</td>
             <td style="width: 60%; padding: 0 0 12px 0;">
+              ${filterSummaryHtml}
               <table>
                 <tr><td class="section" colspan="2">RINGKASAN STATUS PENGAJUAN</td></tr>
                 <tr class="head"><th>Status</th><th>Jumlah</th></tr>
@@ -573,7 +592,8 @@ export default function TransactionRevisionPage({
             <th>Satuan</th>
             <th>Qty Sebelum</th>
             <th>Qty Perubahan</th>
-            <th>Keterangan</th>
+            <th>Alasan Revisi</th>
+            <th>Alasan Penolakan Admin</th>
             <th>Status Pengajuan Revisi</th>
             <th>Petugas</th>
           </tr>
@@ -589,7 +609,7 @@ export default function TransactionRevisionPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="space-y-6">
       <AdminPageHeading title={title} subtitle={subtitle} />
 
       {error && (
@@ -601,8 +621,8 @@ export default function TransactionRevisionPage({
         </div>
       )}
 
-      <SurfaceCard className="overflow-hidden rounded-[28px] border border-[#D7E0EE] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#D7E0EE] bg-gradient-to-r from-[#F8FBFF] to-[#F8FAFC] px-5 py-4">
+      <SurfaceCard className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#D7E0EE] bg-gradient-to-r from-[#F8FBFF] to-[#F8FAFC] px-6 py-4">
           <div className="w-full max-w-[260px]">
             <input
               value={search}
@@ -631,10 +651,10 @@ export default function TransactionRevisionPage({
               })),
             ]}
           />
-          <div className="ml-auto">
-            <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+            <div className="ml-auto">
+              <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
+            </div>
           </div>
-        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -648,14 +668,14 @@ export default function TransactionRevisionPage({
                 <th className="px-6 py-4 text-sm font-semibold uppercase tracking-wider text-slate-500 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-base text-slate-600">
+            <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-slate-400">Memuat data...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">Memuat data...</td>
                 </tr>
               ) : paginatedRevisions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-slate-400">Tidak ada pengajuan revisi.</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">Tidak ada pengajuan revisi.</td>
                 </tr>
               ) : (
                 paginatedRevisions.map((rev) => (
@@ -663,17 +683,17 @@ export default function TransactionRevisionPage({
                     key={rev.id}
                     className="transition hover:bg-[#F8FBFF]"
                   >
-                    <td className="px-6 py-5 font-medium text-slate-900">
+                    <td className="px-6 py-4 font-medium text-slate-900">
                       REV-{String(rev.id).padStart(4, "0")}
                       <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
                         Transaksi: TR-{String(rev.parent_transaction_id ?? rev.id).padStart(4, "0")}
                       </p>
                     </td>
-                    <td className="px-6 py-5">{formatDate(rev.transaction_date)}</td>
-                    <td className="px-6 py-5">{getRevisionUserLabel(rev)}</td>
-                    <td className="px-6 py-5 font-semibold text-[#16213E]">{normaliseTransactionLabel(typeMap.get(rev.type_id))}</td>
-                    <td className="px-6 py-5">{categoryMap.get(rev.id) ?? "-"}</td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-4">{formatDate(rev.transaction_date)}</td>
+                    <td className="px-6 py-4">{getRevisionUserLabel(rev)}</td>
+                    <td className="px-6 py-4 font-semibold text-[#16213E]">{normaliseTransactionLabel(typeMap.get(rev.type_id))}</td>
+                    <td className="px-6 py-4">{categoryMap.get(rev.id) ?? "-"}</td>
+                    <td className="px-6 py-4">
                       {role === "admin" && isPendingStatus(localizeStatusLabel(getStatusLabel(rev.approval_status_id))) ? (
                         <button
                           type="button"
@@ -694,7 +714,7 @@ export default function TransactionRevisionPage({
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
@@ -712,11 +732,11 @@ export default function TransactionRevisionPage({
           </table>
         </div>
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={filteredTotalPages}
-          onPageChange={setCurrentPage}
-          totalLabel={`${visibleRevisions.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-${Math.min(currentPage * PAGE_SIZE, visibleRevisions.length)} dari ${visibleRevisions.length} pengajuan`}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={filteredTotalPages}
+            onPageChange={setCurrentPage}
+            totalLabel={`${visibleRevisions.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-${Math.min(currentPage * PAGE_SIZE, visibleRevisions.length)} dari ${visibleRevisions.length} pengajuan`}
         />
       </SurfaceCard>
 
@@ -801,17 +821,6 @@ export default function TransactionRevisionPage({
                 </div>
               </div>
 
-              {isRejectedRevision ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-                  <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
-                    Alasan Penolakan Admin
-                  </div>
-                  <div className="leading-6">
-                    {getRevisionRejectionReasonLabel(detailTransaction)}
-                  </div>
-                </div>
-              ) : null}
-
               {/* Info bar */}
               <div className="rounded-2xl border border-[#CBD5E1] bg-[#EFF6FF] px-4 py-3 text-sm font-medium text-[#334155]">
                 ID revisi:{" "}
@@ -826,10 +835,21 @@ export default function TransactionRevisionPage({
                 <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
                   Alasan Revisi
                 </div>
-                <div className="leading-6">
+                <div className="leading-6 text-[#0F172A]">
                   {getRevisionReasonLabel(detailTransaction)}
                 </div>
               </div>
+
+              {isRejectedRevision ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-700">
+                  <div className="mb-1 text-xs font-bold uppercase tracking-wider text-amber-700">
+                    Alasan Penolakan Admin
+                  </div>
+                  <div className="leading-6 text-[#0F172A]">
+                    {getRevisionRejectionReasonLabel(detailTransaction)}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* Footer */}
@@ -927,7 +947,7 @@ export default function TransactionRevisionPage({
                 <div className="mb-1 text-xs font-bold uppercase tracking-wider text-red-500">
                   Alasan Revisi
                 </div>
-                <div className="leading-6">
+                <div className="leading-6 text-[#0F172A]">
                   {getRevisionReasonLabel(confirmRevision)}
                 </div>
               </div>

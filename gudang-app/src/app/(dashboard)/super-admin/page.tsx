@@ -57,9 +57,8 @@ export default function Page() {
 
       try {
         const period = getCurrentMonthPeriod();
-        const [dashboardResponse, stocksResponse, menuSlotsResponse, menuCalendarResponse, itemsResponse] = await Promise.all([
+        const [dashboardResponse, menuSlotsResponse, menuCalendarResponse, itemsResponse] = await Promise.all([
           sdk.dashboard.getAggregate(),
-          sdk.reports.getStocks(period),
           sdk.menus.slots(),
           sdk.menuSchedules.calendarProjection({ date: todayIso }),
           listAllItems(),
@@ -70,16 +69,14 @@ export default function Page() {
         const dashboardData = (dashboardResponse.data?.aggregates ?? {}) as DashboardState;
         setDashboard(dashboardData);
 
-        const itemsMap = new Map(itemsResponse.map((item) => [item.id, item]));
-        const rawStockRows = (stocksResponse.data.rows as Array<{ item_id?: number; item_name?: string; category_name?: string; qty?: number; unit_base?: string }>) ?? [];
-        const enrichedStockRows = rawStockRows.map((row) => {
-          const itemId = Number(row.item_id ?? 0);
-          const item = itemsMap.get(itemId);
-          return {
-            ...row,
-            min_stock: item ? item.min_stock : 1,
-          };
-        });
+        const enrichedStockRows = itemsResponse.map((item) => ({
+          item_id: item.id,
+          item_name: item.name,
+          category_name: item.category?.name ?? "Lainnya",
+          qty: Number(item.qty),
+          unit_base: item.unit_base,
+          min_stock: item.min_stock,
+        }));
         setStockRows(enrichedStockRows);
         setMenuSlots((menuSlotsResponse.data ?? []) as MenuSlot[]);
         if ("data" in menuCalendarResponse && menuCalendarResponse.data) {
@@ -144,11 +141,11 @@ export default function Page() {
       stockRows
         .filter((row) => {
           const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
-          return tone === "critical" || tone === "danger";
-        })
-        .slice(0, 5),
+          return tone === "danger";
+        }),
     [stockRows],
   );
+  const visibleWarningRows = useMemo(() => warningRows.slice(0, 6), [warningRows]);
   const stockSummaryBoxes = useMemo(() => {
     const counts = stockRows.reduce(
       (acc, row) => {
@@ -160,13 +157,25 @@ export default function Page() {
     );
 
     return [
-      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
-      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
-      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
       { label: "HABIS", value: counts.danger, tone: "bg-[#E0E7FF] text-[#3730A3]" },
+      { label: "KRITIS", value: counts.critical, tone: "bg-[#FFE4E6] text-[#BE123C]" },
+      { label: "MENIPIS", value: counts.warning, tone: "bg-[#FFF7CC] text-[#92400E]" },
+      { label: "STOK AMAN", value: counts.safe, tone: "bg-[#DCFCE7] text-[#166534]" },
     ];
   }, [stockRows]);
-  const stockFocusRows = useMemo(() => stockRows.slice(0, 6), [stockRows]);
+  const stockFocusRows = useMemo(
+    () =>
+      [...stockRows]
+        .sort((left, right) => {
+          const priority = (row: { qty?: number; min_stock?: number }) => {
+            const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
+            return tone === "danger" ? 0 : tone === "critical" ? 1 : tone === "warning" ? 2 : 3;
+          };
+          return priority(left) - priority(right) || Number(left.qty ?? 0) - Number(right.qty ?? 0);
+        })
+        .slice(0, 6),
+    [stockRows],
+  );
   const packageRows = useMemo(() => {
     if (!resolvedMenuId) return [];
 
@@ -220,7 +229,6 @@ export default function Page() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-400">Ringkasan operasional instalasi gizi hari ini</p>
       </div>
 
       {error ? (
@@ -291,15 +299,15 @@ export default function Page() {
 
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari</h3>
-          <div className="mt-5 flex h-[210px] items-end gap-3">
+          <div className="mt-5 flex h-[280px] items-end gap-3">
             {patientPoints.map((point) => {
               const highest = Math.max(...patientPoints.map((entry) => entry.total_patients), 1);
-              const barHeight = Math.max((point.total_patients / highest) * 150, 18);
+              const barHeight = Math.max((point.total_patients / highest) * 210, 22);
 
               return (
                 <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
                   <div className="text-xs font-semibold text-[#111827]">{formatNumber(point.total_patients)}</div>
-                  <div className="flex h-[150px] w-full items-end">
+                  <div className="flex h-[220px] w-full items-end">
                     <div
                       className="w-full rounded-t-xl bg-[#2155CD] shadow-[0_10px_24px_rgba(33,85,205,0.18)]"
                       style={{ height: `${barHeight}px` }}
@@ -368,11 +376,11 @@ export default function Page() {
             <MiniActionButton onClick={() => router.push("/super-admin/stok/riwayat")}>Detail</MiniActionButton>
           </div>
           <div className="space-y-3">
-            {warningRows.map((row) => {
+            {visibleWarningRows.map((row) => {
               const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1));
               const palette =
                 tone.tone === "danger"
-                  ? "border-[#818CF8] bg-[#E0E7FF] text-[#3730A3]"
+                  ? "border-[#FCA5A5] bg-[#FEE2E2] text-[#DC2626]"
                   : tone.tone === "critical"
                     ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
                     : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";

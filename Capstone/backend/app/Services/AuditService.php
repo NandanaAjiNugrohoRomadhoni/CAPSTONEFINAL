@@ -37,6 +37,22 @@ class AuditService
             'created_at'  => date('Y-m-d H:i:s'),
         ];
 
+        $recentDuplicate = $this->auditLogModel
+            ->where('user_id', $data['user_id'])
+            ->where('action_type', $data['action_type'])
+            ->where('table_name', $data['table_name'])
+            ->where('record_id', $data['record_id'])
+            ->where('message', $data['message'])
+            ->where('old_values', $data['old_values'])
+            ->where('new_values', $data['new_values'])
+            ->where('ip_address', $data['ip_address'])
+            ->where('created_at >=', date('Y-m-d H:i:s', time() - 2))
+            ->first();
+
+        if ($recentDuplicate !== null) {
+            return true;
+        }
+
         return $this->auditLogModel->insert($data) !== false;
     }
 }

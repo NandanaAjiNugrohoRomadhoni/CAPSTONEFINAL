@@ -6,7 +6,7 @@ export default function Page() {
       additionalHistoryStorageKeys={["super-admin-stock-opname-history"]}
       historyStorageKey="gudang-stock-opname-history"
       legacyLatestKey="gudang-latest-stock-opname-id"
-      subtitle="Input penyesuaian stok fisik ke backend stock opname dan simpan riwayat draft yang pernah dibuat."
+      subtitle=""
       title="Penyesuaian Stok"
       submittedStateLabel="Menunggu Konfirmasi"
       useDraftSubmissionChecklist

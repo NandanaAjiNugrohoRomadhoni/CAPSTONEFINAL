@@ -612,7 +612,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
         setSuccessState({
           headline: "Menu Makanan Berhasil Ditambahkan",
-          message: `Menu ${menuName.trim()} berhasil ditambahkan.`,
+          message: "",
         });
       }
 
@@ -660,7 +660,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
 
         setSuccessState({
           headline: "Menu Makanan Berhasil Diedit",
-          message: `Menu ${menuName.trim()} berhasil diperbarui.`,
+          message: "",
         });
       }
 

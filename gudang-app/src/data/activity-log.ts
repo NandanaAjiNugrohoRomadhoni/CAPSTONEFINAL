@@ -14,7 +14,7 @@ export type ActivityRow = AuditLogEntry;
 const ACTIVITY_LAST_VIEWED_KEY = "capstone-activity-log-last-viewed-at";
 
 export function normalizeActivityRow(row: any): ActivityRow {
-  const actorName = row.actor || "Sistem";
+  const actorName = row.actorInfo?.username?.trim() || row.actor || "Sistem";
 
   const initials = actorName
     .split(" ")

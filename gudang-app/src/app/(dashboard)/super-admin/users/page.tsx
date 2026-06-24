@@ -360,13 +360,12 @@ export default function UsersPage() {
     setUsers((current) => current.filter((item) => item.id !== deleteTarget.id));
 
     try {
-      const deletedName = deleteTarget.name;
       await sdk.users.delete(deleteTarget.id);
       await loadData(currentPage);
       router.refresh();
       setSuccessState({
         headline: "Akun Berhasil Dihapus",
-        message: `Akun ${deletedName} telah dipindahkan ke arsip.`,
+        message: "",
       });
       setDeleteTarget(null);
     } catch (error) {
@@ -381,7 +380,6 @@ export default function UsersPage() {
     <div className="space-y-6">
       <AdminPageHeading
         title="Manajemen Pengguna"
-        subtitle="Untuk melihat dan mengelola informasi pengguna"
         action={<PrimaryAction onClick={openCreateModal}>Buat Akun Pengguna</PrimaryAction>}
       />
 
@@ -546,7 +544,7 @@ export default function UsersPage() {
       <DeleteConfirmModal
         open={deleteTarget !== null}
         headline="Hapus akun ini?"
-        description={`Akun ${deleteTarget?.name ?? ""} akan dipindahkan ke arsip dan tidak tampil di daftar utama.`}
+        description="Apakah anda yakin untuk menghapus akun ini?"
         submitting={deleting}
         error={deleteError}
         onClose={closeDeleteModal}

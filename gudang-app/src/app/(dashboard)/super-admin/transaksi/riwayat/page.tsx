@@ -349,7 +349,7 @@ export default function Page() {
   const unitMap = useMemo(() => new Map(units.map((unit) => [unit.id, unit.name])), [units]);
   const typeMap = useMemo(() => new Map(types.map((type) => [type.id, type.name])), [types]);
   const statusMap = useMemo(() => new Map(statuses.map((status) => [status.id, status.name])), [statuses]);
-  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.name])), [users]);
+  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.username || user.name])), [users]);
 
   const derivedRows = useMemo<DerivedRow[]>(() => {
     return transactions.flatMap((transaction) => {
@@ -363,7 +363,7 @@ export default function Page() {
           ),
         ).join(", ") || "-";
       const statusLabel = statusMap.get(transaction.approval_status_id) ?? "Menunggu";
-      const userLabel = getUserLabel(transaction.user_id, userMap, currentUser?.id, currentUser?.name);
+      const userLabel = getUserLabel(transaction.user_id, userMap, currentUser?.id, currentUser?.username);
       const transactionLabel = getStockMovementTypeLabel(typeMap.get(transaction.type_id));
       if (!transactionLabel) return [];
 
@@ -744,8 +744,8 @@ export default function Page() {
             ${sharedCells}
             <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
             ${categoryCell}
-            <td>${escapeSpreadsheetHtml(row.unit)}</td>
             ${quantityCells}
+            <td>${escapeSpreadsheetHtml(row.unit)}</td>
             ${petugasCell}
           </tr>`;
           })
@@ -805,14 +805,14 @@ export default function Page() {
             <th>ID Transaksi</th>
             <th>Nama Bahan</th>
             <th>Kategori</th>
-            <th>Satuan</th>
             ${
               exportMode === "OUT"
-                ? "<th>Jumlah Keluar</th><th>Jumlah Pasien</th>"
+                ? "<th>Jumlah Keluar</th><th>Satuan</th><th>Jumlah Pasien</th>"
                 : exportMode === "IN"
-                  ? "<th>Jumlah Masuk</th>"
+                  ? "<th>Jumlah Masuk</th><th>Satuan</th>"
                   : "<th>Jumlah Masuk</th><th>Jumlah Keluar</th>"
             }
+            ${exportMode === "OUT" ? "" : "<th>Satuan</th>"}
             <th>Petugas</th>
           </tr>
           ${bodyRows}
@@ -836,7 +836,6 @@ export default function Page() {
       <div className="space-y-6">
         <div>
           <h1 className="text-[22px] font-semibold text-gray-900">Riwayat Transaksi Barang</h1>
-          <p className="text-sm text-gray-400">Riwayat transaksi barang masuk & keluar</p>
         </div>
 
         {error ? (
@@ -1027,7 +1026,6 @@ function TransactionDetailModal({
             <h2 className="text-[24px] font-semibold text-[#16213E]">
               Detail {typeLabel === "IN" ? "Barang Masuk" : "Barang Keluar"}
             </h2>
-            <p className="mt-1 text-sm text-[#94A3B8]">Satu transaksi dapat berisi lebih dari satu bahan.</p>
           </div>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#EEF4FF] hover:text-[#2155CD]"
@@ -1318,10 +1316,10 @@ function getUserLabel(
   userId: number | null | undefined,
   userMap: Map<number, string>,
   currentUserId?: number,
-  currentUserName?: string,
+  currentUserUsername?: string,
 ) {
   if (userId == null) return "-";
-  if (currentUserId === userId && currentUserName) return currentUserName;
+  if (currentUserId === userId && currentUserUsername) return currentUserUsername;
   return userMap.get(userId) ?? `User #${userId}`;
 }
 

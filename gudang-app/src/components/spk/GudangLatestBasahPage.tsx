@@ -35,9 +35,10 @@ export default function GudangLatestBasahPage() {
           <tr>
             <td class="rank">${index + 1}</td>
             <td class="text-strong">${escapeSpreadsheetHtml(row.item_name ?? "-")}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.current_stock_qty, row.item_unit_base))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.required_qty, row.item_unit_base))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.final_recommended_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.current_stock_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.required_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.final_recommended_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(row.item_unit_base ?? "-")}</td>
           </tr>
         `,
       )
@@ -75,8 +76,9 @@ export default function GudangLatestBasahPage() {
             <th>Stok Saat Ini</th>
             <th>Kebutuhan</th>
             <th>Rekomendasi Beli</th>
+            <th>Satuan</th>
           </tr>
-          ${tableRows || `<tr><td class="muted" colspan="5">Belum ada SPK basah yang bisa diexport.</td></tr>`}
+          ${tableRows || `<tr><td class="muted" colspan="6">Belum ada SPK basah yang bisa diexport.</td></tr>`}
         </table>
       `,
     });
@@ -131,7 +133,6 @@ export default function GudangLatestBasahPage() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Rekomendasi Belanja Basah"
-        subtitle="Menampilkan hasil SPK basah terbaru yang sudah tersedia di backend"
       />
 
       {error ? (
@@ -195,7 +196,7 @@ export default function GudangLatestBasahPage() {
               {!loading && rows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-8 text-center text-gray-400" colSpan={4}>
-                    Belum ada SPK basah yang bisa ditampilkan.
+                    {" "}
                   </td>
                 </tr>
               ) : null}

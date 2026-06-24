@@ -134,10 +134,11 @@ export default function Page() {
       visibleRows.map((row) => ({
         itemName: row.item_name ?? "-",
         categoryName: getItemCategory(row),
-        currentStock: formatQuantity(row.current_stock_qty, row.item_unit_base),
-        requiredQty: formatQuantity(row.required_qty, row.item_unit_base),
-        recommendedQty: formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base),
+        currentStock: Number(row.current_stock_qty ?? 0),
+        requiredQty: Number(row.required_qty ?? 0),
+        recommendedQty: Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0),
         numericRecommendedQty: Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0),
+        unit: row.item_unit_base ?? null,
       })),
     );
 

@@ -46,7 +46,7 @@ const statCards = [
   {
     key: "warning",
     title: "STOK MENIPIS",
-    note: "Bahan di bawah minimum",
+    note: "Bahan di bawah sebesar ...% dari stok minimum",
     accent: "border-[#F59E0B]",
     iconBg: "bg-[#FFF7CC]",
     iconColor: "text-[#92400E]",
@@ -55,7 +55,7 @@ const statCards = [
   {
     key: "critical",
     title: "STOK KRITIS",
-    note: "Bahan mendekati habis",
+    note: "Bahan mendekati habis (...% menuju batas stok minimum)",
     accent: "border-[#FB7185]",
     iconBg: "bg-[#FFE4E6]",
     iconColor: "text-[#BE123C]",
@@ -277,6 +277,14 @@ export default function StocksReportPage() {
       </table>
     `;
 
+    const filterSummaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Pencarian</td><td class="summary-value">${escapeSpreadsheetHtml(searchTerm.trim() || "Semua Nama")}</td></tr>
+        <tr><td class="summary-label">Jenis Bahan</td><td class="summary-value">${escapeSpreadsheetHtml(categoryFilter === "Semua Jenis" ? "Semua Jenis" : categoryFilter)}</td></tr>
+        <tr><td class="summary-label">Status</td><td class="summary-value">${escapeSpreadsheetHtml(statusFilter === "Semua Status" ? "Semua Status" : statusFilter)}</td></tr>
+      </table>
+    `;
+
     const rowsHtml = filteredRows
       .map(
         (row, index) => `
@@ -304,6 +312,7 @@ export default function StocksReportPage() {
           <tr>
             <td style="width: 36%; padding: 0 12px 12px 0;">${summaryHtml}</td>
             <td style="width: 64%; padding: 0 0 12px 0;">
+              ${filterSummaryHtml}
               <table>
                 <tr><td class="section" colspan="4">RINGKASAN STATUS STOK</td></tr>
                 <tr class="head">
@@ -344,7 +353,6 @@ export default function StocksReportPage() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Stok Bahan"
-        subtitle="Pantau ketersediaan bahan dari laporan stok backend"
       />
 
       {error ? (

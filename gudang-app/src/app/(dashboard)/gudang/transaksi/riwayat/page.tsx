@@ -341,7 +341,7 @@ export default function GudangTransactionHistoryPage() {
         transaction.user_id,
         (transaction as { user_name?: string | null }).user_name,
         currentUser?.id,
-        currentUser?.name,
+        currentUser?.username,
       );
       const transactionLabel = getStockMovementTypeLabel(typeMap.get(transaction.type_id));
       if (!transactionLabel) return [];
@@ -694,7 +694,7 @@ export default function GudangTransactionHistoryPage() {
 
     const headerColumns =
       exportMode === "OUT"
-        ? ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Keluar", "Jumlah Pasien", "Keterangan", "Petugas"]
+        ? ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Jumlah Keluar", "Satuan", "Jumlah Pasien", "Keterangan", "Petugas"]
         : exportMode === "IN"
           ? ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Keterangan", "Petugas"]
           : ["Tanggal", "ID Transaksi", "Nama Bahan", "Kategori", "Satuan", "Jumlah Masuk", "Jumlah Keluar", "Keterangan", "Petugas"];
@@ -728,8 +728,8 @@ export default function GudangTransactionHistoryPage() {
             ${idCell}
             <td class="text-strong">${escapeSpreadsheetHtml(row.itemName)}</td>
             ${categoryCell}
-            <td>${escapeSpreadsheetHtml(row.unit)}</td>
             ${quantityCells}
+            <td>${escapeSpreadsheetHtml(row.unit)}</td>
             <td>${escapeSpreadsheetHtml(row.keterangan)}</td>
             ${petugasCell}
           </tr>`;
@@ -790,7 +790,6 @@ export default function GudangTransactionHistoryPage() {
       <div className="space-y-6">
         <AdminPageHeading
           title="Riwayat Transaksi Barang"
-          subtitle="Riwayat transaksi barang masuk & keluar"
         />
 
         {error ? (
@@ -1278,10 +1277,10 @@ function getGudangUserLabel(
   userId: number | null | undefined,
   userName?: string | null,
   currentUserId?: number,
-  currentUserName?: string,
+  currentUserUsername?: string,
 ) {
   if (userId == null) return "-";
-  if (currentUserId === userId && currentUserName) return currentUserName;
+  if (currentUserId === userId && currentUserUsername) return currentUserUsername;
   if (userName && userName.trim()) return userName;
   return `User #${userId}`;
 }

@@ -102,29 +102,9 @@ function buildSummaryRows(packageRows: PackageExportRow[]) {
       }, 0),
     0,
   );
-  const totalIngredients = packageRows.reduce(
-    (total, row) =>
-      total +
-      mealOrder.reduce((mealTotal, mealKey) => mealTotal + row.mealRows[mealKey].length, 0),
-    0,
-  );
-  const uniqueIngredients = new Set<string>();
-
-  for (const pkg of CSV_MENU_PACKAGES) {
-    for (const mealKey of mealOrder) {
-      for (const menu of pkg.sessions[mealKey]) {
-        for (const ingredient of menu.ingredients) {
-          uniqueIngredients.add(ingredient.name.trim().toLowerCase());
-        }
-      }
-    }
-  }
-
   return [
     ["Total Paket", `${formatSpreadsheetNumber(totalPackage, 0)} paket`],
     ["Total Menu", `${formatSpreadsheetNumber(totalMenu, 0)} menu`],
-    ["Total Baris Komposisi", `${formatSpreadsheetNumber(totalIngredients, 0)} baris`],
-    ["Total Bahan Unik", `${formatSpreadsheetNumber(uniqueIngredients.size, 0)} bahan`],
   ];
 }
 
@@ -198,26 +178,7 @@ export function buildMenuPackageSpreadsheetHtml() {
       <div class="title">LAPORAN PAKET MENU MAKANAN INSTALASI GIZI RSD BALUNG</div>
       <div class="subtitle">Data paket menu, menu, bahan, standar porsi, dan satuan per sesi makan.</div>
 
-      <table class="no-border section-gap">
-        <tr>
-          <td style="width: 30%; padding: 0 12px 12px 0;">${summaryHtml}</td>
-          <td style="width: 70%; padding: 0 0 12px 0;">
-            <table>
-              <tr><td class="section" colspan="2">RINGKASAN PAKET MENU</td></tr>
-              <tr class="head"><th>Keterangan</th><th>Jumlah</th></tr>
-              ${summaryRows
-                .map(
-                  ([label, value]) => `
-                    <tr>
-                      <td>${escapeSpreadsheetHtml(label)}</td>
-                      <td class="rank">${escapeSpreadsheetHtml(value)}</td>
-                    </tr>`,
-                )
-                .join("")}
-            </table>
-          </td>
-        </tr>
-      </table>
+      ${summaryHtml}
 
       <table>
         <tr class="head">

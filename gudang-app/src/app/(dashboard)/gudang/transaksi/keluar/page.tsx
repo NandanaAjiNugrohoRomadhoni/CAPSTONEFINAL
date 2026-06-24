@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import sdk from "@/lib";
 import { getErrorMessage, toIsoDate } from "@/lib/admin-utils";
@@ -71,6 +72,7 @@ export default function BarangKeluarPage() {
   const [validatedMeta, setValidatedMeta] = useState<{ totalItems: number; menuName: string } | null>(null);
   const [savedRecommendation, setSavedRecommendation] = useState<SavedRecommendation | null>(null);
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [confirmDrySaveOpen, setConfirmDrySaveOpen] = useState(false);
   const [recommendationPreviewOpen, setRecommendationPreviewOpen] = useState(false);
   const [recommendationRows, setRecommendationRows] = useState<BasahValidatedRow[]>([]);
   const [recommendationMeta, setRecommendationMeta] = useState<{ totalItems: number; menuName: string } | null>(null);
@@ -79,6 +81,7 @@ export default function BarangKeluarPage() {
   const [validating, setValidating] = useState(false);
   const [alertState, setAlertState] = useState<AlertState>(null);
   const [successState, setSuccessState] = useState<{ headline: string; message: string } | null>(null);
+  const basahValidationLocked = Boolean(savedRecommendation);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,13 +247,29 @@ export default function BarangKeluarPage() {
 
   function loadValidatedBasahFromSavedRecommendation() {
     const saved = readSavedRecommendation(serviceDate) ?? savedRecommendation;
-    if (!saved) {
+    if (basahValidationLocked) {
       openAlert(
         setAlertState,
-        "Rekomendasi Belum Disimpan",
-        "Simpan rekomendasi harian terlebih dahulu",
-        "Masukkan jumlah pasien lalu tekan tombol Simpan untuk membuat rekomendasi bahan basah hari ini.",
+        "Validasi Terkunci",
+        "Rekomendasi hari ini sudah tersimpan",
+        "Tombol validasi tidak bisa dipakai lagi setelah rekomendasi bahan basah untuk tanggal ini disimpan.",
       );
+      return;
+    }
+
+    if (!saved) {
+      const totalPatients = Number(patientCount);
+      if (totalPatients <= 0) {
+        openAlert(
+          setAlertState,
+          "Rekomendasi Belum Disiapkan",
+          "Jumlah pasien harus diisi dulu",
+          "Masukkan jumlah pasien lalu tekan tombol Validasi untuk membuat rekomendasi bahan basah hari ini.",
+        );
+        return;
+      }
+
+      void prepareRecommendationPreview();
       return;
     }
 
@@ -307,7 +326,7 @@ export default function BarangKeluarPage() {
       setSavedRecommendation(nextSavedRecommendation);
       setSuccessState({
         headline: "Barang keluar bahan basah berhasil disimpan",
-        message: "Data pengeluaran bahan basah sudah tersimpan ke backend dan stok telah diperbarui oleh sistem.",
+        message: "",
       });
       setValidatedRows([]);
       setValidatedMeta(
@@ -354,10 +373,12 @@ export default function BarangKeluarPage() {
 
       setSuccessState({
         headline: "Barang keluar berhasil disimpan",
-        message: "Transaksi bahan kering & pengemas telah tersimpan ke backend.",
+        message: "",
       });
       setRows([createManualRow()]);
+      setConfirmDrySaveOpen(false);
     } catch (saveError) {
+      setConfirmDrySaveOpen(false);
       openAlert(
         setAlertState,
         "Penyimpanan Gagal",
@@ -386,7 +407,7 @@ export default function BarangKeluarPage() {
         <div>
           <h1 className="text-[22px] font-semibold text-gray-900">Barang Keluar</h1>
           <p className="text-sm text-gray-400">
-            Input barang keluar khusus jenis bahan kering & pengemas. Bahan basah disiapkan melalui validasi jumlah pasien hari ini.
+            Bahan basah dihitung berdasarkan jumlah pasien hari ini, sedangkan bahan kering & pengemas diinput secara manual.
           </p>
         </div>
 
@@ -416,15 +437,18 @@ export default function BarangKeluarPage() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="font-semibold text-gray-900">Input Pasien Hari Ini</h2>
-                  <p className="text-xs text-gray-400">Simpan rekomendasi harian terlebih dahulu, lalu gunakan tombol validasi untuk mengisi tabel bahan basah.</p>
+                  <p className="text-xs text-gray-400">
+                    Simpan rekomendasi harian terlebih dahulu, lalu gunakan tombol validasi untuk mengisi tabel bahan basah.
+                    Setelah rekomendasi hari ini tersimpan, tombol validasi akan terkunci.
+                  </p>
                 </div>
                 <button
                   className="inline-flex h-11 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-5 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:bg-blue-100/60"
-                  disabled={validating || !savedRecommendation}
+                  disabled={validating || basahValidationLocked || Number(patientCount) <= 0 || mealTimes.length === 0}
                   onClick={loadValidatedBasahFromSavedRecommendation}
                   type="button"
                 >
-                  {validating ? "Menyiapkan..." : "Validasi"}
+                  {basahValidationLocked ? "Sudah Divalidasi" : validating ? "Menyiapkan..." : "Validasi"}
                 </button>
               </div>
             </div>
@@ -513,9 +537,9 @@ export default function BarangKeluarPage() {
                   ))
                 ) : (
                   <div className="px-4 py-8 text-center text-sm text-gray-400">
-                    {savedRecommendation
-                      ? "Klik tombol Validasi untuk memuat rekomendasi bahan basah yang sudah tersimpan."
-                      : "Masukkan jumlah pasien lalu tekan tombol Simpan untuk membuat rekomendasi bahan basah hari ini."}
+                    {basahValidationLocked
+                      ? "Rekomendasi bahan basah hari ini sudah tersimpan. Data tidak bisa divalidasi ulang pada tanggal yang sama."
+                      : "Masukkan jumlah pasien lalu tekan tombol Validasi untuk membuat rekomendasi bahan basah hari ini."}
                   </div>
                 )}
 
@@ -676,7 +700,7 @@ export default function BarangKeluarPage() {
               </button>
               <button
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                onClick={() => void saveDryOutput()}
+                onClick={() => setConfirmDrySaveOpen(true)}
                 type="button"
                 disabled={saving}
               >
@@ -701,6 +725,16 @@ export default function BarangKeluarPage() {
         totalRows={validatedRows.length}
         onClose={() => setConfirmSaveOpen(false)}
         onConfirm={() => void saveBasahOutput()}
+        saving={saving}
+      />
+
+      <ConfirmDrySaveModal
+        open={confirmDrySaveOpen}
+        itemCount={rows.filter((row) => row.item_id !== null && Number(row.qty) > 0).length}
+        rowCount={rows.length}
+        previewRows={rows.filter((row) => row.item_id !== null && Number(row.qty) > 0)}
+        onClose={() => setConfirmDrySaveOpen(false)}
+        onConfirm={() => void saveDryOutput()}
         saving={saving}
       />
 
@@ -843,8 +877,8 @@ function ConfirmBasahSaveModal({
 }) {
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[76] flex items-center justify-center px-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-[420px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
@@ -862,8 +896,92 @@ function ConfirmBasahSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
+          <div
+            aria-hidden="true"
+            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
+            data-patient-count={patientCount}
+            data-total-rows={totalRows}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+          <button
+            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+          >
+            Batal
+          </button>
+          <button
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            disabled={saving}
+            onClick={onConfirm}
+            type="button"
+          >
+            {saving ? "Menyimpan..." : "Ya, Konfirmasi"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ConfirmDrySaveModal({
+  open,
+  itemCount,
+  rowCount,
+  previewRows,
+  onClose,
+  onConfirm,
+  saving,
+}: {
+  open: boolean;
+  itemCount: number;
+  rowCount: number;
+  previewRows: ManualRow[];
+  onClose: () => void;
+  onConfirm: () => void;
+  saving: boolean;
+}) {
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative w-full max-w-[520px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-[22px] font-semibold leading-none text-slate-900">Konfirmasi Simpan</h2>
+            <p className="mt-2 text-sm text-slate-400">Pastikan data pengeluaran bahan kering & pengemas sudah benar.</p>
+          </div>
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-slate-200 hover:text-slate-500"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
           <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600">
-            Sistem akan menyimpan data pengeluaran untuk <span className="font-semibold text-slate-900">{patientCount} pasien</span> dengan <span className="font-semibold text-slate-900">{totalRows} bahan</span>.
+            Sistem akan menyimpan <span className="font-semibold text-slate-900">{itemCount} bahan</span> dari{" "}
+            <span className="font-semibold text-slate-900">{rowCount} baris input</span>.
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-[#D7E0EE]">
+            <div className="grid grid-cols-12 border-b bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+              <div className="col-span-6">Nama Bahan</div>
+              <div className="col-span-3">Jumlah</div>
+              <div className="col-span-3">Satuan</div>
+            </div>
+            {previewRows.map((row) => (
+              <div key={row.id} className="grid grid-cols-12 items-center gap-3 border-t px-4 py-3 text-sm text-slate-700">
+                <div className="col-span-6 font-medium text-slate-900">{row.item_id ? `Item #${row.item_id}` : "-"}</div>
+                <div className="col-span-3">{row.qty}</div>
+                <div className="col-span-3">{row.unit}</div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -885,7 +1003,8 @@ function ConfirmBasahSaveModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

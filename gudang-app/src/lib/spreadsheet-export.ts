@@ -1,5 +1,8 @@
 "use client";
 
+const recentDownloadSignatures = new Map<string, number>();
+const DOWNLOAD_GUARD_WINDOW_MS = 1500;
+
 export function escapeSpreadsheetHtml(value: unknown) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -45,6 +48,11 @@ export function buildSpreadsheetDocument({
     .pill.warning { background: #FEF3C7; color: #D97706; border-color: #FCD34D; }
     .pill.critical { background: #FFF7ED; color: #EA580C; border-color: #FDBA74; }
     .pill.danger { background: #FEE2E2; color: #DC2626; border-color: #FCA5A5; }
+    .status { text-align: center; font-weight: 800; font-size: 14px; border: 1px solid transparent; }
+    .status.safe { background: #DCFCE7; color: #15803D; border-color: #86EFAC; }
+    .status.warning { background: #FEF3C7; color: #D97706; border-color: #FCD34D; }
+    .status.critical { background: #FFF7ED; color: #EA580C; border-color: #FDBA74; }
+    .status.danger { background: #FEE2E2; color: #DC2626; border-color: #FCA5A5; }
     .method { background: #ECFDF5; color: #166534; font-weight: 800; font-size: 22px; text-align: center; }
     .section { background: #DCFCE7; color: #14532D; font-weight: 800; font-size: 14px; }
     .head { background: #166534; color: #FFFFFF; font-weight: 800; text-align: center; font-size: 14px; }
@@ -67,6 +75,16 @@ ${body}
 }
 
 export function downloadSpreadsheetHtml(filename: string, html: string) {
+  const signature = buildDownloadSignature(filename, html);
+  const now = Date.now();
+  const lastRunAt = recentDownloadSignatures.get(signature) ?? 0;
+
+  if (now - lastRunAt < DOWNLOAD_GUARD_WINDOW_MS) {
+    return;
+  }
+
+  recentDownloadSignatures.set(signature, now);
+
   const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -76,5 +94,23 @@ export function downloadSpreadsheetHtml(filename: string, html: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+
+  window.setTimeout(() => {
+    if (recentDownloadSignatures.get(signature) === now) {
+      recentDownloadSignatures.delete(signature);
+    }
+  }, DOWNLOAD_GUARD_WINDOW_MS);
+}
+
+function buildDownloadSignature(filename: string, html: string) {
+  let hash = 2166136261;
+  const source = `${filename}\u0000${html}`;
+
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `${filename}:${hash >>> 0}`;
 }
 

@@ -683,10 +683,10 @@ export default function PackagesManagerPage() {
   return (
     <>
       <div className="space-y-5">
-        <AdminPageHeading
-          title="Paket Menu"
-          subtitle="Kombinasi menu untuk Siang, Sore, dan Pagi dalam 1 hari"
-        />
+      <AdminPageHeading
+        title="Paket Menu"
+        subtitle="Klik tanggal untuk melihat jadwal menu harian"
+      />
 
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">

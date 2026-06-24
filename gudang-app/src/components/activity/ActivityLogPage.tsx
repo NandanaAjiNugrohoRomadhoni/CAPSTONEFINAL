@@ -127,6 +127,7 @@ function matchesActivityFilters(
     query.length === 0 ||
     [
       row.actor,
+      row.actorInfo?.username,
       row.activityLabel ?? row.activityType,
       row.module,
       row.detail,
@@ -183,6 +184,66 @@ function buildCategoryActivityLabels() {
     "Transaksi Barang Masuk",
     "Transaksi Barang Keluar",
   ];
+}
+
+function localizeActivityDetail(detail: string, row: Pick<ActivityRow, "activityType" | "module">) {
+  const rawDetail = detail.trim();
+  if (!rawDetail) return "-";
+
+  const transformSubject = (subject: string) => {
+    const normalized = subject.trim().toLowerCase();
+    if (!normalized) return subject;
+
+    if (normalized.includes("spk history report")) return "laporan riwayat SPK";
+    if (normalized.includes("transaction report")) return "laporan riwayat transaksi";
+    if (normalized.includes("stock report")) return "laporan stok";
+    if (normalized.includes("activity log")) return "log aktivitas";
+    if (normalized.includes("stock adjustment")) return "laporan penyesuaian stok";
+    if (normalized.includes("menu package")) return "laporan paket menu";
+    if (normalized.includes("user")) return "pengguna";
+    if (normalized.includes("item")) return "bahan";
+    if (normalized.includes("menu")) return "menu";
+    if (normalized.includes("report")) return "laporan";
+
+    return subject;
+  };
+
+  const buildSentence = (action: string, subject: string) => {
+    const cleanSubject = transformSubject(subject).replace(/\s+/g, " ").trim();
+    return cleanSubject ? `${action} ${cleanSubject}` : action;
+  };
+
+  const lower = rawDetail.toLowerCase();
+  if (lower.startsWith("exported ")) {
+    const subject = rawDetail.slice("Exported ".length);
+    return buildSentence("Mengekspor", subject);
+  }
+
+  if (lower.startsWith("created ")) {
+    return buildSentence("Menambahkan", rawDetail.slice("Created ".length));
+  }
+
+  if (lower.startsWith("updated ")) {
+    return buildSentence("Memperbarui", rawDetail.slice("Updated ".length));
+  }
+
+  if (lower.startsWith("deleted ")) {
+    return buildSentence("Menghapus", rawDetail.slice("Deleted ".length));
+  }
+
+  if (lower.startsWith("approved ")) {
+    return buildSentence("Menyetujui", rawDetail.slice("Approved ".length));
+  }
+
+  if (lower.startsWith("rejected ")) {
+    return buildSentence("Menolak", rawDetail.slice("Rejected ".length));
+  }
+
+  if (row.activityType === "Delete" && lower.includes("hapus")) {
+    return rawDetail.replace(/^deleted\s+/i, "Menghapus ");
+  }
+
+  return rawDetail;
 }
 
 export default function ActivityLogPage() {
@@ -424,6 +485,7 @@ export default function ActivityLogPage() {
         const actorId = row.actorInfo?.id ?? null;
         const actorName = String(row.actor ?? "").trim().toLowerCase();
         const actorUsername = String(row.actorInfo?.username ?? "").trim().toLowerCase();
+        const actorLabel = row.actor === "Sistem" ? "Sistem" : row.actorInfo?.username?.trim() || row.actor;
         const role =
           row.actor === "Sistem"
             ? "Sistem"
@@ -435,11 +497,11 @@ export default function ActivityLogPage() {
           no: index + 1,
           rawDate: row.date,
           dateTimeLabel: `${formatActivityDate(row.date)}<br />${row.time || "-"}`,
-          actor: row.actor,
+          actor: actorLabel,
           role,
           module: getModuleExportLabel(row.module),
           activity: row.activityLabel?.trim() || row.activityType,
-          detail: row.detail || "-",
+          detail: localizeActivityDetail(row.detail || "-", row),
           activityType: row.activityType,
         };
       });
@@ -539,7 +601,7 @@ export default function ActivityLogPage() {
               <th>Nama Pengguna</th>
               <th>Role</th>
               <th>Modul</th>
-              <th>Aktivitas</th>
+              <th>Jenis Aktivitas</th>
               <th>Detail Aktivitas</th>
             </tr>
             ${exportRowsHtml}
@@ -586,7 +648,6 @@ export default function ActivityLogPage() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Log Aktivitas"
-        subtitle="Melihat log aktivitas yang terjadi di sistem"
       />
 
       {error ? (
@@ -667,18 +728,20 @@ export default function ActivityLogPage() {
                       <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${getAvatarTone(row.activityType)}`}>
                         {row.actorInitials}
                       </div>
-                      <span className="font-semibold text-gray-900">{row.actor}</span>
-                    </div>
-                  </td>
+            <span className="font-semibold text-gray-900">{row.actorInfo?.username?.trim() || row.actor}</span>
+          </div>
+        </td>
                   <td className="px-6 py-4">
                     <ActivityBadge tone={row.activityType} />
                   </td>
                   <td className="px-6 py-4">
                     <ModuleBadge label={row.module} />
                   </td>
-                  <td className="px-6 py-4 font-semibold text-gray-900">{row.detail}</td>
+                  <td className="px-6 py-4 font-semibold text-gray-900">
+                    {localizeActivityDetail(row.detail, row)}
+                  </td>
                 </tr>
-              ))}
+                ))}
 
               {!loading && paginatedRows.length === 0 ? (
                 <tr>

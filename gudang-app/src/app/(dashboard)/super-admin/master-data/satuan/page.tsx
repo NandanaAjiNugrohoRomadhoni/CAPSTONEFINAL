@@ -182,7 +182,7 @@ export default function SatuanPage() {
         await sdk.itemUnits.create({ name: nextValue });
         setSuccessState({
           headline: "Satuan Berhasil Ditambahkan",
-          message: `Satuan ${nextValue} telah ditambahkan ke daftar utama.`,
+          message: "",
         });
       }
 
@@ -195,7 +195,7 @@ export default function SatuanPage() {
         await sdk.itemUnits.update(selectedItem.id, { name: nextValue });
         setSuccessState({
           headline: "Satuan Berhasil Diedit",
-          message: `Satuan ${nextValue} berhasil diperbarui.`,
+          message: "",
         });
       }
 
@@ -232,7 +232,7 @@ export default function SatuanPage() {
       router.refresh();
       setSuccessState({
         headline: "Satuan Berhasil Dihapus",
-        message: `Satuan ${deletedName} telah dipindahkan ke arsip.`,
+        message: "",
         tone: "success",
       });
       closeModal();
@@ -263,9 +263,6 @@ export default function SatuanPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[22px] font-semibold text-[#16213E]">Data Satuan</h1>
-            <p className="mt-1 text-base text-[#94A3B8]">
-              Untuk melihat dan mengelola data satuan
-            </p>
           </div>
 
           <PrimaryAction onClick={openAddModal}>
@@ -366,9 +363,6 @@ export default function SatuanPage() {
                   <h2 className="text-[22px] font-semibold leading-none text-slate-900">
                     {modalMode === "add" ? "Tambah Satuan" : "Edit Satuan"}
                   </h2>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {modalMode === "add" ? "Masukkan satuan" : "Ubah satuan"}
-                  </p>
                 </div>
 
                 <button
@@ -422,7 +416,7 @@ export default function SatuanPage() {
       <DeleteConfirmModal
         open={modalMode === "delete"}
         headline="Hapus satuan ini?"
-        description={`Satuan ${selectedItem?.name ?? ""} akan dipindahkan ke arsip dan tidak tampil di daftar utama.`}
+        description="Apakah anda yakin untuk menghapus satuan ini?"
         submitting={submitting}
         error={modalError}
         onClose={closeModal}

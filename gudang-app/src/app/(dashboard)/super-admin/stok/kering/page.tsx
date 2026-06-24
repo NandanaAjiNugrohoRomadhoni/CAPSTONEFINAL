@@ -287,14 +287,14 @@ export default function Page() {
         setSuccessState({
           title: "Berhasil",
           headline: "Master Barang Berhasil Ditambahkan",
-          message: `Data bahan ${trimmedName} berhasil disimpan.`,
+          message: "",
         });
       } else if (selectedItem) {
         await sdk.items.update(selectedItem.id, payload);
         setSuccessState({
           title: "Berhasil",
           headline: "Master Barang Berhasil Diedit",
-          message: `Data bahan ${trimmedName} berhasil diperbarui.`,
+          message: "",
         });
       }
 
@@ -323,7 +323,7 @@ export default function Page() {
       setSuccessState({
         title: "Berhasil",
         headline: "Master Barang Berhasil Dihapus",
-        message: `Data bahan ${deleteTarget.name} berhasil dihapus permanen dari sistem.`,
+        message: "",
       });
       closeDeleteModal();
     } catch (deleteFailure) {
@@ -392,7 +392,7 @@ export default function Page() {
             <td>${escapeSpreadsheetHtml(item.category)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.qtyLabel)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.minimumLabel)}</td>
-            <td class="pill ${item.tone}">${escapeSpreadsheetHtml(item.label)}</td>
+            <td class="status ${item.tone}">${escapeSpreadsheetHtml(item.label)}</td>
           </tr>
         `,
       )
@@ -626,7 +626,7 @@ export default function Page() {
       />
 
       <DeleteConfirmModal
-        description={`Data bahan ${deleteTarget?.name ?? ""} akan dihapus permanen dari sistem dan tidak bisa dipulihkan lagi.`}
+        description="Apakah anda yakin untuk menghapus Master Barang ini?"
         error={deleteError}
         headline={`Hapus bahan ${deleteTarget?.name ?? ""}?`}
         onClose={closeDeleteModal}

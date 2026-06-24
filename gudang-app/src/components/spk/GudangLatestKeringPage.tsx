@@ -36,9 +36,10 @@ export default function GudangLatestKeringPage() {
             <td class="rank">${index + 1}</td>
             <td class="text-strong">${escapeSpreadsheetHtml(row.item_name ?? "-")}</td>
             <td>${escapeSpreadsheetHtml(getItemCategory(row))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.required_qty, row.item_unit_base))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.current_stock_qty, row.item_unit_base))}</td>
-            <td>${escapeSpreadsheetHtml(formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.required_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.current_stock_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(formatSpreadsheetNumber(Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0), 2))}</td>
+            <td>${escapeSpreadsheetHtml(row.item_unit_base ?? "-")}</td>
           </tr>
         `,
       )
@@ -77,8 +78,9 @@ export default function GudangLatestKeringPage() {
             <th>Pemakaian Bulan Lalu</th>
             <th>Stok Saat Ini</th>
             <th>Rekomendasi Beli</th>
+            <th>Satuan</th>
           </tr>
-          ${tableRows || `<tr><td class="muted" colspan="6">Belum ada SPK kering & pengemas yang bisa diexport.</td></tr>`}
+          ${tableRows || `<tr><td class="muted" colspan="7">Belum ada SPK kering & pengemas yang bisa diexport.</td></tr>`}
         </table>
       `,
     });
@@ -126,7 +128,6 @@ export default function GudangLatestKeringPage() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Rekomendasi Belanja Kering & Pengemas"
-        subtitle="Menampilkan hasil SPK kering & pengemas terbaru yang sudah tersedia di backend"
       />
 
       {error ? (
@@ -174,7 +175,7 @@ export default function GudangLatestKeringPage() {
               {!loading && rows.length === 0 ? (
                 <tr>
                   <td className="px-6 py-8 text-center text-gray-400" colSpan={4}>
-                    Belum ada SPK kering & pengemas yang bisa ditampilkan.
+                    {" "}
                   </td>
                 </tr>
               ) : null}

@@ -46,7 +46,7 @@ const statCards = [
   {
     key: "warning",
     title: "STOK MENIPIS",
-    note: "Bahan di bawah minimum",
+    note: "Bahan di bawah sebesar ...% dari stok minimum",
     accent: "border-[#F59E0B]",
     iconBg: "bg-[#FFF7CC]",
     iconColor: "text-[#92400E]",
@@ -55,7 +55,7 @@ const statCards = [
   {
     key: "critical",
     title: "STOK KRITIS",
-    note: "Bahan mendekati habis",
+    note: "Bahan mendekati habis (...% menuju batas stok minimum)",
     accent: "border-[#FB7185]",
     iconBg: "bg-[#FFE4E6]",
     iconColor: "text-[#BE123C]",
@@ -281,14 +281,14 @@ export default function Page() {
         setSuccessState({
           title: "Berhasil",
           headline: "Master Barang Berhasil Ditambahkan",
-          message: `Data bahan ${trimmedName} berhasil disimpan.`,
+          message: "",
         });
       } else if (selectedItem) {
         await sdk.items.update(selectedItem.id, payload);
         setSuccessState({
           title: "Berhasil",
           headline: "Master Barang Berhasil Diedit",
-          message: `Data bahan ${trimmedName} berhasil diperbarui.`,
+          message: "",
         });
       }
 
@@ -318,7 +318,7 @@ export default function Page() {
       setSuccessState({
         title: "Berhasil",
         headline: "Master Barang Berhasil Dihapus",
-        message: `Data bahan ${deleteTarget.name} berhasil dihapus permanen dari sistem.`,
+        message: "",
       });
       closeDeleteModal();
     } catch (deleteFailure) {
@@ -386,7 +386,7 @@ export default function Page() {
             <td>${escapeSpreadsheetHtml(item.category)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.qtyLabel)}</td>
             <td class="number">${escapeSpreadsheetHtml(item.minimumLabel)}</td>
-            <td class="pill ${item.tone}">${escapeSpreadsheetHtml(item.label)}</td>
+            <td class="status ${item.tone}">${escapeSpreadsheetHtml(item.label)}</td>
           </tr>
         `,
       )
@@ -463,7 +463,6 @@ export default function Page() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Stok Bahan"
-        subtitle="Pantau ketersediaan bahan secara langsung (real-time)"
         action={<PrimaryAction onClick={openCreateModal}>Tambah Master Barang</PrimaryAction>}
       />
 
@@ -610,7 +609,7 @@ export default function Page() {
       />
 
       <DeleteConfirmModal
-        description={`Data bahan ${deleteTarget?.name ?? ""} akan dihapus permanen dari sistem dan tidak bisa dipulihkan lagi.`}
+        description="Apakah anda yakin untuk menghapus Master Barang ini?"
         error={deleteError}
         headline={`Hapus bahan ${deleteTarget?.name ?? ""}?`}
         onClose={closeDeleteModal}

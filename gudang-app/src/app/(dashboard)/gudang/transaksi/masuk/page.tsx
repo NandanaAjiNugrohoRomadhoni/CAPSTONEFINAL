@@ -395,8 +395,8 @@ export default function BarangMasukPage() {
                 </h2>
                 <p className="text-xs text-gray-400">
                   {activeTab === "basah"
-                    ? "Gunakan isi otomatis dari SPK basah atau lengkapi Qty Faktual secara manual sebelum simpan."
-                    : "Gunakan isi otomatis dari SPK bulanan atau lengkapi Qty Faktual secara manual sebelum simpan."}
+                    ? "Anda bisa mengisi otomatis melalui SPK Basah lalu menyesuaikan Qty faktual secara manual sebelum disimpan."
+                    : "Anda bisa mengisi otomatis melalui SPK Kering & Pengemas lalu menyesuaikan Qty faktual secara manual sebelum disimpan."}
                 </p>
               </div>
 
@@ -550,7 +550,7 @@ export default function BarangMasukPage() {
         open={successOpen}
         title="Berhasil"
         headline="Data barang masuk berhasil disimpan dan stok telah diperbarui"
-        message="Transaksi barang masuk sudah tersimpan ke backend dan stok barang aktif telah diperbarui oleh sistem."
+        message="Pastikan data barang masuk sudah benar sebelum disimpan."
         onClose={() => setSuccessOpen(false)}
       />
     </>
@@ -727,9 +727,7 @@ function SelectSpkModal({
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-[22px] font-semibold leading-none text-slate-900">Prefill via SPK</h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Pilih ID SPK {activeTab === "basah" ? "basah" : "kering & pengemas"} yang sudah di-generate.
-            </p>
+            <p className="mt-2 text-sm text-slate-400">{""}</p>
           </div>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-slate-200 hover:text-slate-500"
@@ -741,10 +739,6 @@ function SelectSpkModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600">
-            Setelah dikonfirmasi, tabel barang masuk akan otomatis diisi sesuai data yang ada di ID SPK terpilih.
-          </div>
-
           <div>
             <label className="block text-sm font-semibold text-slate-700">ID SPK</label>
             <ThemedSelect
@@ -817,20 +811,13 @@ function ConfirmSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600">
-            Sistem akan menyimpan <span className="font-semibold text-slate-900">{summaryCount} bahan</span>
-            {selectedSpkId ? (
-              <>
-                {" "}dengan referensi <span className="font-semibold text-slate-900">SPK-{String(selectedSpkId).padStart(4, "0")}</span>.
-              </>
-            ) : (
-              "."
-            )}
-          </div>
-
-          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-slate-600">
-            Setelah dikonfirmasi, data barang masuk akan dikirim ke backend dan stok akan diperbarui oleh sistem.
-          </div>
+          <div
+            aria-hidden="true"
+            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
+            data-selected-spk={selectedSpkId ?? ""}
+            data-summary-count={summaryCount}
+          />
+          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-slate-600">{""}</div>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">

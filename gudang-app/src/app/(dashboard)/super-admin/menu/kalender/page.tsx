@@ -46,10 +46,10 @@ type MenuRow = Awaited<ReturnType<typeof sdk.menus.list>>["data"][number];
 type SlotRow = Awaited<ReturnType<typeof sdk.menus.slots>>["data"][number];
 type SelectedMealCard = {
   label: string;
-  meal: string;
   tone: string;
   packageName: string;
   dateLabel: string;
+  dishNames: string[];
 };
 
 export default function Page() {
@@ -189,22 +189,27 @@ export default function Page() {
   const selectedEntryByDay = dayEntryMap.get(selectedDay) ?? null;
   const selectedMeals = useMemo(() => {
     if (!selectedEntryByDay) return [];
-    const uniqueSlots = new Map<string, SlotRow>();
+    const groupedSlots = new Map<string, SlotRow[]>();
     for (const slot of slots) {
       if (slot.menu_id !== selectedEntryByDay.menu_id) continue;
-      const key = `${normaliseMealLabel(slot.meal_time?.name)}::${slot.dish?.name ?? "-"}`;
-      if (!uniqueSlots.has(key)) uniqueSlots.set(key, slot);
+      const label = normaliseMealLabel(slot.meal_time?.name);
+      const existing = groupedSlots.get(label);
+      if (existing) {
+        existing.push(slot);
+        continue;
+      }
+      groupedSlots.set(label, [slot]);
     }
-    return Array.from(uniqueSlots.values())
+    return Array.from(groupedSlots.entries())
       .map((slot) => {
-        const label = normaliseMealLabel(slot.meal_time?.name);
+        const [label, grouped] = slot;
+        const dishNames = [...new Set(grouped.map((entry) => entry.dish?.name ?? "-"))];
         return {
-          slotId: slot.id,
           label,
-          meal: slot.dish?.name ?? "-",
           tone: mealTone[label] ?? "bg-[#F8FAFC] text-[#475569]",
           packageName: selectedEntryByDay.menu_name,
           dateLabel: formatLongDate(selectedEntryByDay.date),
+          dishNames,
         };
       })
       .sort(
@@ -223,7 +228,7 @@ export default function Page() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Kalender Menu"
-        subtitle="Atur jadwal menu harian - Klik tanggal untuk melihat detail paket menu"
+        subtitle="Klik tanggal untuk melihat jadwal menu harian"
         action={
           <div className="flex gap-2">
             <OutlineAction
@@ -370,15 +375,22 @@ export default function Page() {
         <div className="grid gap-3 p-5 md:grid-cols-3">
           {selectedMeals.map((item) => (
             <button
-              key={item.slotId}
+              key={`${item.label}-${item.packageName}`}
               className={`rounded-[10px] px-4 py-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.10)] ${item.tone}`}
               onClick={() => setSelectedMealCard(item)}
               type="button"
             >
               <p className="text-[10px] font-bold">{item.label}</p>
-              <p className="mt-2 text-sm font-semibold text-[#16213E]">{item.meal}</p>
+              <p className="mt-2 text-sm font-semibold text-[#16213E]">
+                {item.dishNames.length > 0 ? item.dishNames[0] : "-"}
+                {item.dishNames.length > 1 ? ` +${item.dishNames.length - 1} menu` : ""}
+              </p>
               <p className="mt-1 text-xs text-[#64748B]">
-                {selectedEntryByDay?.menu_name ? `Bagian dari ${selectedEntryByDay.menu_name}.` : "Belum ada paket aktif."}
+                {item.dishNames.length > 1
+                  ? item.dishNames.join(", ")
+                  : selectedEntryByDay?.menu_name
+                    ? `Bagian dari ${selectedEntryByDay.menu_name}.`
+                    : "Belum ada paket aktif."}
               </p>
             </button>
           ))}
@@ -399,7 +411,9 @@ export default function Page() {
           <div className="animate-modal-enter relative flex max-h-[calc(100vh-3rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
               <div>
-                <h2 className="text-[22px] font-semibold text-slate-900">{selectedMealCard.meal}</h2>
+                <h2 className="text-[22px] font-semibold text-slate-900">
+                  {selectedMealCard.dishNames.length > 0 ? selectedMealCard.dishNames[0] : "-"}
+                </h2>
                 <p className="mt-2 text-sm text-slate-400">{selectedMealCard.dateLabel}</p>
               </div>
               <button
@@ -419,8 +433,14 @@ export default function Page() {
 
               <div className={`rounded-[12px] px-4 py-4 ${selectedMealCard.tone}`}>
                 <p className="text-[10px] font-bold">{selectedMealCard.label}</p>
-                <p className="mt-2 text-lg font-semibold text-[#16213E]">{selectedMealCard.meal}</p>
-                <p className="mt-1 text-xs text-[#64748B]">Detail menu untuk sesi {selectedMealCard.label.toLowerCase()}.</p>
+                <p className="mt-2 text-lg font-semibold text-[#16213E]">
+                  {selectedMealCard.dishNames.length > 0 ? selectedMealCard.dishNames[0] : "-"}
+                </p>
+                <p className="mt-1 text-xs text-[#64748B]">
+                  {selectedMealCard.dishNames.length > 1
+                    ? `Terdapat ${selectedMealCard.dishNames.length} menu pada sesi ini: ${selectedMealCard.dishNames.join(", ")}.`
+                    : `Detail menu untuk sesi ${selectedMealCard.label.toLowerCase()}.`}
+                </p>
               </div>
             </div>
 

@@ -7,7 +7,7 @@ export default function Page() {
       allowVerificationAction
       additionalHistoryStorageKeys={["gudang-stock-opname-history"]}
       historyStorageKey="super-admin-stock-opname-history"
-      subtitle="Input penyesuaian stok fisik ke backend stock opname dan tampilkan history draft yang pernah dibuat."
+      subtitle=""
       title="Penyesuaian Stok"
     />
   );

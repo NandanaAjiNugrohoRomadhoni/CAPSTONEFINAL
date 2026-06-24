@@ -700,10 +700,10 @@ export default function StockAdjustmentPage({
         const systemQty = Number(detail.system_qty ?? 0);
         const countedQtyValue = Number(detail.counted_qty ?? 0);
         const createdByLabel =
-          (user && Number(user.id) === createdById ? user.name : null) ??
+          (user && Number(user.id) === createdById ? user.username || user.name : null) ??
+          userMap.get(createdById)?.username ??
           userMap.get(createdById)?.name ??
           cachedUserNames[createdById] ??
-          userMap.get(createdById)?.username ??
           getDefaultUserDisplayName(createdById) ??
           `User #${opname.header.created_by}`;
         return {
@@ -834,6 +834,19 @@ export default function StockAdjustmentPage({
       { approved: 0, rejected: 0, basah: 0, kering: 0, pengemas: 0 },
     );
 
+    const filterSummaryHtml = `
+      <table class="summary">
+        <tr><td class="summary-label">Pencarian</td><td class="summary-value">${escapeSpreadsheetHtml(searchTerm.trim() || "Semua Nama")}</td></tr>
+        <tr><td class="summary-label">Rentang Tanggal</td><td class="summary-value">${escapeSpreadsheetHtml(
+          dateRange.startDate && dateRange.endDate
+            ? `${formatDate(dateRange.startDate)} - ${formatDate(dateRange.endDate)}`
+            : "Semua Tanggal",
+        )}</td></tr>
+        <tr><td class="summary-label">Jenis Bahan</td><td class="summary-value">${escapeSpreadsheetHtml(categoryFilter)}</td></tr>
+        <tr><td class="summary-label">Status</td><td class="summary-value">${escapeSpreadsheetHtml(statusFilter)}</td></tr>
+      </table>
+    `;
+
     const rowsHtml = filteredRows
       .map(
         (row) => `
@@ -874,6 +887,7 @@ export default function StockAdjustmentPage({
               </table>
             </td>
             <td style="width: 62%; padding: 0 0 12px 0;">
+              ${filterSummaryHtml}
               <table>
                 <tr><td class="section" colspan="4">RINGKASAN KATEGORI</td></tr>
                 <tr class="head"><th>Kategori</th><th>Jumlah</th><th>Keterangan</th><th>Persentase</th></tr>
@@ -969,9 +983,7 @@ export default function StockAdjustmentPage({
       }
       setSuccessConfig({
         headline: autoApplyOnCreate ? "Penyesuaian Stok Berhasil Diterapkan" : "Penyesuaian Stok Berhasil Disimpan",
-        message: autoApplyOnCreate
-          ? `Penyesuaian stok PS-${String(headerId).padStart(4, "0")} langsung diterapkan ke stok bahan dan riwayat tetap ditampilkan di halaman ini.`
-          : `Draft stock opname PS-${String(headerId).padStart(4, "0")} tersimpan di backend dan riwayat tetap ditampilkan di halaman ini.`,
+        message: "",
       });
       if (autoApplyOnCreate) {
         setStockRows([]); // Trigger re-fetch
@@ -1076,7 +1088,7 @@ export default function StockAdjustmentPage({
 
       setSuccessConfig({
         headline: "Penyesuaian Stok Berhasil Dikonfirmasi",
-        message: `Penyesuaian stok PS-${String(headerId).padStart(4, "0")} berhasil diterapkan ke stok bahan.`,
+        message: "",
       });
       setVerificationTarget(null);
       setRejectionReason("");
@@ -1125,7 +1137,7 @@ export default function StockAdjustmentPage({
 
       setSuccessConfig({
         headline: "Penyesuaian Stok Ditolak",
-        message: `Penyesuaian stok PS-${String(headerId).padStart(4, "0")} berhasil ditolak.`,
+        message: "",
       });
       setVerificationTarget(null);
       setRejectTarget(null);
@@ -1419,7 +1431,7 @@ export default function StockAdjustmentPage({
             <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
               <div>
                 <h2 className="text-[22px] font-semibold text-[#16213E]">Verifikasi Penyesuaian Stok</h2>
-                <p className="mt-1 text-sm text-[#94A3B8]">Periksa kembali data sebelum stok bahan langsung diperbarui.</p>
+                <p className="mt-1 text-sm text-[#94A3B8]">{""}</p>
               </div>
               <button
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#EEF4FF] hover:text-[#2155CD]"
@@ -1433,7 +1445,7 @@ export default function StockAdjustmentPage({
             <div className="space-y-4 px-5 py-5">
               <div className="rounded-[18px] border border-[#FECACA] bg-[#FEF2F2] p-4">
                 <p className="text-center text-sm font-medium text-[#DC2626]">
-                  Pastikan data penyesuaian stok ini sudah benar karena stok bahan akan langsung diperbarui.
+                  Pastikan data ini sudah sesuai dengan data yang anda masukkan.
                 </p>
               </div>
 
@@ -1510,7 +1522,7 @@ export default function StockAdjustmentPage({
             <div className="flex items-start justify-between border-b border-[#E2E8F0] px-5 py-4">
               <div>
                 <h2 className="text-[22px] font-semibold text-[#16213E]">Konfirmasi Penyesuaian Stok</h2>
-                <p className="mt-1 text-sm text-[#94A3B8]">Pastikan data ini siap diterapkan ke stok bahan.</p>
+                <p className="mt-1 text-sm text-[#94A3B8]">{""}</p>
               </div>
               <button
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F8FAFC] text-[#94A3B8] transition hover:bg-[#EEF4FF] hover:text-[#2155CD] disabled:cursor-not-allowed disabled:opacity-60"
@@ -1526,7 +1538,7 @@ export default function StockAdjustmentPage({
               <div className="space-y-4">
               <div className="rounded-[18px] border border-[#FECACA] bg-[#FEF2F2] p-4">
                 <p className="text-center text-sm font-medium text-[#DC2626]">
-                  Setelah dikonfirmasi, status akan berubah menjadi disetujui dan stok bahan langsung diperbarui.
+                  Pastikan data ini sudah sesuai dengan data yang anda masukkan.
                 </p>
               </div>
 
@@ -1638,7 +1650,7 @@ export default function StockAdjustmentPage({
               <div className="space-y-4">
                 <div className="rounded-[18px] border border-[#FECACA] bg-[#FEF2F2] p-4">
                   <p className="text-sm font-medium text-[#DC2626]">
-                    Pengajuan penyesuaian stok akan berubah menjadi <span className="font-semibold">Ditolak</span> setelah alasan dikirim.
+                    Silahkan isi alasan sebelum mengajukan penolakan penyesuaian stok ini.
                   </p>
                 </div>
 

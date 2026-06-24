@@ -22,6 +22,28 @@ export type StockItemFormValue = {
   unitConvertName?: string;
 };
 
+function getDefaultUnitConvert(unitName: string) {
+  const normalized = unitName.trim().toLowerCase();
+
+  if (normalized === "gram") {
+    return "kg";
+  }
+
+  if (normalized === "ml") {
+    return "liter";
+  }
+
+  if (normalized === "butir") {
+    return "pack";
+  }
+
+  return {
+    gram: "kg",
+    ml: "liter",
+    butir: "pack",
+  }[normalized] ?? unitName;
+}
+
 type StockItemModalProps = {
   open: boolean;
   mode: "create" | "edit";
@@ -74,14 +96,6 @@ export default function StockItemModal({
     [mode],
   );
 
-  const subtitle = useMemo(
-    () =>
-      mode === "create"
-        ? "Masukkan data master bahan baru."
-      : "Perbarui data master bahan yang dipilih.",
-    [mode],
-  );
-
   const availableItemUnits = useMemo(() => {
     const currentUnit = initialValue?.unitName?.trim();
 
@@ -104,28 +118,6 @@ export default function StockItemModal({
     ];
   }, [initialValue?.unitName, itemUnits]);
 
-  function getDefaultUnitConvert(unitName: string) {
-    const normalized = unitName.trim().toLowerCase();
-
-    if (normalized === "gram") {
-      return "kg";
-    }
-
-    if (normalized === "ml") {
-      return "liter";
-    }
-
-    if (normalized === "butir") {
-      return "pack";
-    }
-
-    return {
-      gram: "kg",
-      ml: "liter",
-      butir: "pack",
-    }[normalized] ?? unitName;
-  }
-
   if (!open) {
     return null;
   }
@@ -138,7 +130,6 @@ export default function StockItemModal({
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-[22px] font-semibold leading-none text-slate-900">{title}</h2>
-            <p className="mt-2 text-sm text-slate-400">{subtitle}</p>
           </div>
 
           <button

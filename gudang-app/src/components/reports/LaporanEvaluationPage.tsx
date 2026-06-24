@@ -129,6 +129,7 @@ export default function LaporanEvaluationPage() {
   const [tableSpkHistory, setTableSpkHistory] = useState<SpkHistoryReportRow[]>([]);
   const [chartTransactions, setChartTransactions] = useState<TransactionReportRow[]>([]);
   const [chartSpkHistory, setChartSpkHistory] = useState<SpkHistoryReportRow[]>([]);
+  const [activeChartSeries, setActiveChartSeries] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -242,7 +243,7 @@ export default function LaporanEvaluationPage() {
     ];
   }, [stockRows]);
 
-  const monthOptions = useMemo(() => buildMonthOptions(selectedYear), [selectedYear]);
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
   const yearOptions = useMemo(() => buildYearOptions(), []);
 
   const stockQtyByItemId = useMemo(() => {
@@ -501,6 +502,10 @@ export default function LaporanEvaluationPage() {
 
   const exportDisabled = filteredRows.length === 0;
 
+  function toggleChartSeries(seriesKey: string) {
+    setActiveChartSeries((current) => (current === seriesKey ? null : seriesKey));
+  }
+
   function handleExport() {
     if (exportDisabled) return;
 
@@ -564,16 +569,15 @@ export default function LaporanEvaluationPage() {
       { label: "Total Barang Masuk", value: formatQuantity(totalRealization) },
       { label: "Total Barang Keluar", value: formatQuantity(totalUsage) },
       { label: "Total Stok Akhir", value: formatQuantity(totalClosingStock) },
-      { label: "Rata-rata Tingkat Akurasi", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
+      { label: "Rata-rata Tingkat akurasi SPK", value: `${formatSpreadsheetNumber(averageAccuracy, 2)}%` },
     ];
 
     const filterRows = [
-      { label: "Bulan", value: formatMonthLabel(selectedMonth, selectedYear) },
+      { label: "Bulan", value: formatMonthLabel(selectedMonth) },
       { label: "Tahun", value: String(selectedYear) },
       { label: "Periode Grafik", value: periodLabel },
       { label: "Kategori Bahan", value: categoryFilter === "all" ? "Semua Jenis" : categoryFilter },
-      { label: "Nama Bahan", value: searchTerm.trim() || "Semua Bahan" },
-      { label: "Item Grafik", value: selectedItemLabel },
+      { label: "Total Bahan", value: formatSpreadsheetNumber(reportRows.length, 0) },
     ];
 
     const htmlRows = reportRows
@@ -621,22 +625,39 @@ export default function LaporanEvaluationPage() {
             <td class="subtitle" colspan="10">Periode : ${escapeSpreadsheetHtml(periodLabel)} | Tanggal Cetak : ${escapeSpreadsheetHtml(printedAt)}</td>
           </tr>
           <tr class="no-border">
-            <td class="subtitle" colspan="10">Tujuan: Laporan ini digunakan untuk mengevaluasi tingkat akurasi rekomendasi SPK dengan membandingkan rekomendasi pembelian, realisasi pembelian bahan, dan penggunaan aktual bahan makanan selama periode tertentu.</td>
+            <td class="subtitle" colspan="10">Tujuan: Laporan ini digunakan untuk mengevaluasi tingkat akurasi SPK dengan membandingkan rekomendasi pembelian, realisasi pembelian bahan, dan penggunaan aktual bahan makanan selama periode tertentu.</td>
           </tr>
         </table>
 
-        <table class="section-gap">
+        <table class="no-border section-gap">
           <tr>
-            <td class="section" colspan="2">FILTER LAPORAN</td>
+            <td style="width: 52%; padding: 0 12px 12px 0; vertical-align: top;">
+              <table>
+                <tr><td class="section" colspan="2">RINGKASAN EVALUASI</td></tr>
+                ${summaryRows
+                  .map(
+                    (row) => `<tr class="summary">
+                      <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                      <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+                    </tr>`,
+                  )
+                  .join("")}
+              </table>
+            </td>
+            <td style="width: 48%; padding: 0 0 12px 0; vertical-align: top;">
+              <table>
+                <tr><td class="section" colspan="2">RINGKASAN FILTER</td></tr>
+                ${filterRows
+                  .map(
+                    (row) => `<tr class="summary">
+                      <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
+                      <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
+                    </tr>`,
+                  )
+                  .join("")}
+              </table>
+            </td>
           </tr>
-          ${filterRows
-            .map(
-              (row) => `<tr class="summary">
-                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
-                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
-              </tr>`,
-            )
-            .join("")}
         </table>
 
         <table class="section-gap">
@@ -651,25 +672,11 @@ export default function LaporanEvaluationPage() {
             <th>SPK</th>
             <th>Bahan Masuk</th>
             <th>Bahan Keluar</th>
-            <th>Bahan Masuk-Keluar</th>
+            <th>Selisih Bahan Masuk dan Keluar</th>
             <th>Stok Akhir</th>
-            <th>Tingkat Akurasi (%)</th>
+            <th>Tingkat akurasi SPK</th>
           </tr>
           ${htmlRows || `<tr><td class="muted" colspan="10">Belum ada data laporan pada periode ini.</td></tr>`}
-        </table>
-
-        <table class="section-gap">
-          <tr>
-            <td class="section" colspan="2">RINGKASAN EVALUASI</td>
-          </tr>
-          ${summaryRows
-            .map(
-              (row) => `<tr class="summary">
-                <td class="summary-label">${escapeSpreadsheetHtml(row.label)}</td>
-                <td class="summary-value">${escapeSpreadsheetHtml(row.value)}</td>
-              </tr>`,
-            )
-            .join("")}
         </table>
 
         <table class="section-gap">
@@ -700,7 +707,7 @@ export default function LaporanEvaluationPage() {
             <td class="muted">Penggunaan Aktual diperoleh dari transaksi barang keluar.</td>
           </tr>
           <tr>
-            <td class="muted">Tingkat Akurasi digunakan untuk mengukur kesesuaian antara hasil rekomendasi sistem dengan kebutuhan aktual di lapangan.</td>
+            <td class="muted">Tingkat akurasi SPK digunakan untuk mengukur kesesuaian antara hasil rekomendasi sistem dengan kebutuhan aktual di lapangan.</td>
           </tr>
           <tr>
             <td class="muted">Semakin kecil selisih antara rekomendasi, pembelian, dan penggunaan, maka semakin baik performa sistem dalam membantu perencanaan kebutuhan bahan makanan.</td>
@@ -723,8 +730,7 @@ export default function LaporanEvaluationPage() {
   return (
     <div className="space-y-5">
       <AdminPageHeading
-        title="Laporan"
-        subtitle="Melihat laporan evaluasi hasil perbandingan riwayat SPK, pemasukan bahan, dan penggunaan bahan"
+        title="Tabel Evaluasi Periodik"
       />
 
       {error ? (
@@ -785,9 +791,9 @@ export default function LaporanEvaluationPage() {
             <th className="px-6 py-3">SPK</th>
             <th className="px-6 py-3">Bahan Masuk</th>
             <th className="px-6 py-3">Bahan Keluar</th>
-            <th className="px-6 py-3">Bahan Masuk-Keluar</th>
+            <th className="px-6 py-3">Selisih Bahan Masuk dan Keluar</th>
             <th className="px-6 py-3">Stok Akhir</th>
-            <th className="px-6 py-3">Tingkat Akurasi</th>
+            <th className="px-6 py-3">Tingkat akurasi SPK</th>
           </tr>
             </thead>
             <tbody className="text-sm text-gray-700">
@@ -890,43 +896,72 @@ export default function LaporanEvaluationPage() {
                   <Legend
                     verticalAlign="bottom"
                     iconType="circle"
-                    formatter={(value) => <span style={{ color: "#64748B" }}>{normalizeChartLegend(value)}</span>}
+                    content={({ payload }) =>
+                      payload ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+                          {payload.map((entry) => {
+                            const seriesKey = String(entry.value ?? "");
+                            const isActive = activeChartSeries === null || activeChartSeries === seriesKey;
+                            return (
+                              <button
+                                key={seriesKey}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                  isActive
+                                    ? "border-[#D7E0EE] bg-white text-[#16213E]"
+                                    : "border-transparent bg-[#F8FAFC] text-[#94A3B8]"
+                                }`}
+                                onClick={() => toggleChartSeries(seriesKey)}
+                                type="button"
+                              >
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                {normalizeChartLegend(seriesKey)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null
+                    }
                   />
                   <Line
                     type="monotone"
                     dataKey="openingStock"
                     name="Stok Awal"
-                    stroke="#10B981"
+                    stroke="#14B8A6"
                     strokeWidth={2.5}
-                    strokeDasharray="8 6"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
+                    hide={activeChartSeries !== null && activeChartSeries !== "Stok Awal"}
                   >
-                    <LabelList dataKey="openingStock" position="top" fill="#10B981" fontSize={12} />
+                    <LabelList dataKey="openingStock" position="top" fill="#14B8A6" fontSize={12} />
                   </Line>
                   <Line
                     type="monotone"
                     dataKey="spk"
                     name="SPK"
-                    stroke="#EAB308"
+                    stroke="#F59E0B"
                     strokeWidth={3}
-                    strokeDasharray="3 3"
+                    strokeDasharray="2 6"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
+                    hide={activeChartSeries !== null && activeChartSeries !== "SPK"}
                   >
-                    <LabelList dataKey="spk" position="top" fill="#EAB308" fontSize={12} />
+                    <LabelList dataKey="spk" position="top" fill="#F59E0B" fontSize={12} />
                   </Line>
                   <Line
                     type="monotone"
                     dataKey="incoming"
                     name="Bahan Masuk"
-                    stroke="#2563EB"
+                    stroke="#22C55E"
                     strokeWidth={3}
-                    strokeDasharray="12 4"
+                    strokeDasharray="10 6"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
+                    hide={activeChartSeries !== null && activeChartSeries !== "Bahan Masuk"}
                   >
-                    <LabelList dataKey="incoming" position="top" fill="#2563EB" fontSize={12} />
+                    <LabelList dataKey="incoming" position="top" fill="#22C55E" fontSize={12} />
                   </Line>
                   <Line
                     type="monotone"
@@ -934,9 +969,10 @@ export default function LaporanEvaluationPage() {
                     name="Bahan Keluar"
                     stroke="#EF4444"
                     strokeWidth={3}
-                    strokeDasharray="2 4"
+                    strokeDasharray="10 6"
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
+                    hide={activeChartSeries !== null && activeChartSeries !== "Bahan Keluar"}
                   >
                     <LabelList dataKey="outgoing" position="top" fill="#EF4444" fontSize={12} />
                   </Line>
@@ -948,6 +984,7 @@ export default function LaporanEvaluationPage() {
                     strokeWidth={3}
                     dot={{ r: 4, strokeWidth: 2, fill: "#FFFFFF" }}
                     activeDot={{ r: 6 }}
+                    hide={activeChartSeries !== null && activeChartSeries !== "Stok Akhir"}
                   >
                     <LabelList dataKey="closingStock" position="top" fill="#7C3AED" fontSize={12} />
                   </Line>
@@ -1098,13 +1135,12 @@ function formatMonthKey(date: Date) {
   return `${year}-${month}`;
 }
 
-function buildMonthOptions(year: number): SelectOption[] {
+function buildMonthOptions(): SelectOption[] {
   return Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
-    const date = new Date(year, index, 1);
+    const date = new Date(2000, index, 1);
     const label = new Intl.DateTimeFormat("id-ID", {
       month: "long",
-      year: "numeric",
       timeZone: "Asia/Jakarta",
     }).format(date);
 
@@ -1123,8 +1159,8 @@ function buildYearOptions(): SelectOption[] {
   }));
 }
 
-function formatMonthLabel(month: number, year = new Date().getFullYear()) {
-  const date = new Date(year, month - 1, 1);
+function formatMonthLabel(month: number) {
+  const date = new Date(2000, month - 1, 1);
   return new Intl.DateTimeFormat("id-ID", {
     month: "long",
     timeZone: "Asia/Jakarta",

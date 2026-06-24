@@ -1,12 +1,15 @@
 "use client";
 
+import { downloadSpreadsheetHtml } from "@/lib/spreadsheet-export";
+
 type RecommendationExportRow = {
   itemName: string;
   categoryName?: string;
-  currentStock: string;
-  requiredQty: string;
-  recommendedQty: string;
+  currentStock: number;
+  requiredQty: number;
+  recommendedQty: number;
   numericRecommendedQty: number;
+  unit?: string | null;
 };
 
 type RecommendationExportMeta = {
@@ -32,6 +35,10 @@ function formatPlainNumber(value: number) {
   return new Intl.NumberFormat("id-ID", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatPlainQuantity(value: number) {
+  return formatPlainNumber(value);
 }
 
 function buildSpreadsheetShell(body: string) {
@@ -73,23 +80,13 @@ export function downloadRecommendationSpreadsheet({
   filename: string;
   html: string;
 }) {
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadSpreadsheetHtml(filename, html);
 }
 
 export function buildKeringRecommendationSpreadsheet(
   meta: RecommendationExportMeta,
   rows: RecommendationExportRow[],
 ) {
-  const totalRecommended = rows.reduce((total, row) => total + row.numericRecommendedQty, 0);
-
   const body = `
   <div class="title">SPS - REKOMENDASI BELANJA</div>
   <div class="subtitle">Hasil rekomendasi belanja berdasarkan data SPK dan stok bahan pada sistem.</div>
@@ -102,23 +99,12 @@ export function buildKeringRecommendationSpreadsheet(
           <tr><td class="summary-label">Jenis SPK</td><td class="summary-value">Kering & Pengemas</td></tr>
           <tr><td class="summary-label">Tanggal Berlaku</td><td class="summary-value">${escapeHtml(meta.targetLabel)}</td></tr>
           <tr><td class="summary-label">Jumlah Produk</td><td class="summary-value">${escapeHtml(meta.itemCountLabel)}</td></tr>
-          <tr><td class="summary-label">Total Rekomendasi</td><td class="summary-value">${formatPlainNumber(totalRecommended)}</td></tr>
-        </table>
-      </td>
-      <td style="width: 40%; padding: 0 12px 12px 0;">
-        <table>
-          <tr><td class="section" colspan="4">KRITERIA YANG DIGUNAKAN</td></tr>
-          <tr class="head"><th>Kode</th><th>Kriteria</th><th>Tipe</th><th>Keterangan</th></tr>
-          <tr><td>C1</td><td>Stok Saat Ini</td><td>Cost</td><td>Semakin rendah, semakin prioritas</td></tr>
-          <tr><td>C2</td><td>Kebutuhan</td><td>Benefit</td><td>Semakin tinggi, semakin prioritas</td></tr>
-          <tr><td>C3</td><td>Rekomendasi Sistem</td><td>Benefit</td><td>Jumlah belanja akhir dari sistem</td></tr>
         </table>
       </td>
       <td style="width: 22%; padding: 0 0 12px 0;">
         <table>
-          <tr><td class="pill">Tanggal Perhitungan</td><td>${escapeHtml(meta.calculationDate)}</td></tr>
+          <tr><td class="pill">Tanggal SPK Dibuat</td><td>${escapeHtml(meta.calculationDate)}</td></tr>
           <tr><td class="pill">ID SPK</td><td>${meta.spkId ? `SPK-${String(meta.spkId).padStart(4, "0")}` : "-"}</td></tr>
-          <tr><td class="method" colspan="2">METODE<br/>SPK</td></tr>
         </table>
       </td>
     </tr>
@@ -131,13 +117,13 @@ export function buildKeringRecommendationSpreadsheet(
 
   <table>
     <tr class="head">
-      <th>Ranking</th>
+      <th>No</th>
       <th>Nama Bahan</th>
       <th>Kategori</th>
       <th>Pemakaian Bulan Lalu</th>
       <th>Stok Saat Ini</th>
       <th>Rekomendasi Beli</th>
-      <th>Rekomendasi</th>
+      <th>Satuan</th>
     </tr>
     ${rows
       .map(
@@ -146,10 +132,10 @@ export function buildKeringRecommendationSpreadsheet(
       <td class="rank">${index + 1}</td>
       <td class="text-strong">${escapeHtml(row.itemName)}</td>
       <td>${escapeHtml(row.categoryName ?? "-")}</td>
-      <td class="number">${escapeHtml(row.requiredQty)}</td>
-      <td class="number">${escapeHtml(row.currentStock)}</td>
-      <td class="number text-strong">${escapeHtml(row.recommendedQty)}</td>
-      <td class="${row.numericRecommendedQty > 0 ? "ok" : "muted"}">${row.numericRecommendedQty > 0 ? "Direkomendasikan" : "Tidak ada tambahan"}</td>
+      <td class="number">${formatPlainQuantity(row.requiredQty)}</td>
+      <td class="number">${formatPlainQuantity(row.currentStock)}</td>
+      <td class="number text-strong">${formatPlainQuantity(row.recommendedQty)}</td>
+      <td>${escapeHtml(row.unit ?? "-")}</td>
     </tr>`,
       )
       .join("")}
@@ -162,8 +148,6 @@ export function buildBasahRecommendationSpreadsheet(
   meta: RecommendationExportMeta,
   rows: RecommendationExportRow[],
 ) {
-  const totalRecommended = rows.reduce((total, row) => total + row.numericRecommendedQty, 0);
-
   const body = `
   <div class="title">SPS - REKOMENDASI BELANJA</div>
   <div class="subtitle">Hasil rekomendasi belanja berdasarkan data SPK dan stok bahan pada sistem.</div>
@@ -176,23 +160,12 @@ export function buildBasahRecommendationSpreadsheet(
           <tr><td class="summary-label">Jenis SPK</td><td class="summary-value">Basah</td></tr>
           <tr><td class="summary-label">Tanggal Berlaku</td><td class="summary-value">${escapeHtml(meta.targetLabel)}</td></tr>
           <tr><td class="summary-label">Jumlah Produk</td><td class="summary-value">${escapeHtml(meta.itemCountLabel)}</td></tr>
-          <tr><td class="summary-label">Total Rekomendasi</td><td class="summary-value">${formatPlainNumber(totalRecommended)}</td></tr>
-        </table>
-      </td>
-      <td style="width: 40%; padding: 0 12px 12px 0;">
-        <table>
-          <tr><td class="section" colspan="4">KRITERIA YANG DIGUNAKAN</td></tr>
-          <tr class="head"><th>Kode</th><th>Kriteria</th><th>Tipe</th><th>Keterangan</th></tr>
-          <tr><td>C1</td><td>Stok Saat Ini</td><td>Cost</td><td>Semakin rendah, semakin prioritas</td></tr>
-          <tr><td>C2</td><td>Kebutuhan</td><td>Benefit</td><td>Semakin tinggi, semakin prioritas</td></tr>
-          <tr><td>C3</td><td>Rekomendasi Sistem</td><td>Benefit</td><td>Jumlah belanja akhir dari sistem</td></tr>
         </table>
       </td>
       <td style="width: 22%; padding: 0 0 12px 0;">
         <table>
-          <tr><td class="pill">Tanggal Perhitungan</td><td>${escapeHtml(meta.calculationDate)}</td></tr>
+          <tr><td class="pill">Tanggal SPK Dibuat</td><td>${escapeHtml(meta.calculationDate)}</td></tr>
           <tr><td class="pill">ID SPK</td><td>${meta.spkId ? `SPK-${String(meta.spkId).padStart(4, "0")}` : "-"}</td></tr>
-          <tr><td class="method" colspan="2">METODE<br/>SPK</td></tr>
         </table>
       </td>
     </tr>
@@ -205,13 +178,13 @@ export function buildBasahRecommendationSpreadsheet(
 
   <table>
     <tr class="head">
-      <th>Ranking</th>
+      <th>No</th>
       <th>Nama Bahan</th>
       <th>Kategori</th>
       <th>Stok Saat Ini</th>
       <th>Kebutuhan</th>
       <th>Rekomendasi Beli</th>
-      <th>Rekomendasi</th>
+      <th>Satuan</th>
     </tr>
     ${rows
       .map(
@@ -220,10 +193,10 @@ export function buildBasahRecommendationSpreadsheet(
       <td class="rank">${index + 1}</td>
       <td class="text-strong">${escapeHtml(row.itemName)}</td>
       <td>${escapeHtml(row.categoryName ?? "BASAH")}</td>
-      <td class="number">${escapeHtml(row.currentStock)}</td>
-      <td class="number">${escapeHtml(row.requiredQty)}</td>
-      <td class="number text-strong">${escapeHtml(row.recommendedQty)}</td>
-      <td class="${row.numericRecommendedQty > 0 ? "ok" : "muted"}">${row.numericRecommendedQty > 0 ? "Direkomendasikan" : "Tidak ada tambahan"}</td>
+      <td class="number">${formatPlainQuantity(row.currentStock)}</td>
+      <td class="number">${formatPlainQuantity(row.requiredQty)}</td>
+      <td class="number text-strong">${formatPlainQuantity(row.recommendedQty)}</td>
+      <td>${escapeHtml(row.unit ?? "-")}</td>
     </tr>`,
       )
       .join("")}
