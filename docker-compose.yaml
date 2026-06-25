@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # ── PHP + Caddy (FrankenPHP) app ─────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+    container_name: capstone-app
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      # Entrypoint DB connection (simple names, no dots)
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: capstone
+      DB_USER: capstone
+      DB_PASS: capstone_secret
+      # Override any .env values at container start
+      CI_ENVIRONMENT: production
+      database.default.hostname: db
+      database.default.database: capstone
+      database.default.username: capstone
+      database.default.password: capstone_secret
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount writable directory so logs persist across restarts
+      - app-writable:/app/writable
+
+  # ── Database ──────────────────────────────────────────────
+  db:
+    image: docker.io/library/mariadb:11
+    container_name: capstone-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: capstone
+      MYSQL_USER: capstone
+      MYSQL_PASSWORD: capstone_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql:Z
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Adminer (dev only) ────────────────────────────────────
+  adminer:
+    image: docker.io/library/adminer:latest
+    container_name: capstone-adminer
+    restart: unless-stopped
+    ports:
+      - "9000:8080"
+    depends_on:
+      - db
+
+volumes:
+  db-data:
+  app-writable:

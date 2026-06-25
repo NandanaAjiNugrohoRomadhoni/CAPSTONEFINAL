@@ -1,0 +1,22 @@
+# Exclude host PHP vendor — fresh install inside container
+**/vendor
+
+# Exclude host npm/node_modules — fresh install inside container
+**/node_modules
+
+# Exclude Next.js build artifacts (not source)
+gudang-app/.next
+gudang-app/out
+
+# Exclude Docker files from build context
+Dockerfile
+.dockerignore
+*.md
+
+# IDE / OS
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+Thumbs.db
