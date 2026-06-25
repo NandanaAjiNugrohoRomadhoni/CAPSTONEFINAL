@@ -24,6 +24,13 @@ type NoticeState = {
   message: string;
 } | null;
 
+type MealRowState = {
+  rowId: string;
+  slotId: number | null;
+  value: string;
+  deleted: boolean;
+};
+
 type DishOption = {
   id: number;
   name: string;
@@ -31,7 +38,6 @@ type DishOption = {
 };
 
 type MenuRow = Awaited<ReturnType<typeof sdk.menus.list>>["data"][number];
-type MenuSlotRow = Awaited<ReturnType<typeof sdk.menus.slots>>["data"][number];
 
 type MealTimeOption = {
   id: number;
@@ -75,11 +81,22 @@ const mealLabel: Record<MealKey, string> = {
 };
 
 const mealOrder: MealKey[] = ["siang", "sore", "pagi"];
-const emptyMealValues = (): Record<MealKey, string[]> => ({
-  siang: [""],
-  sore: [""],
-  pagi: [""],
+const emptyMealValues = (): Record<MealKey, MealRowState[]> => ({
+  siang: [createMealRowState()],
+  sore: [createMealRowState()],
+  pagi: [createMealRowState()],
 });
+
+function createMealRowState(slotId: number | null = null, value = ""): MealRowState {
+  return {
+    rowId: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `meal-row-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    slotId,
+    value,
+    deleted: false,
+  };
+}
 
 function normalizeMealKey(name: string | null | undefined): MealKey | null {
   const normalized = (name ?? "").trim().toLowerCase();
@@ -345,7 +362,7 @@ export default function PackagesManagerPage() {
   const [mealTimeOptions, setMealTimeOptions] = useState<MealTimeOption[]>([]);
   const [pendingInactiveSelection, setPendingInactiveSelection] = useState<{
     mealKey: MealKey;
-    rowIndex: number;
+    rowId: string;
     dish: DishOption;
   } | null>(null);
   const [menuSlots, setMenuSlots] = useState<
@@ -362,7 +379,7 @@ export default function PackagesManagerPage() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PackageCard | null>(null);
-  const [mealValues, setMealValues] = useState<Record<MealKey, string[]>>(emptyMealValues);
+  const [mealValues, setMealValues] = useState<Record<MealKey, MealRowState[]>>(emptyMealValues);
   const [successState, setSuccessState] = useState<NoticeState>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -506,10 +523,19 @@ export default function PackagesManagerPage() {
   async function openEditModal(item: PackageCard) {
     setSelectedPackage(item);
     setSelectedPackageId(item.id);
+    const siangRows = getSlotStates(item.id, "siang");
+    const soreRows = getSlotStates(item.id, "sore");
+    const pagiRows = getSlotStates(item.id, "pagi");
     setMealValues({
-      siang: item.meals.siang.length > 0 ? [...item.meals.siang] : [""],
-      sore: item.meals.sore.length > 0 ? [...item.meals.sore] : [""],
-      pagi: item.meals.pagi.length > 0 ? [...item.meals.pagi] : [""],
+      siang: siangRows.length > 0
+        ? siangRows.map((slot) => createMealRowState(slot.id, slot.dishName ?? ""))
+        : [createMealRowState()],
+      sore: soreRows.length > 0
+        ? soreRows.map((slot) => createMealRowState(slot.id, slot.dishName ?? ""))
+        : [createMealRowState()],
+      pagi: pagiRows.length > 0
+        ? pagiRows.map((slot) => createMealRowState(slot.id, slot.dishName ?? ""))
+        : [createMealRowState()],
     });
     setModalMode("edit");
     await ensureMenuOptions();
@@ -518,10 +544,12 @@ export default function PackagesManagerPage() {
   function confirmInactiveDishSelection() {
     if (!pendingInactiveSelection) return;
 
-    const { mealKey, rowIndex, dish } = pendingInactiveSelection;
+    const { mealKey, rowId, dish } = pendingInactiveSelection;
     setMealValues((current) => ({
       ...current,
-      [mealKey]: current[mealKey].map((value, index) => (index === rowIndex ? dish.name : value)),
+      [mealKey]: current[mealKey].map((row) =>
+        row.rowId === rowId ? { ...row, value: dish.name, deleted: false } : row,
+      ),
     }));
     setPendingInactiveSelection(null);
   }
@@ -541,23 +569,28 @@ export default function PackagesManagerPage() {
   function addMealRow(mealKey: MealKey) {
     setMealValues((current) => ({
       ...current,
-      [mealKey]: [...current[mealKey], ""],
+      [mealKey]: [...current[mealKey], createMealRowState()],
     }));
   }
 
-  function updateMealRow(mealKey: MealKey, rowIndex: number, nextValue: string) {
+  function updateMealRow(mealKey: MealKey, rowId: string, nextValue: string) {
     setMealValues((current) => ({
       ...current,
-      [mealKey]: current[mealKey].map((value, index) => (index === rowIndex ? nextValue : value)),
+      [mealKey]: current[mealKey].map((row) =>
+        row.rowId === rowId ? { ...row, value: nextValue, deleted: false } : row,
+      ),
     }));
   }
 
-  function removeMealRow(mealKey: MealKey, rowIndex: number) {
+  function removeMealRow(mealKey: MealKey, rowId: string) {
     setMealValues((current) => {
-      const nextValues = current[mealKey].filter((_, index) => index !== rowIndex);
+      const nextValues = current[mealKey].map((row) =>
+        row.rowId === rowId ? { ...row, deleted: true } : row,
+      );
+      const visibleRows = nextValues.filter((row) => !row.deleted);
       return {
         ...current,
-        [mealKey]: nextValues.length > 0 ? nextValues : [""],
+        [mealKey]: visibleRows.length > 0 ? nextValues : [...nextValues, createMealRowState()],
       };
     });
   }
@@ -580,9 +613,8 @@ export default function PackagesManagerPage() {
       const requests: Promise<unknown>[] = [];
 
       for (const mealKey of mealOrder) {
-        const selectedDishNames = mealValues[mealKey]
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0);
+        const mealRows = mealValues[mealKey];
+        const activeRows = mealRows.filter((row) => !row.deleted);
         const existingSlots = getSlotStates(selectedPackageId, mealKey);
         const mealTimeId =
           existingSlots[0]?.mealTimeId ?? mealTimeNameToId.get(mealKey) ?? null;
@@ -591,7 +623,7 @@ export default function PackagesManagerPage() {
           continue;
         }
 
-        const nextMealNames = [...selectedDishNames];
+        const nextMealNames = activeRows.map((row) => row.value.trim()).filter((value) => value.length > 0);
         setPackages((current) =>
           current.map((item) => {
             if (item.id !== selectedPackageId) {
@@ -608,26 +640,27 @@ export default function PackagesManagerPage() {
           }),
         );
 
-        const desiredCount = selectedDishNames.length;
-        const existingCount = existingSlots.length;
+        const existingSlotsById = new Map(existingSlots.map((slot) => [slot.id, slot]));
 
-        for (let index = 0; index < Math.max(desiredCount, existingCount); index += 1) {
-          const selectedDishName = selectedDishNames[index] ?? null;
-          const slot = existingSlots[index] ?? null;
+        for (const row of mealRows) {
+          const selectedDishName = row.value.trim();
+          const selectedDishId = selectedDishName.length > 0 ? menuNameToId.get(selectedDishName) ?? null : null;
 
-          if (!selectedDishName) {
-            if (slot?.id) {
-              requests.push(sdk.menus.deleteSlot(slot.id));
+          if (row.deleted) {
+            if (row.slotId) {
+              requests.push(sdk.menus.deleteSlot(row.slotId));
             }
             continue;
           }
 
-          const selectedDishId = menuNameToId.get(selectedDishName);
           if (!selectedDishId) {
+            if (row.slotId) {
+              requests.push(sdk.menus.deleteSlot(row.slotId));
+            }
             continue;
           }
 
-          if (!slot?.id) {
+          if (!row.slotId) {
             requests.push(
               sdk.menus.assignSlot({
                 menu_id: selectedPackageId,
@@ -638,9 +671,10 @@ export default function PackagesManagerPage() {
             continue;
           }
 
-          if (slot.dishId !== selectedDishId) {
+          const existingSlot = existingSlotsById.get(row.slotId) ?? null;
+          if (existingSlot?.dishId !== selectedDishId) {
             requests.push(
-              sdk.menus.updateSlot(slot.id, {
+              sdk.menus.updateSlot(row.slotId, {
                 dish_id: selectedDishId,
               }),
             );
@@ -795,6 +829,7 @@ export default function PackagesManagerPage() {
                   <div className="space-y-4 p-4">
                     {mealOrder.map((mealKey) => {
                       const slotStates = selectedPackageId ? getSlotStates(selectedPackageId, mealKey) : [];
+                      const visibleRows = mealValues[mealKey].filter((row) => !row.deleted);
 
                       return (
                         <div key={mealKey} className="rounded-[12px] border border-[#E2EAF5] bg-[#FBFDFF] p-4">
@@ -812,34 +847,31 @@ export default function PackagesManagerPage() {
                           </div>
 
                           <div className="space-y-3">
-                            {mealValues[mealKey].map((value, rowIndex) => {
+                            {visibleRows.map((row, rowIndex) => {
                               const slotState = slotStates[rowIndex] ?? null;
 
                               return (
-                                <div key={`${mealKey}-${rowIndex}`} className="flex items-start gap-3">
+                                <div key={row.rowId} className="flex items-start gap-3">
                                   <div className="min-w-0 flex-1">
                                     <SearchableMealSelect
                                       label={getMealRowLabel(rowIndex)}
                                       options={menuOptions}
-                                      placeholder={
-                                        slotState?.dishName ??
-                                        `Cari menu ${mealLabel[mealKey].toLowerCase()}`
-                                      }
-                                      value={value}
+                                      placeholder={row.value || slotState?.dishName || `Cari menu ${mealLabel[mealKey].toLowerCase()}`}
+                                      value={row.value}
                                       onChange={(nextValue, option) => {
                                         if (option && !option.isActive) {
-                                          setPendingInactiveSelection({ mealKey, rowIndex, dish: option });
+                                          setPendingInactiveSelection({ mealKey, rowId: row.rowId, dish: option });
                                           return;
                                         }
 
-                                        updateMealRow(mealKey, rowIndex, nextValue);
+                                        updateMealRow(mealKey, row.rowId, nextValue);
                                       }}
                                     />
                                   </div>
 
                                   <button
                                     className="mt-7 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100"
-                                    onClick={() => removeMealRow(mealKey, rowIndex)}
+                                    onClick={() => removeMealRow(mealKey, row.rowId)}
                                     type="button"
                                   >
                                     Hapus

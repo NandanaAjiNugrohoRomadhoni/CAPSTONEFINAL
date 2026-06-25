@@ -229,6 +229,24 @@ class MenuDishesTest extends CIUnitTestCase
         $this->assertSame(2, $json['data']['dish_id']);
     }
 
+    public function testUpdateExistingSlotWithoutChangingDishStillSucceeds(): void
+    {
+        $token = $this->login('admin');
+        $slot = $this->assignSlot($token, 3, 1, 1);
+
+        $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->put('api/v1/menu-dishes/' . $slot['id'], [
+                'dish_id' => 1,
+            ]);
+
+        $updateResult->assertStatus(200);
+        $json = json_decode($updateResult->getJSON(), true);
+        $this->assertSame('Menu slot updated successfully.', $json['message']);
+        $this->assertSame($slot['id'], $json['data']['id']);
+        $this->assertSame(1, $json['data']['dish_id']);
+    }
+
     public function testUpdateNonExistentSlotReturns404(): void
     {
         $token = $this->login('admin');

@@ -299,6 +299,20 @@ class MenuPackageManagementService
             $updateData['dish_id'] = $dishId;
         }
 
+        if ($updateData === [] || (
+            $menuId === (int) $existing['menu_id'] &&
+            $mealTimeId === (int) $existing['meal_time_id'] &&
+            $dishId === (int) $existing['dish_id']
+        )) {
+            $row = $this->menuDishModel->getByIdWithRelations($id);
+
+            return [
+                'success' => true,
+                'message' => 'Menu slot updated successfully.',
+                'data' => $this->formatSlot($row),
+            ];
+        }
+
         // Perform update
         $this->db->transStart();
         $updated = $this->menuDishModel->update($id, $updateData);
