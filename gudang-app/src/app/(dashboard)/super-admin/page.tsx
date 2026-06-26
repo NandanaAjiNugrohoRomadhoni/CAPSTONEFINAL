@@ -242,7 +242,8 @@ export default function Page() {
           title="Pasien Hari Ini"
           value={loading ? "..." : formatNumber(patientPoints.at(-1)?.total_patients ?? 0)}
           subtitle={loading ? "Memuat data pasien" : `${patientPoints.length} hari tercatat`}
-          color="border-blue-500"
+          color="border-blue-300"
+          outlineClass="border-blue-200"
           icon={<Users className="text-gray-500" />}
         />
         <StatCard
@@ -462,16 +463,18 @@ function StatCard({
   value,
   subtitle,
   color,
+  outlineClass = "border-gray-100",
   icon,
 }: {
   title: string;
   value: string;
   subtitle: string;
   color: string;
+  outlineClass?: string;
   icon: ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl border border-gray-100 border-t-4 bg-white p-6 shadow-sm ${color}`}>
+    <div className={`rounded-2xl border ${outlineClass} border-t-4 bg-white p-6 shadow-sm ${color}`}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-gray-400">{title}</p>

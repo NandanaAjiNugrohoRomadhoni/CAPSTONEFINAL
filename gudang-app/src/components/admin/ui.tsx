@@ -76,13 +76,16 @@ export function OutlineAction({
 export function SurfaceCard({
   children,
   className = "",
+  onClick,
 }: Readonly<{
   children: ReactNode;
   className?: string;
+  onClick?: MouseEventHandler<HTMLDivElement>;
 }>) {
   return (
     <div
-      className={`rounded-[18px] border border-[#D7E0EE] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] ${className}`}
+      className={`rounded-[18px] border border-[#D7E0EE] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] ${onClick ? "cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)]" : ""} ${className}`}
+      onClick={onClick}
     >
       {children}
     </div>

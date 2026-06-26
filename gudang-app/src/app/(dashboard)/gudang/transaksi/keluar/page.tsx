@@ -43,6 +43,7 @@ type SavedRecommendation = {
   totalItems: number;
   rows: BasahValidatedRow[];
   submitted?: boolean;
+  submittedAt?: string;
 };
 
 type AlertState = {
@@ -81,7 +82,9 @@ export default function BarangKeluarPage() {
   const [validating, setValidating] = useState(false);
   const [alertState, setAlertState] = useState<AlertState>(null);
   const [successState, setSuccessState] = useState<{ headline: string; message: string } | null>(null);
-  const basahValidationLocked = Boolean(savedRecommendation);
+  const basahValidationLocked = Boolean(savedRecommendation?.submittedAt ?? savedRecommendation?.submitted);
+  const basahTableLocked = Boolean(savedRecommendation?.submittedAt ?? savedRecommendation?.submitted);
+  const [serviceDate, setServiceDate] = useState(() => toIsoDate(new Date()));
 
   useEffect(() => {
     let cancelled = false;
@@ -115,7 +118,17 @@ export default function BarangKeluarPage() {
     };
   }, []);
 
-  const serviceDate = useMemo(() => toIsoDate(new Date()), []);
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+
+    const timeout = window.setTimeout(() => {
+      setServiceDate(toIsoDate(new Date()));
+    }, Math.max(nextMidnight.getTime() - now.getTime(), 1000));
+
+    return () => window.clearTimeout(timeout);
+  }, [serviceDate]);
 
   useEffect(() => {
     const saved = readSavedRecommendation(serviceDate);
@@ -123,7 +136,17 @@ export default function BarangKeluarPage() {
       setSavedRecommendation(saved);
       setPatientCount(String(saved.patientCount));
       setValidatedMeta({ totalItems: saved.totalItems, menuName: saved.menuName });
+      setValidatedRows(saved.rows.map((row) => ({ ...row })));
+      return;
     }
+
+    setSavedRecommendation(null);
+    setValidatedRows([]);
+    setValidatedMeta(null);
+    setRecommendationPreviewOpen(false);
+    setRecommendationRows([]);
+    setRecommendationMeta(null);
+    setPatientCount("0");
   }, [serviceDate]);
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -182,7 +205,6 @@ export default function BarangKeluarPage() {
     setValidating(true);
 
     try {
-      const serviceDate = toIsoDate(new Date());
       const previews = await Promise.all(
         mealTimes.map(async (mealTime) => {
           const response = await sdk.spk.operationalStockPreview({
@@ -318,7 +340,7 @@ export default function BarangKeluarPage() {
 
       setConfirmSaveOpen(false);
       const nextSavedRecommendation = savedRecommendation
-        ? { ...savedRecommendation, submitted: true }
+        ? { ...savedRecommendation, submitted: true, submittedAt: new Date().toISOString() }
         : null;
       if (nextSavedRecommendation) {
         writeSavedRecommendation(nextSavedRecommendation);
@@ -328,11 +350,16 @@ export default function BarangKeluarPage() {
         headline: "Barang keluar bahan basah berhasil disimpan",
         message: "",
       });
-      setValidatedRows([]);
       setValidatedMeta(
         nextSavedRecommendation
           ? { totalItems: nextSavedRecommendation.totalItems, menuName: nextSavedRecommendation.menuName }
           : null,
+      );
+      setValidatedRows((current) =>
+        current.map((row) => ({
+          ...row,
+          locked: true,
+        })),
       );
     } catch (saveError) {
       setConfirmSaveOpen(false);
@@ -391,10 +418,19 @@ export default function BarangKeluarPage() {
   }
 
   function resetBasahForm() {
-    setValidatedRows([]);
     setRecommendationPreviewOpen(false);
     setRecommendationRows([]);
     setRecommendationMeta(null);
+    if (savedRecommendation) {
+      setValidatedRows(savedRecommendation.rows.map((row) => ({ ...row, locked: true })));
+      setPatientCount(String(savedRecommendation.patientCount));
+      setValidatedMeta({ totalItems: savedRecommendation.totalItems, menuName: savedRecommendation.menuName });
+      return;
+    }
+
+    setValidatedRows([]);
+    setPatientCount("0");
+    setValidatedMeta(null);
     if (!savedRecommendation) {
       setPatientCount("0");
       setValidatedMeta(null);
@@ -462,10 +498,10 @@ export default function BarangKeluarPage() {
                   type="number"
                   value={patientCount}
                   onChange={(event) => setPatientCount(event.target.value)}
-                  disabled={savedRecommendation !== null}
+                  disabled={basahTableLocked}
                   placeholder="0"
                   className={`mt-3 h-12 w-full rounded-xl border border-gray-200 px-4 text-base font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500 ${
-                    savedRecommendation ? "cursor-not-allowed bg-slate-100 text-slate-500" : ""
+                    basahTableLocked ? "cursor-not-allowed bg-slate-100 text-slate-500" : ""
                   }`}
                 />
               </div>
@@ -492,19 +528,22 @@ export default function BarangKeluarPage() {
                         value={row.item_id || null}
                         placeholder="Pilih Nama Bahan"
                         className="col-span-4"
+                        disabled={basahTableLocked || Boolean(row.locked)}
                         onChange={(nextId, unit) =>
-                          setValidatedRows((current) =>
-                            current.map((item) =>
-                              item.id === row.id
-                                ? {
-                                    ...item,
-                                    item_id: nextId ?? 0,
-                                    item_name: nextId ? basahItemOptions.find((option) => option.id === nextId)?.label ?? "" : "",
-                                    unit: nextId ? unit ?? "-" : "-",
-                                  }
-                                : item,
-                            ),
-                          )
+                          (savedRecommendation?.submittedAt || savedRecommendation?.submitted)
+                            ? undefined
+                            : setValidatedRows((current) =>
+                                current.map((item) =>
+                                  item.id === row.id
+                                    ? {
+                                        ...item,
+                                        item_id: nextId ?? 0,
+                                        item_name: nextId ? basahItemOptions.find((option) => option.id === nextId)?.label ?? "" : "",
+                                        unit: nextId ? unit ?? "-" : "-",
+                                      }
+                                    : item,
+                                ),
+                              )
                         }
                       />
                       <div className="col-span-2 text-base font-medium text-gray-600">{row.qty_spk}</div>
@@ -513,22 +552,28 @@ export default function BarangKeluarPage() {
                         min="0"
                         value={row.qty_actual}
                         onChange={(event) =>
-                          setValidatedRows((current) =>
-                            current.map((item) =>
-                              item.id === row.id ? { ...item, qty_actual: event.target.value } : item,
-                            ),
-                          )
+                          basahTableLocked
+                            ? undefined
+                            : setValidatedRows((current) =>
+                                current.map((item) =>
+                                  item.id === row.id ? { ...item, qty_actual: event.target.value } : item,
+                                ),
+                              )
                         }
-                        className="col-span-2 h-12 rounded-xl border border-gray-200 px-4 py-2 text-base"
+                        disabled={basahTableLocked || Boolean(row.locked)}
+                        className="col-span-2 h-12 rounded-xl border border-gray-200 px-4 py-2 text-base disabled:cursor-not-allowed disabled:bg-gray-100"
                       />
                       <div className="col-span-1 text-base font-medium text-gray-600">{row.unit}</div>
                       <button
-                        className="col-span-1 flex justify-center rounded-xl p-3 text-red-500 transition hover:bg-red-50"
+                        className="col-span-1 flex justify-center rounded-xl p-3 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 disabled:hover:bg-transparent"
                         onClick={() =>
-                          setValidatedRows((current) =>
-                            current.length === 1 ? current : current.filter((item) => item.id !== row.id),
-                          )
+                          basahTableLocked
+                            ? undefined
+                            : setValidatedRows((current) =>
+                                current.length === 1 ? current : current.filter((item) => item.id !== row.id),
+                              )
                         }
+                        disabled={basahTableLocked || Boolean(row.locked)}
                         type="button"
                       >
                         <Trash2 size={16} />
@@ -546,21 +591,24 @@ export default function BarangKeluarPage() {
                 {validatedRows.length > 0 ? (
                   <div className="border-t p-3">
                     <button
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-400 py-3 text-base text-blue-600 transition hover:bg-blue-50"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-400 py-3 text-base text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-blue-200 disabled:text-blue-300 disabled:hover:bg-transparent"
                       onClick={() =>
-                        setValidatedRows((current) => [
-                          ...current,
-                          {
-                            id: Date.now() + Math.floor(Math.random() * 1000),
-                            item_id: 0,
-                            item_name: "",
-                            unit: "-",
-                            qty_spk: 0,
-                            qty_actual: "0",
-                            locked: false,
-                          },
-                        ])
+                        basahTableLocked
+                          ? undefined
+                          : setValidatedRows((current) => [
+                              ...current,
+                              {
+                                id: Date.now() + Math.floor(Math.random() * 1000),
+                                item_id: 0,
+                                item_name: "",
+                                unit: "-",
+                                qty_spk: 0,
+                                qty_actual: "0",
+                                locked: false,
+                              },
+                            ])
                       }
+                      disabled={basahTableLocked}
                       type="button"
                     >
                       <Plus size={16} />
@@ -605,9 +653,13 @@ export default function BarangKeluarPage() {
                   setConfirmSaveOpen(true);
                 }}
                 type="button"
-                disabled={saving}
+                disabled={saving || basahTableLocked}
               >
-                {saving ? "Menyimpan..." : "Simpan"}
+                {saving
+                  ? "Menyimpan..."
+                  : basahTableLocked
+                    ? "Sudah Disimpan"
+                    : "Simpan"}
               </button>
             </div>
           </div>
@@ -728,15 +780,12 @@ export default function BarangKeluarPage() {
         saving={saving}
       />
 
-      <ConfirmDrySaveModal
-        open={confirmDrySaveOpen}
-        itemCount={rows.filter((row) => row.item_id !== null && Number(row.qty) > 0).length}
-        rowCount={rows.length}
-        previewRows={rows.filter((row) => row.item_id !== null && Number(row.qty) > 0)}
-        onClose={() => setConfirmDrySaveOpen(false)}
-        onConfirm={() => void saveDryOutput()}
-        saving={saving}
-      />
+        <ConfirmDrySaveModal
+          open={confirmDrySaveOpen}
+          onClose={() => setConfirmDrySaveOpen(false)}
+          onConfirm={() => void saveDryOutput()}
+          saving={saving}
+        />
 
       <AlertModal open={alertState !== null} config={alertState} onClose={() => setAlertState(null)} />
 
@@ -901,7 +950,9 @@ function ConfirmBasahSaveModal({
             className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
             data-patient-count={patientCount}
             data-total-rows={totalRows}
-          />
+          >
+            Apakah Anda yakin menyimpan {totalRows} bahan ini?
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
@@ -929,17 +980,11 @@ function ConfirmBasahSaveModal({
 
 function ConfirmDrySaveModal({
   open,
-  itemCount,
-  rowCount,
-  previewRows,
   onClose,
   onConfirm,
   saving,
 }: {
   open: boolean;
-  itemCount: number;
-  rowCount: number;
-  previewRows: ManualRow[];
   onClose: () => void;
   onConfirm: () => void;
   saving: boolean;
@@ -966,22 +1011,7 @@ function ConfirmDrySaveModal({
 
         <div className="space-y-4 px-5 py-5">
           <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600">
-            Sistem akan menyimpan <span className="font-semibold text-slate-900">{itemCount} bahan</span> dari{" "}
-            <span className="font-semibold text-slate-900">{rowCount} baris input</span>.
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-[#D7E0EE]">
-            <div className="grid grid-cols-12 border-b bg-[#F8FAFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
-              <div className="col-span-6">Nama Bahan</div>
-              <div className="col-span-3">Jumlah</div>
-              <div className="col-span-3">Satuan</div>
-            </div>
-            {previewRows.map((row) => (
-              <div key={row.id} className="grid grid-cols-12 items-center gap-3 border-t px-4 py-3 text-sm text-slate-700">
-                <div className="col-span-6 font-medium text-slate-900">{row.item_id ? `Item #${row.item_id}` : "-"}</div>
-                <div className="col-span-3">{row.qty}</div>
-                <div className="col-span-3">{row.unit}</div>
-              </div>
-            ))}
+            Pastikan data pengeluaran bahan kering & pengemas sudah benar sebelum disimpan.
           </div>
         </div>
 

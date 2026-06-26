@@ -723,7 +723,7 @@ function SelectSpkModal({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-[420px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+      <div className="relative w-full max-w-[460px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-[22px] font-semibold leading-none text-slate-900">Prefill via SPK</h2>
@@ -742,7 +742,7 @@ function SelectSpkModal({
           <div>
             <label className="block text-sm font-semibold text-slate-700">ID SPK</label>
             <ThemedSelect
-              className="mt-2 h-11 text-sm"
+              className="mt-2 h-11 w-full text-sm"
               value={selectedSpkId ? String(selectedSpkId) : ""}
               onChange={(value) => onChangeSelectedSpkId(Number(value) || null)}
               options={[

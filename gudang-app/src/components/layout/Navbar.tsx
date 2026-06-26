@@ -54,30 +54,41 @@ export default function Navbar({
   const pageTitle = useMemo(() => {
     const titleMap: Record<string, string> = {
       "/super-admin": "Dashboard",
-      "/super-admin/users": "Manajemen Pengguna",
-      "/super-admin/log-aktivitas": "Log Aktivitas",
-      "/super-admin/master-data/jenis": "Data Jenis Bahan",
-      "/super-admin/master-data/satuan": "Data Satuan",
-      "/super-admin/transaksi/masuk": "Barang Masuk",
-      "/super-admin/transaksi/keluar": "Barang Keluar",
-      "/super-admin/transaksi/riwayat": "Riwayat Transaksi Barang",
+      "/super-admin/users": "Pengguna",
+      "/super-admin/log-aktivitas": "Log",
+      "/super-admin/master-data/jenis": "Jenis Bahan",
+      "/super-admin/master-data/satuan": "Satuan",
+      "/super-admin/transaksi/masuk": "Masuk",
+      "/super-admin/transaksi/keluar": "Keluar",
+      "/super-admin/transaksi/riwayat": "Riwayat",
       "/super-admin/stok/basah": "Stok Bahan",
-      "/super-admin/stok/riwayat": "Penyesuaian Stok",
-      "/super-admin/menu": "Menu Makanan",
+      "/super-admin/stok/riwayat": "Penyesuaian",
+      "/super-admin/menu": "Menu",
       "/super-admin/menu/paket": "Paket Menu",
-      "/super-admin/menu/kalender": "Kalender Menu",
+      "/super-admin/menu/kalender": "Kalender",
       "/super-admin/spk/basah": "Belanja Basah",
-      "/super-admin/spk/kering": "Belanja Kering & Pengemas",
+      "/super-admin/spk/kering": "Belanja Kering",
       "/super-admin/spk/riwayat": "Riwayat SPK",
       "/super-admin/laporan": "Laporan",
       "/gizi": "Dashboard",
-      "/gizi/menu": "Menu Makanan",
+      "/gizi/menu": "Menu",
       "/gizi/menu/paket": "Paket Menu",
-      "/gizi/menu/kalender": "Kalender Menu",
-      "/gizi/stok": "Manajemen Stok",
-      "/gizi/spk": "SPK Perencanaan",
+      "/gizi/menu/kalender": "Kalender",
+      "/gizi/stok": "Stok",
+      "/gizi/spk": "SPK",
       "/gizi/laporan": "Laporan",
       "/profil": "Profil",
+      "/gudang": "Dashboard",
+      "/gudang/laporan": "Laporan",
+      "/gudang/spk/basah": "SPK Basah",
+      "/gudang/spk/kering": "SPK Kering",
+      "/gudang/spk/riwayat": "Riwayat SPK",
+      "/gudang/stok": "Stok",
+      "/gudang/stok/penyesuaian": "Penyesuaian",
+      "/gudang/transaksi/keluar": "Keluar",
+      "/gudang/transaksi/masuk": "Masuk",
+      "/gudang/transaksi/pengajuan-revisi": "Revisi",
+      "/gudang/transaksi/riwayat": "Riwayat",
     };
 
     if (titleMap[pathname]) {
@@ -99,7 +110,7 @@ export default function Navbar({
 
   const breadcrumb =
     pathname === "/profil"
-      ? "Pengaturan / Profil"
+      ? "Profil"
       : `${user?.role?.name ? getRoleLabel(user.role.name) : "Dashboard"} / ${pageTitle}`;
   const isActivityLogPage = pathname === "/super-admin/log-aktivitas";
   const initials =
@@ -355,8 +366,7 @@ export default function Navbar({
         </button>
 
         <div>
-          <p className="text-xs text-gray-400">{breadcrumb}</p>
-          <h1 className="font-semibold text-gray-900">{pageTitle}</h1>
+          <p className="text-[13px] font-medium leading-tight text-[#94A3B8]">{breadcrumb}</p>
         </div>
       </div>
 
@@ -538,8 +548,8 @@ export default function Navbar({
           {openProfileMenu && (
             <div className="absolute right-0 mt-2 w-[220px] overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
               <div className="border-b border-[#E2E8F0] px-4 py-3">
-                <p className="text-sm font-semibold text-[#64748B]">{user?.name ?? "Pengguna"}</p>
-                <p className="mt-1 text-xs text-[#94A3B8]">{getRoleLabel(user?.role?.name)}</p>
+                <p className="text-[15px] font-semibold text-black">{user?.name ?? "Pengguna"}</p>
+                <p className="mt-1 text-sm text-black/60">{getRoleLabel(user?.role?.name)}</p>
               </div>
 
               <div className="p-2">

@@ -63,6 +63,22 @@ const ALL_STOCK_REPORT_PERIOD = {
 
 const MENU_DESCRIPTION_STORAGE_KEY = "menu-manual-descriptions";
 
+function getPaginationWindow(currentPage: number, totalPages: number) {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, 5];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return Array.from({ length: 5 }, (_, index) => totalPages - 4 + index);
+  }
+
+  return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+}
+
 function sortMenusByStatusAndName(nextMenus: FoodMenu[]) {
   return [...nextMenus].sort((left, right) => {
     const activeDiff = Number(right.isActive) - Number(left.isActive);
@@ -747,13 +763,13 @@ export default function GiziMenuManagementPage() {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t bg-[#F8FAFC] px-5 py-4 text-sm text-[#94A3B8]">
-            <span>
+          <div className="flex flex-col items-center gap-4 border-t bg-[#F8FAFC] px-5 py-4 text-sm text-[#94A3B8]">
+            <span className="text-center">
               {filteredMenus.length === 0
                 ? "0 menu"
                 : `${(currentPage - 1) * 8 + 1}-${Math.min(currentPage * 8, filteredMenus.length)} dari ${filteredMenus.length} menu`}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#D8E3F8] bg-white text-[#94A3B8] transition hover:border-[#2563EB] hover:text-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={currentPage === 1}
@@ -762,7 +778,7 @@ export default function GiziMenuManagementPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              {getPaginationWindow(currentPage, totalPages).map((page) => (
                 <button
                   key={page}
                   className={`flex h-9 min-w-9 items-center justify-center rounded-xl px-3 text-sm font-semibold transition ${

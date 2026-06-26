@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ShoppingCart, Users, Utensils } from "lucide-react";
 import sdk from "@/lib";
 import {
@@ -25,6 +26,17 @@ import type {
 } from "@/sdk";
 
 type DashboardMode = "gudang" | "dapur";
+
+type DashboardCardRoutes = {
+  patients: string;
+  menu: string;
+  stock: string;
+  adjustment: string;
+  spk: string;
+  composition: string;
+  spkDetail: string;
+  outbound: string;
+};
 
 type DashboardState = {
   stock_summary?: {
@@ -119,6 +131,7 @@ type SpkPanelDetail = {
 type DailyPatientRow = Awaited<ReturnType<typeof sdk.dailyPatients.list>>["data"][number];
 
 export default function OperationalDashboardPage({ mode }: Readonly<{ mode: DashboardMode }>) {
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardState>({});
   const [dailyPatients, setDailyPatients] = useState<DailyPatient[]>([]);
   const [transactionRows, setTransactionRows] = useState<TransactionReportRow[]>([]);
@@ -128,6 +141,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
   const [menuCalendarMenu, setMenuCalendarMenu] = useState<{ menu_id?: number | null; menu_name?: string | null; date?: string | null }>({});
   const [basahDetail, setBasahDetail] = useState<SpkBasahDetail | null>(null);
   const [keringDetail, setKeringDetail] = useState<SpkKeringPengemasDetail | null>(null);
+  const [draftAdjustmentCount, setDraftAdjustmentCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -221,6 +235,8 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
         } else {
           setKeringDetail(null);
         }
+
+        setDraftAdjustmentCount(mode === "gudang" ? await loadGudangDraftAdjustmentCount() : 0);
       } catch (loadError) {
         if (cancelled) return;
         setError(getErrorMessage(loadError, "Gagal memuat dashboard."));
@@ -295,6 +311,29 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
   const spkCount =
     Number(Boolean(dashboard.latest_spk_history?.basah?.id)) +
     Number(Boolean(dashboard.latest_spk_history?.kering_pengemas?.id));
+  const draftAdjustmentLabel = formatNumber(draftAdjustmentCount ?? 0);
+  const dashboardCardRoutes: DashboardCardRoutes =
+    mode === "dapur"
+      ? {
+          patients: "/gizi/laporan",
+          menu: "/gizi/menu/kalender",
+          stock: "/gizi/stok",
+          adjustment: "/gizi/stok",
+          spk: "/gizi/spk",
+          composition: "/gizi/menu/kalender",
+          spkDetail: "/gizi/spk",
+          outbound: "/gizi/laporan",
+        }
+      : {
+          patients: "/gudang/laporan",
+          menu: "/gudang/stok/penyesuaian",
+          stock: "/gudang/stok",
+          adjustment: "/gudang/stok/penyesuaian",
+          spk: "/gudang/spk/riwayat",
+          composition: "/gudang/transaksi/keluar",
+          spkDetail: "/gudang/spk/riwayat",
+          outbound: "/gudang/transaksi/keluar",
+        };
 
   const todayIso = toIsoDate(new Date());
 
@@ -345,6 +384,22 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
     ];
   }, [stockRows]);
 
+  const warningRows = useMemo(
+    () =>
+      stockRows
+        .filter((row) => {
+          const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
+          return tone === "danger" || tone === "critical";
+        })
+        .sort(
+          (left, right) =>
+            Number(left.qty ?? 0) - Number(right.qty ?? 0) ||
+            String(left.item_name ?? "").localeCompare(String(right.item_name ?? "")),
+        ),
+    [stockRows],
+  );
+  const visibleWarningRows = useMemo(() => warningRows.slice(0, 8), [warningRows]);
+
   const stockFocusRows = useMemo(
     () =>
       [...stockRows]
@@ -355,7 +410,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           };
           return priority(left) - priority(right) || Number(left.qty ?? 0) - Number(right.qty ?? 0);
         })
-        .slice(0, 6),
+        .slice(0, 9),
     [stockRows],
   );
 
@@ -529,15 +584,18 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
               ? "Memuat data pasien"
               : `${patientDelta >= 0 ? "+" : ""}${formatNumber(Math.abs(patientDelta), 1)}% dari kemarin`
           }
-          color="border-blue-500"
+          color="border-blue-300"
+          outlineClass="border-blue-200"
           icon={<Users className="text-gray-500" />}
+          onClick={dashboardCardRoutes ? () => router.push(dashboardCardRoutes.patients) : undefined}
         />
         <DashboardStatCard
-          title="Menu Aktif"
-          value={loading ? "..." : activeMenu}
-          subtitle={loading ? "Memuat menu aktif" : "Menu hari ini"}
+          title={mode === "gudang" ? "Penyesuaian Stok" : "Menu Aktif"}
+          value={loading ? "..." : mode === "gudang" ? draftAdjustmentLabel : activeMenu}
+          subtitle={loading ? (mode === "gudang" ? "Memuat draft" : "Memuat menu aktif") : mode === "gudang" ? "Belum diajukan" : "Menu hari ini"}
           color="border-green-500"
           icon={<Utensils className="text-gray-500" />}
+          onClick={dashboardCardRoutes ? () => router.push(dashboardCardRoutes.menu) : undefined}
         />
         <DashboardStatCard
           title="Stok Kritis"
@@ -545,6 +603,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           subtitle={loading ? "Memuat stok" : "Bahan butuh restock"}
           color="border-red-500"
           icon={<AlertTriangle className="text-gray-500" />}
+          onClick={dashboardCardRoutes ? () => router.push(dashboardCardRoutes.stock) : undefined}
         />
         <DashboardStatCard
           title="SPK Belanja"
@@ -552,23 +611,268 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           subtitle={loading ? "Memuat SPK" : "Bahan rekomendasi aktif"}
           color="border-yellow-500"
           icon={<ShoppingCart className="text-gray-500" />}
+          onClick={dashboardCardRoutes ? () => router.push(dashboardCardRoutes.spk) : undefined}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {mode === "gudang" ? (
-          <SurfaceCard className="overflow-hidden">
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-[#16213E]">Bahan Keluar Hari Ini</h3>
-                <p className="mt-1 text-xs text-[#94A3B8]">Ringkasan transaksi keluar terbaru</p>
+      {mode === "dapur" ? (
+        <>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+            <SurfaceCard
+              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
+              onClick={() => router.push(dashboardCardRoutes.composition)}
+            >
+              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F4F8FF] to-white px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2155CD]">
+                      Komposisi Hari Ini
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">Komposisi Menu Hari Ini</h3>
+                    <p className="mt-1 text-xs text-[#64748B]">
+                      {currentDateLabel} - {activeMenu} - {formatNumber(Number(latestPatients ?? 0))} pasien
+                    </p>
+                  </div>
+                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.composition)}>
+                    Detail
+                  </MiniActionButton>
+                </div>
               </div>
-              <MiniActionButton>Detail</MiniActionButton>
+
+              <div className="flex-1 overflow-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-gradient-to-r from-[#2155CD] to-[#6EA8FF] text-[11px] font-semibold uppercase tracking-wide text-white">
+                    <tr>
+                      <th className="px-4 py-3">Menu</th>
+                      <th className="px-4 py-3">Komposisi Bahan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E6EEFF] text-sm text-gray-700">
+                    {compositionRows.map((row, index) => (
+                      <tr key={row.key} className={index % 2 === 0 ? "bg-white" : "bg-[#F8FBFF] hover:bg-[#EEF4FF]/70"}>
+                        <td className="px-4 py-4 align-top">
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                                getMealPalette(row.mealTime).label
+                              } bg-white/90 ring-1 ring-inset ring-[#D7E0EE]`}
+                            >
+                              {row.mealTime}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[#16213E]">{row.dishName}</p>
+                              <p className="mt-1 text-xs text-[#64748B]">{row.items.length} bahan utama</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-[#475569]">
+                          <div className="flex flex-wrap gap-2">
+                            {renderCompositionChips(row.items)}
+                            {row.items.length > 4 ? (
+                              <span className="rounded-full bg-[#E2E8F0] px-3 py-1 text-xs font-semibold text-[#475569]">
+                                +{row.items.length - 4} lagi
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {!loading && compositionRows.length === 0 ? (
+                      <tr>
+                        <td className="px-4 py-10 text-center text-gray-400" colSpan={2}>
+                          Belum ada komposisi menu yang tersedia.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </SurfaceCard>
+
+            <SurfaceCard
+              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
+              onClick={() => router.push(dashboardCardRoutes.spk)}
+            >
+              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#EEF4FF] to-white px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#64748B]">
+                      Rekomendasi Belanja
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">SPK - Rekomendasi Belanja</h3>
+                    <p className="mt-1 text-xs text-[#64748B]">Hasil rekomendasi aktif dari SPK hari ini</p>
+                  </div>
+                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.spk)}>
+                    Detail
+                  </MiniActionButton>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
+                {spkPanels.map((panel) => (
+                  <div key={panel.id} className="rounded-2xl border border-[#C7D2FE] bg-gradient-to-br from-[#EEF4FF] to-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">{panel.title}</p>
+                        <p className="mt-2 text-sm font-semibold text-[#16213E]">SPK-{String(panel.id).padStart(4, "0")}</p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          {formatCompactDate(panel.detail?.calculation_date ?? null)}
+                        </p>
+                      </div>
+                      <MiniActionButton onClick={() => router.push(dashboardCardRoutes.spk)}>
+                        Detail
+                      </MiniActionButton>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(panel.detail?.items ?? []).slice(0, 4).map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-lg border border-white/70 bg-white/80 px-3 py-2 text-sm text-[#16213E]"
+                        >
+                          <span className="font-medium">{item.item_name ?? "-"}</span>
+                          <span className="font-semibold">
+                            Beli {formatQuantity(item.final_recommended_qty ?? 0, item.item_unit_base)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(panel.detail?.items ?? []).length > 4 ? (
+                      <p className="mt-2 text-xs text-[#64748B]">
+                        +{(panel.detail?.items ?? []).length - 4} item lainnya
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+
+                {!loading && spkPanels.length === 0 ? (
+                  <div className="rounded-xl bg-[#F8FAFC] px-4 py-8 text-center text-sm text-gray-400">
+                    Belum ada riwayat SPK pada periode ini.
+                  </div>
+                ) : null}
+              </div>
+            </SurfaceCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.94fr_1.06fr]">
+            <SurfaceCard
+              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
+              onClick={() => router.push(dashboardCardRoutes.stock)}
+            >
+              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F8FAFF] to-white px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2155CD]">
+                      Ringkasan Stok
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">Ringkasan Stok Bahan</h3>
+                    <p className="mt-1 text-xs text-[#64748B]">Ikhtisar singkat untuk bahan yang perlu perhatian</p>
+                  </div>
+                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.stock)}>
+                    Detail
+                  </MiniActionButton>
+                </div>
+              </div>
+
+              <div className="flex-1 px-5 py-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {stockSummaryBoxes.map((box) => (
+                    <div key={box.label} className={`rounded-2xl px-4 py-3 ${box.tone}`}>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide">{box.label}</div>
+                      <div className="mt-1 text-lg font-bold">{formatNumber(box.value)}</div>
+                      <div className="text-xs opacity-80">Bahan</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </SurfaceCard>
+
+            <SurfaceCard
+              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
+              onClick={() => router.push(dashboardCardRoutes.outbound)}
+            >
+              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F4F8FF] to-white px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#64748B]">
+                      Tren Pasien
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">Tren Pasien 7 Hari Terakhir</h3>
+                    <p className="mt-1 text-xs text-[#64748B]">Ringkasan visual jumlah pasien per hari</p>
+                  </div>
+                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.outbound)}>
+                    Detail
+                  </MiniActionButton>
+                </div>
+              </div>
+
+              <div className="flex flex-1 flex-col px-5 py-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl bg-[#EEF4FF] px-3 py-2">
+                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Rata-rata</div>
+                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.average)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-[#ECFDF3] px-3 py-2">
+                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Tertinggi</div>
+                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.highest)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-[#FFF7CC] px-3 py-2">
+                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Terendah</div>
+                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.lowest)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-1 items-end gap-3 min-h-[260px]">
+                  {patientPoints.map((point) => {
+                    const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
+                    const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 180, 24);
+
+                    return (
+                      <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
+                        <div className="text-xs font-semibold text-[#64748B]">
+                          {formatNumber(Number(point.total_patients ?? 0))}
+                        </div>
+                        <div className="flex h-[190px] w-full items-end">
+                          <div
+                            className="w-full rounded-t-2xl bg-gradient-to-t from-[#BFD7FF] to-[#DDE9FF] shadow-[0_8px_20px_rgba(33,85,205,0.12)]"
+                            style={{ height: `${barHeight}px` }}
+                          />
+                        </div>
+                        <div className="text-[11px] text-[#64748B]">{formatCompactDate(point.service_date)}</div>
+                      </div>
+                    );
+                  })}
+                  {!loading && patientPoints.length === 0 ? (
+                    <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
+                      Belum ada data pasien.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </SurfaceCard>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {mode === "gudang" ? (
+          <SurfaceCard className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm">
+            <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F4F8FF] to-white px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#64748B]">Transaksi Keluar</p>
+                  <h3 className="mt-1 text-base font-semibold text-[#16213E]">Bahan Keluar Hari Ini</h3>
+                  <p className="mt-1 text-xs text-[#64748B]">Ringkasan transaksi keluar terbaru</p>
+                </div>
+                <MiniActionButton onClick={() => router.push(dashboardCardRoutes.outbound)}>
+                  Detail
+                </MiniActionButton>
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="flex-1 overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <thead className="bg-gradient-to-r from-[#2155CD] to-[#6EA8FF] text-[11px] font-semibold uppercase tracking-wide text-white">
                   <tr>
                     <th className="px-4 py-3">Bahan</th>
                     <th className="px-4 py-3">Keluar</th>
@@ -576,23 +880,23 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm text-gray-700">
+                <tbody className="divide-y divide-[#E6EEFF] text-sm text-gray-700">
                   {todayOutRows.map((row, index) => (
-                    <tr key={`${row.id}-${index}`} className="border-t border-gray-200">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{row.itemName}</p>
-                        <p className="text-xs text-[#94A3B8]">{row.category}</p>
+                    <tr key={`${row.id}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-[#F8FBFF] hover:bg-[#EEF4FF]/70"}>
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-[#16213E]">{row.itemName}</p>
+                        <p className="text-xs text-[#64748B]">{row.category}</p>
                       </td>
-                      <td className="px-4 py-3">{row.outgoing}</td>
-                      <td className="px-4 py-3">{row.remaining}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">{row.outgoing}</td>
+                      <td className="px-4 py-4">{row.remaining}</td>
+                      <td className="px-4 py-4">
                         <StatusPill tone={row.tone}>{row.label}</StatusPill>
                       </td>
                     </tr>
                   ))}
                   {!loading && todayOutRows.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-8 text-center text-gray-400" colSpan={4}>
+                      <td className="px-4 py-10 text-center text-gray-400" colSpan={4}>
                         Belum ada transaksi keluar pada periode ini.
                       </td>
                     </tr>
@@ -646,9 +950,9 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           </SurfaceCard>
         )}
 
-        <SurfaceCard className="overflow-hidden p-6">
-          <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari Terakhir</h3>
-          <div className="mt-4 flex h-[240px] items-end gap-3">
+          <SurfaceCard className="overflow-hidden p-6">
+            <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari Terakhir</h3>
+            <div className="mt-4 flex h-[240px] items-end gap-3">
             {patientPoints.map((point) => {
               const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
               const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 170, 24);
@@ -679,14 +983,18 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
             <span>Tertinggi: {formatNumber(patientStats.highest)}</span>
             <span>Terendah: {formatNumber(patientStats.lowest)}</span>
           </div>
-        </SurfaceCard>
-      </div>
+          </SurfaceCard>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <SurfaceCard className="p-5">
+      {mode === "gudang" ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <SurfaceCard className="flex h-full flex-col p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Ringkasan Stok Bahan</h3>
-            <MiniActionButton>Detail</MiniActionButton>
+            <MiniActionButton onClick={() => router.push(dashboardCardRoutes.stock)}>
+              Detail
+            </MiniActionButton>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {stockSummaryBoxes.map((box) => (
@@ -734,46 +1042,56 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           </div>
         </SurfaceCard>
 
-        <SurfaceCard className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">{mode === "gudang" ? "Peringatan Stok Bahan" : "Paket Menu Hari Ini"}</h3>
-            <MiniActionButton>Detail</MiniActionButton>
+        <SurfaceCard className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm">
+          <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F8FAFF] to-white px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#2155CD]">
+                  Peringatan Stok
+                </p>
+                <h3 className="mt-1 text-[15px] font-semibold text-[#16213E]">
+                  {mode === "gudang" ? "Peringatan Stok Bahan" : "Paket Menu Hari Ini"}
+                </h3>
+              </div>
+              <MiniActionButton className="px-3 py-1.5 text-xs" onClick={() => router.push(dashboardCardRoutes.adjustment)}>
+                Detail
+              </MiniActionButton>
+            </div>
           </div>
           {mode === "gudang" ? (
-            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-              {stockRows
-                .filter((row) => {
-                  const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
-                  return tone === "danger";
-                })
-                .map((row) => {
+            <div className="flex flex-1 flex-col px-4 py-3">
+              <div className="space-y-2.5">
+                {visibleWarningRows.map((row) => {
                   const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1));
-              const palette =
-                tone.tone === "danger"
-                  ? "border-[#FCA5A5] bg-[#FEE2E2] text-[#DC2626]"
-                  : tone.tone === "critical"
-                    ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
-                    : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";
+                  const palette =
+                    tone.tone === "danger"
+                      ? "border-[#FCA5A5] bg-[#FEE2E2] text-[#DC2626]"
+                      : tone.tone === "critical"
+                        ? "border-[#FB7185] bg-[#FFE4E6] text-[#BE123C]"
+                        : "border-[#F59E0B] bg-[#FFF7CC] text-[#92400E]";
+
                   return (
-                    <div key={row.item_id} className={`rounded-xl border px-4 py-3 ${palette}`}>
+                    <div key={row.item_id} className={`rounded-lg border px-3 py-2.5 ${palette}`}>
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-semibold">{row.item_name}</p>
-                          <p className="mt-1 text-xs opacity-80">{row.category_name}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-[15px] font-semibold leading-tight">{row.item_name}</p>
+                          <p className="mt-1 text-[11px] uppercase tracking-wide opacity-80">{row.category_name}</p>
                         </div>
-                        <p className="text-sm font-bold">{formatQuantity(row.qty, row.unit_base)}</p>
+                        <p className="shrink-0 text-sm font-bold leading-none">{formatQuantity(row.qty, row.unit_base)}</p>
                       </div>
                     </div>
                   );
                 })}
-              {!loading &&
-              stockRows.filter((row) => {
-                const tone = getStockTone(Number(row.qty ?? 0), Number(row.min_stock ?? 1)).tone;
-                return tone === "danger";
-              }).length === 0 ? (
-                <div className="rounded-xl bg-[#F8FAFC] px-4 py-8 text-center text-sm text-gray-400">
+              </div>
+              {!loading && warningRows.length === 0 ? (
+                <div className="mt-3 rounded-lg bg-[#F8FAFC] px-4 py-6 text-center text-sm text-gray-400">
                   Tidak ada stok kritis yang perlu perhatian saat ini.
                 </div>
+              ) : null}
+              {!loading && warningRows.length > visibleWarningRows.length ? (
+                <p className="mt-2 text-xs text-[#64748B]">
+                  +{warningRows.length - visibleWarningRows.length} item lainnya
+                </p>
               ) : null}
             </div>
           ) : (
@@ -806,15 +1124,24 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           )}
         </SurfaceCard>
 
-        <SurfaceCard className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">SPK - Rekomendasi Belanja</h3>
-            <MiniActionButton>Detail</MiniActionButton>
+        <SurfaceCard className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm">
+          <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#EEF4FF] to-white px-5 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#64748B]">
+                  SPK Perencanaan
+                </p>
+                <h3 className="mt-1 text-base font-semibold text-[#16213E]">SPK - Rekomendasi Belanja</h3>
+              </div>
+              <MiniActionButton onClick={() => router.push(dashboardCardRoutes.spk)}>
+                Detail
+              </MiniActionButton>
+            </div>
           </div>
-          <div className="space-y-4">
+          <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
             {spkPanels.map((panel) => (
-              <div key={panel.id} className="rounded-xl bg-[#EEF4FF] px-4 py-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
+              <div key={panel.id} className="rounded-2xl border border-[#C7D2FE] bg-gradient-to-br from-[#EEF4FF] to-white p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">{panel.title}</p>
                     <p className="mt-2 text-sm font-semibold text-[#16213E]">
@@ -822,14 +1149,16 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
                     </p>
                     <p className="mt-1 text-xs text-[#64748B]">{formatCompactDate(panel.detail?.calculation_date ?? null)}</p>
                   </div>
-                  <MiniActionButton>Detail</MiniActionButton>
+                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.spk)}>
+                    Detail
+                  </MiniActionButton>
                 </div>
 
                 <div className="space-y-2">
                   {(panel.detail?.items ?? []).slice(0, 3).map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-sm text-[#16213E]"
+                      className="flex items-center justify-between rounded-lg border border-white/70 bg-white/80 px-3 py-2 text-sm text-[#16213E]"
                     >
                       <span className="font-medium">{item.item_name ?? "-"}</span>
                       <span className="font-semibold">
@@ -854,7 +1183,8 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
             ) : null}
           </div>
         </SurfaceCard>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -864,26 +1194,42 @@ function DashboardStatCard({
   value,
   subtitle,
   color,
+  outlineClass = "border-gray-100",
   icon,
+  onClick,
 }: {
   title: string;
   value: string;
   subtitle: string;
   color: string;
+  outlineClass?: string;
   icon: ReactNode;
+  onClick?: () => void;
 }) {
-  return (
-    <div className={`rounded-2xl border border-gray-100 border-t-4 bg-white p-6 shadow-sm ${color}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-gray-400">{title}</p>
-          <h2 className="mt-1 text-2xl font-semibold text-gray-900">{value}</h2>
-          <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
-        </div>
-        <div className="rounded-lg bg-gray-100 p-2">{icon}</div>
+  const className = `w-full rounded-2xl border ${outlineClass} border-t-4 bg-white p-6 text-left shadow-sm transition-all duration-300 ease-out ${color} ${
+    onClick ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)]" : ""
+  }`;
+
+  const content = (
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-xs uppercase tracking-wide text-gray-400">{title}</p>
+        <h2 className="mt-1 text-2xl font-semibold text-gray-900">{value}</h2>
+        <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
       </div>
+      <div className="rounded-lg bg-gray-100 p-2">{icon}</div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button className={className} onClick={onClick} type="button">
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 function renderCompositionSummary(items: NonNullable<DashboardState["current_menu_composition"]>) {
@@ -900,6 +1246,22 @@ function renderPackageSummary(groups: CompositionGroup[]) {
   if (names.length === 0) return "Menu aktif hari ini";
   const preview = names.slice(0, 3).join(", ");
   return names.length > 3 ? `${preview} +${names.length - 3} lagi` : preview;
+}
+
+function renderCompositionChips(items: Array<{ item_name?: string | null }>) {
+  const names = [...new Set(items.map((item) => item.item_name).filter((value): value is string => Boolean(value)))];
+  const chipColors = [
+    "bg-[#DBEAFE] text-[#1D4ED8]",
+    "bg-[#DCFCE7] text-[#166534]",
+    "bg-[#FEF3C7] text-[#B45309]",
+    "bg-[#F3E8FF] text-[#7C3AED]",
+  ];
+
+  return names.slice(0, 4).map((name, index) => (
+    <span key={name} className={`rounded-full px-3 py-1 text-xs font-medium ${chipColors[index % chipColors.length]}`}>
+      {name}
+    </span>
+  ));
 }
 
 function getMealPalette(mealTime: string) {
@@ -926,4 +1288,51 @@ function getMealPalette(mealTime: string) {
     label: "text-[#7C3AED]",
     title: "text-[#4C1D95]",
   };
+}
+
+async function loadGudangDraftAdjustmentCount() {
+  if (typeof window === "undefined") return 0;
+
+  const historyStorageKey = "gudang-stock-opname-history";
+  const legacyLatestKey = "gudang-latest-stock-opname-id";
+  const mergedIds = readStoredOpnameIds(historyStorageKey);
+
+  const legacyId = Number(window.sessionStorage.getItem(legacyLatestKey) ?? 0);
+  if (legacyId > 0 && !mergedIds.includes(legacyId)) {
+    mergedIds.unshift(legacyId);
+  }
+  if (legacyId > 0) {
+    window.sessionStorage.removeItem(legacyLatestKey);
+  }
+
+  if (mergedIds.length === 0) {
+    return 0;
+  }
+
+  const responses = await Promise.allSettled(mergedIds.map((id) => sdk.stockOpnames.get(id)));
+  return responses.reduce((count, response) => {
+    if (response.status !== "fulfilled" || !response.value.data) {
+      return count;
+    }
+
+    return response.value.data.header.state === "DRAFT" ? count + 1 : count;
+  }, 0);
+}
+
+function readStoredOpnameIds(storageKey: string) {
+  if (typeof window === "undefined") return [] as number[];
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
+  } catch {
+    return [];
+  }
 }

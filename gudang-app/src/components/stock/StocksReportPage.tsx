@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { AlertTriangle, PackageX, Zap } from "lucide-react";
 import sdk from "@/lib";
-import { listAllItems } from "@/lib/items";
+import { clearItemsCache, listAllItems } from "@/lib/items";
 import {
   formatNumber,
   formatQuantity,
@@ -22,12 +23,17 @@ import {
   ExportButton,
   FilterSearch,
   Pagination,
+  PrimaryAction,
   StatusPill,
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
+import StockItemModal, { type StockItemFormValue } from "@/components/stock/StockItemModal";
+import SuccessModal from "@/components/feedback/SuccessModal";
 
 type StockReportRow = Awaited<ReturnType<typeof sdk.reports.getStocks>>["data"]["rows"][number];
+type ItemCategoryRecord = Awaited<ReturnType<typeof sdk.itemCategories.list>>["data"][number];
+type ItemUnitRecord = Awaited<ReturnType<typeof sdk.itemUnits.list>>["data"][number];
 
 type StockTableRow = {
   idLabel: string;
@@ -77,6 +83,36 @@ const ALL_STOCK_REPORT_PERIOD = {
   period_end: "2099-12-31",
 } as const;
 
+type NoticeState = {
+  title: string;
+  headline: string;
+  message: string;
+  tone?: "success" | "danger";
+  icon?: ReactNode;
+} | null;
+
+function getDefaultUnitConvert(unitName: string) {
+  const normalized = unitName.trim().toLowerCase();
+
+  if (normalized === "gram") {
+    return "kg";
+  }
+
+  if (normalized === "ml") {
+    return "liter";
+  }
+
+  if (normalized === "butir") {
+    return "pack";
+  }
+
+  return {
+    gram: "kg",
+    ml: "liter",
+    butir: "pack",
+  }[normalized] ?? unitName;
+}
+
 function firstString(row: StockReportRow, keys: string[], fallback = "-") {
   for (const key of keys) {
     const value = row[key];
@@ -98,14 +134,86 @@ function normalizeFilterValue(value: string) {
   return value.trim().toUpperCase();
 }
 
-export default function StocksReportPage() {
+function getSpreadsheetStatusStyle(tone: "safe" | "warning" | "critical" | "danger") {
+  switch (tone) {
+    case "safe":
+      return {
+        style: "background-color:#DCFCE7;color:#15803D;border:1px solid #86EFAC;text-align:center;font-weight:800;font-size:14px;",
+        bgcolor: "#DCFCE7",
+      };
+    case "warning":
+      return {
+        style: "background-color:#FEF3C7;color:#D97706;border:1px solid #FCD34D;text-align:center;font-weight:800;font-size:14px;",
+        bgcolor: "#FEF3C7",
+      };
+    case "critical":
+      return {
+        style: "background-color:#FFF7ED;color:#EA580C;border:1px solid #FDBA74;text-align:center;font-weight:800;font-size:14px;",
+        bgcolor: "#FFF7ED",
+      };
+    case "danger":
+      return {
+        style: "background-color:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5;text-align:center;font-weight:800;font-size:14px;",
+        bgcolor: "#FEE2E2",
+      };
+  }
+}
+
+export default function StocksReportPage({
+  allowItemCreation = false,
+}: Readonly<{
+  allowItemCreation?: boolean;
+}> = {}) {
   const [reportRows, setReportRows] = useState<StockReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ItemCategoryRecord[]>([]);
+  const [itemUnits, setItemUnits] = useState<ItemUnitRecord[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [successState, setSuccessState] = useState<NoticeState>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Semua Jenis");
   const [statusFilter, setStatusFilter] = useState("Semua Status");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const loadReportData = useCallback(async () => {
+    const [reportResponse, itemsResponse] = await Promise.allSettled([
+      sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
+      listAllItems(),
+    ]);
+
+    const nextReportRows =
+      reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
+    const nextItems =
+      itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
+
+    const itemsMap = new Map(nextItems.map((item) => [item.id, item]));
+
+    const enrichedReportRows = nextReportRows.map((row) => {
+      const itemId = firstNumber(row, ["item_id", "id"]);
+      const item = itemsMap.get(itemId);
+      if (item) {
+        return {
+          ...row,
+          min_stock: item.min_stock,
+        };
+      }
+      return row;
+    });
+
+    setReportRows(enrichedReportRows);
+
+    if (nextReportRows.length === 0) {
+      const loadError =
+        reportResponse.status === "rejected" ? reportResponse.reason : null;
+
+      if (loadError) {
+        setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,42 +223,7 @@ export default function StocksReportPage() {
       setError(null);
 
       try {
-        const [reportResponse, itemsResponse] = await Promise.allSettled([
-          sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
-          listAllItems(),
-        ]);
-
-        if (cancelled) return;
-
-        const nextReportRows =
-          reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
-        const nextItems =
-          itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
-
-        const itemsMap = new Map(nextItems.map((item) => [item.id, item]));
-
-        const enrichedReportRows = nextReportRows.map((row) => {
-          const itemId = firstNumber(row, ["item_id", "id"]);
-          const item = itemsMap.get(itemId);
-          if (item) {
-            return {
-              ...row,
-              min_stock: item.min_stock,
-            };
-          }
-          return row;
-        });
-
-        setReportRows(enrichedReportRows);
-
-        if (nextReportRows.length === 0) {
-          const loadError =
-            reportResponse.status === "rejected" ? reportResponse.reason : null;
-
-          if (loadError) {
-            setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
-          }
-        }
+        await loadReportData();
       } catch (loadError) {
         if (!cancelled) {
           setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
@@ -167,16 +240,9 @@ export default function StocksReportPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadReportData]);
 
   const tableRows = useMemo<StockTableRow[]>(() => {
-    const reportRowMap = new Map(
-      reportRows.map((row, index) => [
-        firstNumber(row, ["item_id", "id"], index + 1),
-        row,
-      ]),
-    );
-
     return reportRows.map((row, index) => {
       const itemId = firstNumber(row, ["item_id", "id"], index + 1);
       const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
@@ -247,6 +313,85 @@ export default function StocksReportPage() {
     );
   }, [tableRows]);
 
+  const ensureAuxiliaryData = useCallback(async () => {
+    if (!allowItemCreation) {
+      return;
+    }
+
+    if (categories.length > 0 && itemUnits.length > 0) {
+      return;
+    }
+
+    const [categoryResponse, unitResponse] = await Promise.all([
+      sdk.itemCategories.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
+      sdk.itemUnits.list({ paginate: false, sortBy: "name", sortDir: "ASC" }),
+    ]);
+
+    setCategories(categoryResponse.data ?? []);
+    setItemUnits(unitResponse.data ?? []);
+  }, [allowItemCreation, categories.length, itemUnits.length]);
+
+  const openCreateModal = useCallback(async () => {
+    if (!allowItemCreation) {
+      return;
+    }
+
+    setModalError(null);
+    try {
+      await ensureAuxiliaryData();
+      setModalOpen(true);
+    } catch (loadError) {
+      setModalError(getErrorMessage(loadError, "Gagal memuat data master barang."));
+      setModalOpen(true);
+    }
+  }, [allowItemCreation, ensureAuxiliaryData]);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setModalError(null);
+  }, []);
+
+  async function handleCreate(formValue: StockItemFormValue) {
+    const trimmedName = formValue.name.trim();
+    const trimmedCategory = formValue.categoryName.trim();
+    const trimmedUnitName = formValue.unitName.trim();
+    const trimmedUnitConvertName = formValue.unitConvertName?.trim() || getDefaultUnitConvert(trimmedUnitName);
+    const minimumStock = Number(formValue.minimumStock);
+
+    if (!trimmedName || !trimmedCategory || !trimmedUnitName || !Number.isFinite(minimumStock) || minimumStock < 0) {
+      setModalError("Mohon lengkapi nama bahan, jenis bahan, satuan item, dan minimal stock dengan benar.");
+      return;
+    }
+
+    setSubmitting(true);
+    setModalError(null);
+
+    try {
+      await sdk.items.create({
+        name: trimmedName,
+        item_category_name: trimmedCategory,
+        min_stock: minimumStock,
+        conversion_base: 1,
+        unit_base: trimmedUnitName,
+        unit_convert: trimmedUnitConvertName,
+        is_active: true,
+      });
+
+      clearItemsCache();
+      await loadReportData();
+      setSuccessState({
+        title: "Berhasil",
+        headline: "Master Barang Berhasil Ditambahkan",
+        message: "",
+      });
+      closeModal();
+    } catch (submitError) {
+      setModalError(getErrorMessage(submitError, "Gagal menyimpan master barang."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
 
@@ -286,8 +431,9 @@ export default function StocksReportPage() {
     `;
 
     const rowsHtml = filteredRows
-      .map(
-        (row, index) => `
+      .map((row, index) => {
+        const statusStyle = getSpreadsheetStatusStyle(row.tone);
+        return `
         <tr>
           <td class="rank">${index + 1}</td>
           <td class="text-strong">${escapeSpreadsheetHtml(row.idLabel)}</td>
@@ -296,9 +442,9 @@ export default function StocksReportPage() {
           <td class="number">${escapeSpreadsheetHtml(row.qtyLabel)}</td>
           <td class="number">${escapeSpreadsheetHtml(row.minimumLabel)}</td>
           <td>${escapeSpreadsheetHtml(row.idLabel ? row.qtyLabel.split(" ").slice(1).join(" ") || "-" : "-")}</td>
-          <td class="pill ${row.tone}">${escapeSpreadsheetHtml(row.label)}</td>
-        </tr>`,
-      )
+          <td bgcolor="${statusStyle.bgcolor}" style="${statusStyle.style}">${escapeSpreadsheetHtml(row.label)}</td>
+        </tr>`;
+      })
       .join("");
 
     const html = buildSpreadsheetDocument({
@@ -353,6 +499,7 @@ export default function StocksReportPage() {
     <div className="space-y-5">
       <AdminPageHeading
         title="Stok Bahan"
+        action={allowItemCreation ? <PrimaryAction onClick={openCreateModal}>Tambah Master Barang</PrimaryAction> : undefined}
       />
 
       {error ? (
@@ -469,6 +616,29 @@ export default function StocksReportPage() {
           }
         />
       </SurfaceCard>
+
+      {allowItemCreation ? (
+        <StockItemModal
+          categories={categories.map((category) => ({ id: category.id, name: category.name }))}
+          error={modalError}
+          itemUnits={itemUnits.map((unit) => ({ id: unit.id, name: unit.name }))}
+          mode="create"
+          onClose={closeModal}
+          onSubmit={handleCreate}
+          open={modalOpen}
+          submitting={submitting}
+        />
+      ) : null}
+
+      <SuccessModal
+        headline={successState?.headline ?? ""}
+        message={successState?.message ?? ""}
+        onClose={() => setSuccessState(null)}
+        open={successState !== null}
+        title={successState?.title ?? "Berhasil"}
+        tone={successState?.tone ?? "success"}
+        icon={successState?.icon}
+      />
     </div>
   );
 }

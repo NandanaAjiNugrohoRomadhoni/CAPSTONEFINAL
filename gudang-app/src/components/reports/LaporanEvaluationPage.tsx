@@ -740,9 +740,8 @@ export default function LaporanEvaluationPage() {
       ) : null}
 
       <SurfaceCard className="overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4">
-          <div className="flex flex-1 flex-wrap items-center gap-3">
-            <div className="w-full lg:w-[240px]">
+        <div className="grid gap-3 border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4 lg:grid-cols-[minmax(220px,280px)_160px_160px_120px_auto] lg:items-center">
+          <div className="min-w-0">
               <FilterSearch
                 placeholder="Cari Bahan"
                 value={searchTerm}
@@ -750,33 +749,34 @@ export default function LaporanEvaluationPage() {
                 readOnly={false}
               />
             </div>
-            <div className="min-w-[170px]">
+            <div className="min-w-0">
               <ThemedSelect
+                className="w-full"
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 options={categoryOptions}
                 placeholder="Semua Jenis"
               />
             </div>
-            <div className="min-w-[170px]">
+            <div className="min-w-0">
               <ThemedSelect
+                className="w-full"
                 value={String(selectedMonth)}
                 onChange={(value) => setSelectedMonth(Number(value) || CURRENT_MONTH)}
                 options={monthOptions}
                 placeholder="Pilih Bulan"
               />
             </div>
-            <div className="min-w-[130px]">
+            <div className="min-w-0">
               <ThemedSelect
+                className="w-full"
                 value={String(selectedYear)}
                 onChange={(value) => setSelectedYear(Number(value) || new Date().getFullYear())}
                 options={yearOptions}
                 placeholder="Pilih Tahun"
               />
             </div>
-          </div>
-
-          <div className="ml-auto">
+          <div className="justify-self-start lg:justify-self-end">
             <ExportButton onClick={handleExport}>Export Riwayat</ExportButton>
           </div>
         </div>
