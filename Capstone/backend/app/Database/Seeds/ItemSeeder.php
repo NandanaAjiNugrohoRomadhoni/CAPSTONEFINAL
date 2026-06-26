@@ -40,6 +40,15 @@ class ItemSeeder extends Seeder
             'pace'    => $this->resolveRequiredUnitId($itemUnitModel, 'pace'),
         ];
 
+        // --- Clear existing items for idempotency ---
+        // insertBatch fails on re-seed when the `name` UNIQUE KEY rejects duplicates.
+        // This makes the items table stale/empty, which breaks CsvMenuPlanSeeder's aliases
+        // (their alias targets like "Daging Ayam" are missing from the item lookup).
+        // Truncate before insert ensures fresh, deterministic items every run.
+        $this->db->disableForeignKeyChecks();
+        $this->db->table('items')->truncate();
+        $this->db->enableForeignKeyChecks();
+
         $items = [
             // PENGEMAS
             ['cat' => 'PENGEMAS', 'name' => 'Sendok Puding',         'unit' => 'pack', 'qty' => 2,    'min_stock' => 2],
@@ -245,13 +254,13 @@ class ItemSeeder extends Seeder
         $resolved = [];
 
         foreach ($requiredNames as $name) {
-            $key = strtoupper(trim($name));
+            $upperName = strtoupper(trim($name));
 
-            if (! array_key_exists($key, $categoryLookup)) {
-                throw new RuntimeException("ItemSeeder prerequisite missing: item_categories.name '{$name}'. Seed ItemCategorySeeder before ItemSeeder.");
+            if (! isset($categoryLookup[$upperName])) {
+                throw new RuntimeException("Required item category '{$name}' not found in the item_categories table.");
             }
 
-            $resolved[$name] = $categoryLookup[$key];
+            $resolved[$name] = $categoryLookup[$upperName];
         }
 
         return $resolved;
@@ -259,12 +268,12 @@ class ItemSeeder extends Seeder
 
     private function resolveRequiredUnitId(ItemUnitModel $itemUnitModel, string $unitName): int
     {
-        $unitId = $itemUnitModel->getIdByName($unitName);
+        $unit = $itemUnitModel->where('LOWER(name)', strtolower($unitName))->first();
 
-        if ($unitId === null) {
-            throw new RuntimeException("ItemSeeder prerequisite missing: item_units.name '{$unitName}'. Seed ItemUnitSeeder before ItemSeeder.");
+        if ($unit === null) {
+            throw new RuntimeException("Required item unit '{$unitName}' not found in the item_units table.");
         }
 
-        return (int) $unitId;
+        return (int) $unit['id'];
     }
 }

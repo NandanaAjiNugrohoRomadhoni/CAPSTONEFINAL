@@ -16,14 +16,14 @@ export function AdminPageHeading({
   action,
 }: Readonly<{
   title: string;
-  subtitle: string;
+  subtitle?: string;
   action?: ReactNode;
 }>) {
   return (
     <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h2 className="text-[22px] font-semibold text-[#16213E]">{title}</h2>
-        <p className="mt-1 text-base text-[#94A3B8]">{subtitle}</p>
+        {subtitle ? <p className="mt-1 text-base text-[#94A3B8]">{subtitle}</p> : null}
       </div>
       {action}
     </div>

@@ -46,6 +46,39 @@ class CsvMenuPlanSeeder extends Seeder
             $itemLookup[$normalized] = (int) $item['id'];
         }
 
+        // Load category lookups
+        $categories = $this->db->table('item_categories')->get()->getResultArray();
+        $categoryLookup = [];
+        foreach ($categories as $cat) {
+            $categoryLookup[strtoupper(trim($cat['name']))] = (int)$cat['id'];
+        }
+
+        // Load unit lookups
+        $units = $this->db->table('item_units')->get()->getResultArray();
+        $unitLookup = [];
+        foreach ($units as $u) {
+            $unitLookup[strtolower(trim($u['name']))] = (int)$u['id'];
+        }
+
+        // Apply name aliases for known variants between JSON ingredient names and DB item names.
+        // This avoids renaming DB items (which would break transaction history) while matching
+        // common naming differences: generic→specific, spelling variants, brand/pack suffixes.
+        $nameAliases = [
+            'ayam'          => 'daging ayam',
+            'bakso'         => 'bakso sapi',
+            'saus tomat'    => 'saus tomat delmonte',
+            'tepung kanji'  => 'tepung kanji 500gr',
+            'tengiri'       => 'tengiri potong',
+            'taoge pendek'  => 'tauge pendek',
+            'ayam giling'   => 'daging ayam',
+        ];
+        foreach ($nameAliases as $jsonName => $dbName) {
+            $normalized = $this->normalizeName($jsonName);
+            if (!isset($itemLookup[$normalized]) && isset($itemLookup[$this->normalizeName($dbName)])) {
+                $itemLookup[$normalized] = $itemLookup[$this->normalizeName($dbName)];
+            }
+        }
+
         // 3. Clear existing compositions and menu dishes to avoid duplicates
         $this->db->disableForeignKeyChecks();
         $this->db->table('dish_compositions')->truncate();
@@ -75,8 +108,14 @@ class CsvMenuPlanSeeder extends Seeder
                 $itemId = $itemLookup[$normalizedItemName] ?? null;
 
                 if ($itemId === null) {
-                    $unmatchedItems[$itemName] = ($unmatchedItems[$itemName] ?? 0) + 1;
-                    continue;
+                    // Try to dynamically create the missing item in the items table
+                    $itemId = $this->dynamicallyCreateItem($itemName, $ingredient['unit'] ?? 'gr', $categoryLookup, $unitLookup);
+                    if ($itemId !== null) {
+                        $itemLookup[$normalizedItemName] = $itemId;
+                    } else {
+                        $unmatchedItems[$itemName] = ($unmatchedItems[$itemName] ?? 0) + 1;
+                        continue;
+                    }
                 }
 
                 $this->db->table('dish_compositions')->insert([
@@ -161,5 +200,129 @@ class CsvMenuPlanSeeder extends Seeder
         $roman = end($parts);
 
         return $romans[$roman] ?? null;
+    }
+
+    private function dynamicallyCreateItem(
+        string $itemName,
+        string $jsonUnit,
+        array $categoryLookup,
+        array $unitLookup
+    ): ?int {
+        $knownItemsInfo = [
+            'ayam' => [
+                'category' => 'BASAH',
+                'name' => 'Ayam',
+                'unit_convert' => 'kg',
+                'unit_base' => 'gram',
+                'conversion_base' => 1000,
+            ],
+            'bakso' => [
+                'category' => 'BASAH',
+                'name' => 'Bakso',
+                'unit_convert' => 'bks',
+                'unit_base' => 'bks',
+                'conversion_base' => 1,
+            ],
+            'saus tomat' => [
+                'category' => 'KERING',
+                'name' => 'Saus Tomat',
+                'unit_convert' => 'jurigen',
+                'unit_base' => 'jurigen',
+                'conversion_base' => 1,
+            ],
+            'tepung kanji' => [
+                'category' => 'KERING',
+                'name' => 'Tepung Kanji',
+                'unit_convert' => 'kg',
+                'unit_base' => 'gram',
+                'conversion_base' => 1000,
+            ],
+            'taoge pendek' => [
+                'category' => 'BASAH',
+                'name' => 'Taoge Pendek',
+                'unit_convert' => 'kg',
+                'unit_base' => 'gram',
+                'conversion_base' => 1000,
+            ],
+            'tengiri' => [
+                'category' => 'BASAH',
+                'name' => 'Tengiri',
+                'unit_convert' => 'kg',
+                'unit_base' => 'gram',
+                'conversion_base' => 1000,
+            ],
+        ];
+
+        $normalizedName = $this->normalizeName($itemName);
+        $info = $knownItemsInfo[$normalizedName] ?? null;
+
+        if ($info === null) {
+            $isBasah = preg_match('/(daging|ayam|ikan|sayur|tahu|tempe|telur|bawang|cabe|tomat|buah|pisang|melon|pepaya|semangka)/i', $itemName);
+            $category = $isBasah ? 'BASAH' : 'KERING';
+
+            $jsonUnitLower = strtolower(trim($jsonUnit));
+            $unitConvert = 'pcs';
+            if ($jsonUnitLower === 'gr' || $jsonUnitLower === 'gram') {
+                $unitConvert = 'kg';
+            } elseif ($jsonUnitLower === 'kg') {
+                $unitConvert = 'kg';
+            } elseif ($jsonUnitLower === 'ml' || $jsonUnitLower === 'liter') {
+                $unitConvert = 'liter';
+            } elseif ($jsonUnitLower === 'bks' || $jsonUnitLower === 'bungkus') {
+                $unitConvert = 'bks';
+            }
+
+            $unitBase = $unitConvert;
+            $convBase = 1;
+            if ($unitConvert === 'kg') {
+                $unitBase = 'gram';
+                $convBase = 1000;
+            } elseif ($unitConvert === 'liter') {
+                $unitBase = 'ml';
+                $convBase = 1000;
+            }
+
+            $info = [
+                'category' => $category,
+                'name' => $itemName,
+                'unit_convert' => $unitConvert,
+                'unit_base' => $unitBase,
+                'conversion_base' => $convBase,
+            ];
+        }
+
+        $catId = $categoryLookup[strtoupper($info['category'])] ?? null;
+        if ($catId === null) {
+            return null;
+        }
+
+        $unitBaseName = strtolower($info['unit_base']);
+        $unitConvertName = strtolower($info['unit_convert']);
+
+        $unitBaseId = $unitLookup[$unitBaseName] ?? ($unitLookup['gram'] ?? null);
+        $unitConvertId = $unitLookup[$unitConvertName] ?? ($unitLookup['pcs'] ?? null);
+
+        if ($unitBaseId === null || $unitConvertId === null) {
+            return null;
+        }
+
+        $inserted = $this->db->table('items')->insert([
+            'item_category_id'     => $catId,
+            'name'                 => $info['name'],
+            'unit_base'            => $unitBaseName,
+            'unit_convert'         => $unitConvertName,
+            'item_unit_base_id'    => $unitBaseId,
+            'item_unit_convert_id' => $unitConvertId,
+            'conversion_base'      => $info['conversion_base'],
+            'is_active'            => true,
+            'qty'                  => 0.0,
+            'min_stock'            => 0,
+        ]);
+
+        if ($inserted) {
+            return (int) $this->db->insertID();
+        }
+
+        return null;
     }
 }
