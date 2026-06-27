@@ -84,7 +84,7 @@ export function normalizeActivityRow(row: any): NormalizedActivityRow {
   };
 }
 
-export async function loadActivityRows(query?: AuditLogListQuery): Promise<ApiListResponse<NormalizedActivityRow>> {
+export async function loadActivityRows(query?: ListAuditLogsQuery): Promise<ApiListResponse<NormalizedActivityRow>> {
   try {
     const response = await sdk.auditLogs.list({
       sortBy: "created_at",

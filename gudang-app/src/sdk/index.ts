@@ -47,7 +47,6 @@ import { UsersResource } from "./resources/users";
 import { DashboardResource } from "./resources/dashboard";
 import { ReportsResource } from "./resources/reports";
 import { StockOpnamesResource } from "./resources/stockOpnames";
-import { StockSnapshotsResource } from "./resources/stockSnapshots";
 
 /**
  * High-level SDK entry point for the current Capstone API surface.
@@ -101,7 +100,6 @@ export class CapstoneSdk {
     this.dashboard = new DashboardResource(this.client);
     this.reports = new ReportsResource(this.client);
     this.stockOpnames = new StockOpnamesResource(this.client);
-    this.stockSnapshots = new StockSnapshotsResource(this.client);
   }
 
   /**

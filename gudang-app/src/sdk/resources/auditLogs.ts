@@ -1,10 +1,10 @@
 import type { ApiClient } from "../client";
-import type { AuditLogListQuery, AuditLogListResponse, AuditLogTypesResponse, AuditLogSummaryResponse } from "../types";
+import type { AuditLogListResponse, AuditLogTypesResponse, AuditLogSummaryResponse, ListAuditLogsQuery } from "../types";
 
 export class AuditLogsResource {
     public constructor(private readonly client: ApiClient) { }
 
-    public list(query?: AuditLogListQuery): Promise<AuditLogListResponse> {
+    public list(query?: ListAuditLogsQuery): Promise<AuditLogListResponse> {
         return this.client.request<AuditLogListResponse>({
             method: "GET",
             path: "/audit-logs",
@@ -27,7 +27,7 @@ export class AuditLogsResource {
     }
 }
 
-function buildAuditLogQuery(query: AuditLogListQuery): Record<string, string | number> {
+function buildAuditLogQuery(query: ListAuditLogsQuery): Record<string, string | number> {
     const result: Record<string, string | number> = {};
 
     if (query.page !== undefined) result.page = query.page;

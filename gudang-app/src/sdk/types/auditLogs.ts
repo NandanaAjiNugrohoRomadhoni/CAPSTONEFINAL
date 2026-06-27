@@ -40,7 +40,7 @@ export interface AuditLogEntry {
   created_at?: string | null;
 }
 
-export interface ListAuditLogsQuery {
+export interface AuditLogListQuery {
   page?: number;
   perPage?: number;
   paginate?: boolean;
@@ -54,4 +54,24 @@ export interface ListAuditLogsQuery {
   sortDir?: "ASC" | "DESC";
 }
 
-export type AuditLogsListResponse = ApiListResponse<AuditLogEntry>;
+export type ListAuditLogsQuery = AuditLogListQuery;
+
+export type AuditLogListResponse = ApiListResponse<AuditLogEntry>;
+export type AuditLogsListResponse = AuditLogListResponse;
+
+export interface AuditLogTypesResponse {
+  actionTypes: string[];
+  moduleTypes: string[];
+  tableNames: string[];
+}
+
+export interface AuditLogSummary {
+  total: number;
+  byRole: Record<string, number>;
+  byActionType: Record<string, number>;
+  byModule: Record<string, number>;
+}
+
+export interface AuditLogSummaryResponse {
+  data: AuditLogSummary;
+}
