@@ -246,7 +246,7 @@ export default function StocksReportPage({
     return reportRows.map((row, index) => {
       const itemId = firstNumber(row, ["item_id", "id"], index + 1);
       const qty = firstNumber(row, ["qty", "current_stock", "stock", "stock_qty", "quantity"]);
-      const minimumQty = firstNumber(row, ["min_stock", "minimum_qty", "minimal_stock", "minimum_stock", "conversion_base"], 1);
+      const minimumQty = firstNumber(row, ["min_stock", "minimum_qty", "minimal_stock", "minimum_stock"], 1);
       const unit = firstString(row, ["unit", "satuan", "unit_base"], "");
       const stock = getStockTone(qty, minimumQty);
 

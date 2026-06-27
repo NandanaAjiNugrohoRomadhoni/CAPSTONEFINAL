@@ -17,11 +17,11 @@ export interface CreateDailyPatientRequest {
   notes?: string;
 }
 
-/** Request payload for `PUT /api/v1/daily-patients/{id}`. */
+/** Request payload for `PUT /api/v1/daily-patients/{id}`. All fields are optional and merged server-side. */
 export interface UpdateDailyPatientRequest {
   service_date?: string;
   total_patients?: number;
-  notes?: string | null;
+  notes?: string;
 }
 
 /** List response for `GET /api/v1/daily-patients`. */

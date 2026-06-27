@@ -33,6 +33,24 @@ export interface StockOpnameHeader {
   updated_at: string;
 }
 
+export interface StockOpnameListRow extends StockOpnameHeader {
+  created_by_name: string | null;
+  submitted_by: number | null;
+  submitted_by_name: string | null;
+  submitted_at: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  rejected_by: number | null;
+  rejected_by_name: string | null;
+  rejected_at: string | null;
+  posted_by: number | null;
+  posted_by_name: string | null;
+  posted_at: string | null;
+  rejection_reason: string | null;
+  notes: string | null;
+  deleted_at?: string | null;
+}
+
 export interface StockOpname {
   header: StockOpnameHeader;
   details: StockOpnameDetail[];
@@ -47,6 +65,24 @@ export interface CreateStockOpnameRequest {
   opname_date: string;
   notes?: string;
   details: StockOpnameDetailInput[];
+}
+
+export type UpdateStockOpnameRequest = CreateStockOpnameRequest;
+
+export interface ListStockOpnamesQuery {
+  page?: number;
+  perPage?: number;
+  q?: string;
+  search?: string;
+  sortBy?: "id" | "opname_date" | "state" | "created_at" | "updated_at";
+  sortDir?: "ASC" | "DESC";
+  state?: StockOpnameState;
+  opname_date_from?: string;
+  opname_date_to?: string;
+  created_at_from?: string;
+  created_at_to?: string;
+  updated_at_from?: string;
+  updated_at_to?: string;
 }
 
 export interface RejectStockOpnameRequest {
@@ -79,4 +115,21 @@ export interface ListStockOpnamesQuery {
   created_at_to?: string;
   updated_at_from?: string;
   updated_at_to?: string;
+}
+
+export interface StockOpnameListResponse {
+  data: StockOpnameListRow[];
+  meta: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+  };
+  links: {
+    self: string;
+    first: string;
+    last: string;
+    next: string | null;
+    previous: string | null;
+  };
 }

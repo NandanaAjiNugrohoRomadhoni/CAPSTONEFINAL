@@ -16,12 +16,12 @@ export * from "./resources/notifications";
 export * from "./resources/roles";
 export * from "./resources/spk";
 export * from "./resources/stockTransactions";
+export * from "./resources/stockSnapshots";
 export * from "./resources/transactionTypes";
 export * from "./resources/users";
 export * from "./resources/dashboard";
 export * from "./resources/reports";
 export * from "./resources/stockOpnames";
-export * from "./resources/stockSnapshots";
 export * from "./types";
 
 import { ApiClient, type ApiClientOptions } from "./client";
@@ -41,6 +41,7 @@ import { NotificationsResource } from "./resources/notifications";
 import { RolesResource } from "./resources/roles";
 import { SpkResource } from "./resources/spk";
 import { StockTransactionsResource } from "./resources/stockTransactions";
+import { StockSnapshotsResource } from "./resources/stockSnapshots";
 import { TransactionTypesResource } from "./resources/transactionTypes";
 import { UsersResource } from "./resources/users";
 import { DashboardResource } from "./resources/dashboard";
@@ -69,12 +70,12 @@ export class CapstoneSdk {
   public readonly notifications: NotificationsResource;
   public readonly spk: SpkResource;
   public readonly stockTransactions: StockTransactionsResource;
+  public readonly stockSnapshots: StockSnapshotsResource;
   public readonly transactionTypes: TransactionTypesResource;
   public readonly users: UsersResource;
   public readonly dashboard: DashboardResource;
   public readonly reports: ReportsResource;
   public readonly stockOpnames: StockOpnamesResource;
-  public readonly stockSnapshots: StockSnapshotsResource;
 
   public constructor(options: ApiClientOptions) {
     this.client = new ApiClient(options);
@@ -94,6 +95,7 @@ export class CapstoneSdk {
     this.notifications = new NotificationsResource(this.client);
     this.spk = new SpkResource(this.client);
     this.stockTransactions = new StockTransactionsResource(this.client);
+    this.stockSnapshots = new StockSnapshotsResource(this.client);
     this.transactionTypes = new TransactionTypesResource(this.client);
     this.users = new UsersResource(this.client);
     this.dashboard = new DashboardResource(this.client);

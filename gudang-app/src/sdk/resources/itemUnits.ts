@@ -15,7 +15,7 @@ import type {
  *
  * Wraps:    /api/v1/item-units
  * Contract: api-contract.md §5.2.4
- * Access:   admin | dapur | gudang (read); admin (write)
+ * Access:   admin | dapur | gudang
  *
  * Manages FK-backed item-unit lookups used by item unit resolution.
  */

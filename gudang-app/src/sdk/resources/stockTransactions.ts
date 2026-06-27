@@ -6,8 +6,6 @@ import type {
   CreateStockTransactionRequest,
   DirectStockCorrectionRequest,
   ListStockTransactionsQuery,
-  RejectStockTransactionRequest,
-  UpdateDraftRequest,
   StockTransaction,
   StockTransactionCreateResult,
   StockTransactionDetail,
@@ -126,11 +124,11 @@ export class StockTransactionsResource {
   }
 
   /**
-   * Submits a revision for an existing transaction.
+   * Submits or replaces the pending revision for an existing transaction.
    *
    * @endpoint POST /api/v1/stock-transactions/{id}/submit-revision
    * @access   admin | gudang
-   * @param payload - Same detail contract as create. The backend creates a pending child revision on first submit, then reuses and replaces that same pending child payload if the parent is resubmitted before admin review.
+   * @param payload - Same detail contract as create. The backend creates a pending child revision on first submit, then reuses/replaces that same pending revision when the parent is submitted again before admin review.
    * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
    * @throws {ValidationApiError} if validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -143,6 +141,65 @@ export class StockTransactionsResource {
       method: "POST",
       path: `/stock-transactions/${id}/submit-revision`,
       body: payload
+    });
+  }
+
+  /**
+   * Updates a pending BASAH OUT draft without mutating stock.
+   *
+   * @endpoint PUT /api/v1/stock-transactions/{id}
+   * @access   admin | gudang
+   * @param payload - Same detail contract as `submitRevision`.
+   * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
+   * @throws {ValidationApiError} if validation fails (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @throws {NotFoundApiError} if the draft does not exist (404)
+   * @sideeffect Replaces the pending draft payload only.
+   */
+  public updateDraft(id: number, payload: SubmitRevisionRequest): Promise<ApiMessageDataResponse<StockTransactionRevisionResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionRevisionResult>>({
+      method: "PUT",
+      path: `/stock-transactions/${id}`,
+      body: payload
+    });
+  }
+
+  /**
+   * Submits a pending BASAH OUT draft and applies its stock mutation.
+   *
+   * @endpoint POST /api/v1/stock-transactions/{id}/submit
+   * @access   admin | gudang
+   * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
+   * @throws {ValidationApiError} if validation fails or the draft is not submittable (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @throws {NotFoundApiError} if the draft does not exist (404)
+   * @sideeffect Finalizes the draft and mutates stock.
+   */
+  public submitDraft(id: number): Promise<ApiMessageDataResponse<StockTransactionRevisionResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionRevisionResult>>({
+      method: "POST",
+      path: `/stock-transactions/${id}/submit`
+    });
+  }
+
+  /**
+   * Cancels a pending BASAH OUT draft without mutating stock.
+   *
+   * @endpoint POST /api/v1/stock-transactions/{id}/cancel
+   * @access   admin | gudang
+   * @returns {Promise<ApiMessageDataResponse<StockTransactionRevisionResult>>}
+   * @throws {ValidationApiError} if validation fails or the draft is not cancellable (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @throws {NotFoundApiError} if the draft does not exist (404)
+   * @sideeffect Removes the pending draft state only.
+   */
+  public cancelDraft(id: number): Promise<ApiMessageDataResponse<StockTransactionRevisionResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionRevisionResult>>({
+      method: "POST",
+      path: `/stock-transactions/${id}/cancel`
     });
   }
 
@@ -170,7 +227,6 @@ export class StockTransactionsResource {
    *
    * @endpoint POST /api/v1/stock-transactions/{id}/reject
    * @access   admin
-   * @param payload - Optional JSON body with `reason`. Omitting the body remains supported for backward compatibility.
    * @returns {Promise<ApiMessageDataResponse<StockTransactionModerationResult>>}
    * @throws {ValidationApiError} if the revision is not rejectable (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -180,56 +236,12 @@ export class StockTransactionsResource {
    */
   public reject(
     id: number,
-    payload?: RejectStockTransactionRequest
+    payload?: { reason?: string },
   ): Promise<ApiMessageDataResponse<StockTransactionModerationResult>> {
     return this.client.request<ApiMessageDataResponse<StockTransactionModerationResult>>({
       method: "POST",
       path: `/stock-transactions/${id}/reject`,
       ...(payload ? { body: payload } : {})
-    });
-  }
-
-  /**
-   * Replaces detail rows of a pending BASAH OUT draft. Stock is NOT mutated.
-   *
-   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} PUT /stock-transactions/{id} → updateDraft
-   */
-  public updateDraft(
-    id: number,
-    payload: UpdateDraftRequest,
-  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
-    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
-      method: "PUT",
-      path: `/stock-transactions/${id}`,
-      body: payload,
-    });
-  }
-
-  /**
-   * Approves a pending BASAH OUT draft with atomic stock decrement.
-   *
-   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} POST /stock-transactions/{id}/submit → submitDraft
-   */
-  public submitDraft(
-    id: number,
-  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
-    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
-      method: "POST",
-      path: `/stock-transactions/${id}/submit`,
-    });
-  }
-
-  /**
-   * Cancels a pending BASAH OUT draft without mutating stock.
-   *
-   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} POST /stock-transactions/{id}/cancel → cancelDraft
-   */
-  public cancelDraft(
-    id: number,
-  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
-    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
-      method: "POST",
-      path: `/stock-transactions/${id}/cancel`,
     });
   }
 }
@@ -251,6 +263,8 @@ function buildStockTransactionsQuery(query: ListStockTransactionsQuery): Record<
   if (query.sortDir !== undefined) result.sortDir = query.sortDir;
   if (query.type_id !== undefined) result.type_id = query.type_id;
   if (query.status_id !== undefined) result.status_id = query.status_id;
+  if (query.spk_id !== undefined) result.spk_id = query.spk_id;
+  if (query.is_revision !== undefined) result.is_revision = query.is_revision ? 1 : 0;
   if (query.transaction_date_from !== undefined) result.transaction_date_from = query.transaction_date_from;
   if (query.transaction_date_to !== undefined) result.transaction_date_to = query.transaction_date_to;
   if (query.created_at_from !== undefined) result.created_at_from = query.created_at_from;

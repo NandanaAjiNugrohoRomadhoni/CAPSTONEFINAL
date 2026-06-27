@@ -78,10 +78,10 @@ describe("DailyPatientsResource", () => {
             data: {
               id: 2,
               service_date: "2026-03-03",
-              total_patients: 135,
-              notes: "Adjusted census",
+              total_patients: 140,
+              notes: "Adjusted",
               created_at: "2026-03-02 06:00:00",
-              updated_at: "2026-03-02 07:00:00"
+              updated_at: "2026-03-03 06:00:00"
             }
           }),
           {
@@ -101,8 +101,8 @@ describe("DailyPatientsResource", () => {
     });
     await sdk.dailyPatients.update(2, {
       service_date: "2026-03-03",
-      total_patients: 135,
-      notes: "Adjusted census"
+      total_patients: 140,
+      notes: "Adjusted"
     });
 
     const [listUrl, listInit] = fetchMock.mock.calls[0] ?? [];
@@ -127,8 +127,8 @@ describe("DailyPatientsResource", () => {
     expect(updateInit?.body).toBe(
       JSON.stringify({
         service_date: "2026-03-03",
-        total_patients: 135,
-        notes: "Adjusted census"
+        total_patients: 140,
+        notes: "Adjusted"
       })
     );
   });

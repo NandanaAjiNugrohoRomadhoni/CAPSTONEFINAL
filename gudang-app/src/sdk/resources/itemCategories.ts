@@ -15,7 +15,7 @@ import type {
  *
  * Wraps:    /api/v1/item-categories
  * Contract: api-contract.md §5.2.1
- * Access:   admin | dapur | gudang (read); admin (write)
+ * Access:   admin | dapur | gudang
  *
  * Manages item category lookups used by item master and SPK categorization.
  */

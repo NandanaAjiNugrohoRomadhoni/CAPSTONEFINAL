@@ -1,42 +1,39 @@
-// --- Domain Models ---
+import type { ApiListResponse } from "./common";
 
 export interface StockSnapshotRow {
   id: number;
-  period_month: string;     // "YYYY-MM-DD" (always first of month)
+  period_month: string;
   item_id: number;
   item_name: string;
   category_name: string;
-  opening_qty: number;      // DECIMAL(12,2) from backend, parsed as number
+  opening_qty: number;
   created_at: string;
+  updated_at: string;
 }
 
-// --- Request DTOs ---
-
-export interface CreateSnapshotRequest {
-  month?: string;    // YYYY-MM — defaults to current month on server
-  force?: boolean;   // delete & retake if true
+export interface ListStockSnapshotsQuery {
+  page?: number;
+  perPage?: number;
+  period_month?: string;
+  item_id?: number;
+  item_category_id?: number;
 }
 
-// --- Response Envelopes ---
+export interface TakeStockSnapshotRequest {
+  month?: string;
+  force?: boolean;
+}
 
-export interface CreateSnapshotResponse {
+export interface TakeStockSnapshotResponse {
   success: boolean;
   message: string;
   count: number;
 }
 
-export interface CurrentSnapshotStatus {
+export interface StockSnapshotCurrentStatus {
   month: string;
   has_snapshot: boolean;
-  item_count: number | null;
+  item_count?: number | null;
 }
 
-// --- Query Interface ---
-
-export interface ListSnapshotsQuery {
-  page?: number;
-  perPage?: number;
-  period_month?: string;      // "YYYY-MM-DD" format
-  item_id?: number;
-  item_category_id?: number;
-}
+export type StockSnapshotsListResponse = ApiListResponse<StockSnapshotRow>;

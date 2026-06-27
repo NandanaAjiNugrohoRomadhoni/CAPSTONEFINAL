@@ -22,6 +22,7 @@ import {
 import { listAllPaginatedRows } from "@/lib/pagination";
 import {
   formatActivityDate,
+  buildActivityLogQuery,
   loadActivityRows,
   markActivityLogSeen,
   type ActivityType,
@@ -281,11 +282,6 @@ export default function ActivityLogPage() {
 
   // Check if we can do server-side pagination for active filters
   const canServerPaginate = useMemo(() => {
-    // Backend doesn't support date range filtering
-    if (dateRange.startDate !== "" || dateRange.endDate !== "") {
-      return false;
-    }
-
     // selectedActivityType: "Semua Jenis", "Create", and "Delete" are server-paginated.
     // "Update" maps to multiple backend action types, so it must be client-filtered.
     if (selectedActivityType !== "Semua Jenis" && selectedActivityType !== "Create" && selectedActivityType !== "Delete") {
@@ -308,10 +304,10 @@ export default function ActivityLogPage() {
     async function loadRows() {
       setLoading(true);
 
-      const query: any = {
+      const query = buildActivityLogQuery({
         sortBy: "created_at",
         sortDir: "DESC",
-      };
+      });
 
       if (debouncedSearchTerm.trim() !== "") {
         query.q = debouncedSearchTerm.trim();
@@ -329,6 +325,14 @@ export default function ActivityLogPage() {
         query.table_name = "users";
       } else if (selectedModule === "Laporan") {
         query.table_name = "reports";
+      }
+
+      if (dateRange.startDate !== "") {
+        query.start_date = dateRange.startDate;
+      }
+
+      if (dateRange.endDate !== "") {
+        query.end_date = dateRange.endDate;
       }
 
       if (canServerPaginate) {
@@ -433,11 +437,11 @@ export default function ActivityLogPage() {
     }
 
     try {
-      const exportQuery: Parameters<typeof loadActivityRows>[0] = {
+      const exportQuery = buildActivityLogQuery({
         sortBy: "created_at",
         sortDir: "DESC",
         paginate: false,
-      };
+      });
 
       if (debouncedSearchTerm.trim() !== "") {
         exportQuery.q = debouncedSearchTerm.trim();
@@ -455,6 +459,14 @@ export default function ActivityLogPage() {
         exportQuery.table_name = "users";
       } else if (selectedModule === "Laporan") {
         exportQuery.table_name = "reports";
+      }
+
+      if (dateRange.startDate !== "") {
+        exportQuery.start_date = dateRange.startDate;
+      }
+
+      if (dateRange.endDate !== "") {
+        exportQuery.end_date = dateRange.endDate;
       }
 
       const [rowsResponse, users] = await Promise.all([

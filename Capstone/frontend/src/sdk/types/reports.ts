@@ -18,63 +18,63 @@ export interface ReportRow {
 }
 
 /** Row returned by `/reports/stocks`. */
-export interface StockReportRow {
-  item_id: number;
-  item_name: string;
-  category_id: number;
-  category_name: string;
-  qty: number;
-  unit_base: string;
-  unit_convert: string;
-  is_active: boolean;
-  updated_at: string;
+export interface StockReportRow extends ReportRow {
+    item_id: number;
+    item_name: string;
+    category_id: number;
+    category_name: string;
+    qty: number;
+    unit_base: string;
+    unit_convert: string;
+    is_active: boolean;
+    updated_at: string;
 }
 
 /** Row returned by `/reports/transactions`. */
-export interface TransactionReportRow {
-  transaction_id: number;
-  transaction_date: string;
-  type_id: number;
-  type_name: string;
-  status_id: number;
-  status_name: string;
-  user_id: number;
-  spk_id: number | null;
-  item_id: number;
-  item_name: string;
-  qty: number;
+export interface TransactionReportRow extends ReportRow {
+    transaction_id: number;
+    transaction_date: string;
+    type_id: number;
+    type_name: string;
+    status_id: number;
+    status_name: string;
+    user_id: number;
+    spk_id: number | null;
+    item_id: number;
+    item_name: string;
+    qty: number;
 }
 
 /** Row returned by `/reports/spk-history`. */
-export interface SpkHistoryReportRow {
-  spk_id: number;
-  spk_type: string;
-  version: number;
-  calculation_scope: string;
-  calculation_date: string;
-  target_date_start: string;
-  target_date_end: string;
-  target_month: string;
-  estimated_patients: number;
-  is_finish: boolean;
-  category_id: number;
-  category_name: string;
-  user_id: number;
-  user_name: string;
-  total_recommendations: number;
-  total_required_qty: number;
-  total_recommended_qty: number;
+export interface SpkHistoryReportRow extends ReportRow {
+    spk_id: number;
+    spk_type: string;
+    version: number;
+    calculation_scope: string;
+    calculation_date: string;
+    target_date_start: string;
+    target_date_end: string;
+    target_month: string;
+    estimated_patients: number;
+    is_finish: boolean;
+    category_id: number;
+    category_name: string;
+    user_id: number;
+    user_name: string;
+    total_recommendations: number;
+    total_required_qty: number;
+    total_recommended_qty: number;
 }
 
 /** Row returned by `/reports/evaluation`. */
-export interface EvaluationReportRow {
-  spk_id: number;
-  spk_type: string;
-  calculation_date: string;
-  category_id: number;
-  planned_qty: number;
-  realization_qty: number;
-  variance_qty: number;
+export interface EvaluationReportRow extends ReportRow {
+    spk_id: number;
+    spk_type: string;
+    calculation_date: string;
+    category_id: number;
+    planned_qty: number;
+    realization_qty: number;
+    variance_qty: number;
 }
 
 /** Day entry for monthly stock export. */
@@ -86,15 +86,15 @@ export interface MonthlyStockExportDayEntry {
 }
 
 /** Row returned by `/reports/monthly-stock-export`. */
-export interface MonthlyStockExportRow {
-  no: number;
-  item_id: number;
-  nama_bahan_makanan: string;
-  category_id: number;
-  category_name: string;
-  satuan: string;
-  stok_awal: number | null;
-  harian: MonthlyStockExportDayEntry[];
+export interface MonthlyStockExportRow extends ReportRow {
+    no: number;
+    item_id: number;
+    nama_bahan_makanan: string;
+    category_id: number;
+    category_name: string;
+    satuan: string;
+    stok_awal: number | null;
+    harian: MonthlyStockExportDayEntry[];
 }
 
 /** Union of all possible report row types. */
@@ -115,8 +115,8 @@ export interface CompatibilityProjection {
   rows: unknown[];
 }
 
-/** Shared `data` shape used by `/reports/stocks`, `/reports/transactions`, `/reports/spk-history`, and `/reports/evaluation`. */
-export interface ReportData {
+/** Generic `data` shape shared by report endpoints. */
+export interface ReportData<TRow extends ReportRow = ConcreteReportRow> {
   report_type: string;
   period?: {
     start: string;
@@ -125,14 +125,20 @@ export interface ReportData {
   filters?: Record<string, unknown>;
   summary: ReportSummary;
   periode?: string;
-  rows: ConcreteReportRow[];
+  rows: TRow[];
   compatibility_projection?: CompatibilityProjection;
 }
 
-/** Response envelope for implemented report endpoints. */
-export interface ReportResponse {
-  data: ReportData;
+/** Generic response envelope for report endpoints. */
+export interface ReportResponse<TRow extends ReportRow = ConcreteReportRow> {
+  data: ReportData<TRow>;
 }
+
+export type StockReportResponse = ReportResponse<StockReportRow>;
+export type TransactionReportResponse = ReportResponse<TransactionReportRow>;
+export type SpkHistoryReportResponse = ReportResponse<SpkHistoryReportRow>;
+export type EvaluationReportResponse = ReportResponse<EvaluationReportRow>;
+export type MonthlyStockExportResponse = ReportResponse<MonthlyStockExportRow>;
 
 /** Base required query params for all report endpoints. */
 export interface ReportParams {

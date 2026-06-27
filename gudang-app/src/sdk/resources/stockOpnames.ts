@@ -1,13 +1,13 @@
 import type { ApiClient } from "../client";
 import type {
-  ApiListResponse,
-  CreateStockOpnameRequest,
   ListStockOpnamesQuery,
+  CreateStockOpnameRequest,
   RejectStockOpnameRequest,
-  StockOpnameHeader,
+  StockOpnameListResponse,
+  UpdateStockOpnameRequest,
   StockOpnameResponse,
   StockOpnameActionResponse
-} from "../types";
+} from "../types/stockOpnames";
 
 // Aligned with api-contract.md §5.5.8 and §5.5.10 — 2026-04-29
 /**
@@ -27,22 +27,18 @@ export class StockOpnamesResource {
   }
 
   /**
-   * Lists stock opnames with pagination, filtering, and search.
+   * Lists stock opname headers with pagination and filters.
    *
    * @endpoint GET /api/v1/stock-opnames
-   * @access   admin | gudang (gudang sees only own opnames)
-   * @param query - Supports `page`, `perPage`, `q`/`search`, `sortBy`, `sortDir`, `state`, `opname_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
-   * @returns {Promise<ApiListResponse<StockOpnameHeader>>}
-   * @throws {ValidationApiError} if query validation fails (400)
-   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
-   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
-   * @sideeffect None
+   * @access   admin | gudang
+   * @param query - Supports `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `state`, `opname_date_from/to`, `created_at_from/to`, and `updated_at_from/to`.
+   * @returns {Promise<StockOpnameListResponse>}
    */
-  public list(query?: ListStockOpnamesQuery): Promise<ApiListResponse<StockOpnameHeader>> {
-    return this.client.request<ApiListResponse<StockOpnameHeader>>({
+  public async list(query?: ListStockOpnamesQuery): Promise<StockOpnameListResponse> {
+    return this.client.request<StockOpnameListResponse>({
       method: "GET",
       path: "/stock-opnames",
-      ...(query ? { query: buildStockOpnamesQuery(query) } : {})
+      ...(query ? { query: buildStockOpnamesQuery(query) } : {}),
     });
   }
 
@@ -84,18 +80,14 @@ export class StockOpnamesResource {
   }
 
   /**
-   * Updates an editable stock opname.
+   * Updates a stock opname draft or rejected revision.
    *
    * @endpoint PUT /api/v1/stock-opnames/{id}
    * @access   admin | gudang
+   * @param request - Same mutation contract as create.
    * @returns {Promise<StockOpnameActionResponse>}
-   * @throws {ValidationApiError} if the payload is invalid or the workflow state is immutable (400)
-   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
-   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
-   * @throws {NotFoundApiError} if the opname does not exist (404)
-   * @sideeffect Replaces the draft/rejected detail set in full; does not post stock.
    */
-  public async update(id: number, request: CreateStockOpnameRequest): Promise<StockOpnameActionResponse> {
+  public async update(id: number, request: UpdateStockOpnameRequest): Promise<StockOpnameActionResponse> {
     return this.client.request<StockOpnameActionResponse>({
       method: "PUT",
       path: `/stock-opnames/${id}`,
@@ -181,20 +173,22 @@ export class StockOpnamesResource {
   }
 }
 
-function buildStockOpnamesQuery(query: ListStockOpnamesQuery): Record<string, string | number> {
-  const params: Record<string, string | number> = {};
-  if (query.page !== undefined) params.page = query.page;
-  if (query.perPage !== undefined) params.perPage = query.perPage;
-  if (query.state !== undefined) params.state = query.state;
-  if (query.q !== undefined) params.q = query.q;
-  if (query.search !== undefined) params.search = query.search;
-  if (query.sortBy !== undefined) params.sortBy = query.sortBy;
-  if (query.sortDir !== undefined) params.sortDir = query.sortDir;
-  if (query.opname_date_from !== undefined) params.opname_date_from = query.opname_date_from;
-  if (query.opname_date_to !== undefined) params.opname_date_to = query.opname_date_to;
-  if (query.created_at_from !== undefined) params.created_at_from = query.created_at_from;
-  if (query.created_at_to !== undefined) params.created_at_to = query.created_at_to;
-  if (query.updated_at_from !== undefined) params.updated_at_from = query.updated_at_from;
-  if (query.updated_at_to !== undefined) params.updated_at_to = query.updated_at_to;
-  return params;
+function buildStockOpnamesQuery(query: ListStockOpnamesQuery): Record<string, string | number | boolean> {
+  const result: Record<string, string | number | boolean> = {};
+
+  if (query.page !== undefined) result.page = query.page;
+  if (query.perPage !== undefined) result.perPage = query.perPage;
+  if (query.q !== undefined) result.q = query.q;
+  if (query.search !== undefined) result.search = query.search;
+  if (query.sortBy !== undefined) result.sortBy = query.sortBy;
+  if (query.sortDir !== undefined) result.sortDir = query.sortDir;
+  if (query.state !== undefined) result.state = query.state;
+  if (query.opname_date_from !== undefined) result.opname_date_from = query.opname_date_from;
+  if (query.opname_date_to !== undefined) result.opname_date_to = query.opname_date_to;
+  if (query.created_at_from !== undefined) result.created_at_from = query.created_at_from;
+  if (query.created_at_to !== undefined) result.created_at_to = query.created_at_to;
+  if (query.updated_at_from !== undefined) result.updated_at_from = query.updated_at_from;
+  if (query.updated_at_to !== undefined) result.updated_at_to = query.updated_at_to;
+
+  return result;
 }

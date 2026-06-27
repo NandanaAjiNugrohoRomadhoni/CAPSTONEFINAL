@@ -41,7 +41,6 @@ export interface StockOpname {
 export interface StockOpnameDetailInput {
   item_id: number;
   counted_qty: number;
-  notes?: string;
 }
 
 export interface CreateStockOpnameRequest {

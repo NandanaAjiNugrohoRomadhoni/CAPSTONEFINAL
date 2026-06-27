@@ -14,7 +14,7 @@ import type {
  *
  * Wraps:    /api/v1/daily-patients
  * Contract: api-contract.md §5.7.1
- * Access:   read admin | dapur | gudang; write admin | gudang
+ * Access:   admin | dapur | gudang
  *
  * Manages the standalone daily patient input used as canonical SPK basah input.
  */
@@ -67,7 +67,7 @@ export class DailyPatientsResource {
    * @throws {ValidationApiError} if validation fails or the service date already exists (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
-   * @sideeffect Creates a new daily patient row used by SPK generation.
+   * @sideeffect Creates a new immutable audit row.
    */
   public create(payload: CreateDailyPatientRequest): Promise<DailyPatientCreateResponse> {
     return this.client.request<DailyPatientCreateResponse>({
@@ -78,16 +78,17 @@ export class DailyPatientsResource {
   }
 
   /**
-   * Updates a daily patient row by id.
+   * Updates a daily patient row by numeric identifier.
    *
    * @endpoint PUT /api/v1/daily-patients/{id}
    * @access   admin | gudang
+   * @param payload - Writable fields: `service_date`, `total_patients`, and optional `notes`. Empty payloads are accepted and keep existing values.
    * @returns {Promise<DailyPatientUpdateResponse>}
    * @throws {ValidationApiError} if validation fails or the service date collides with another row (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @throws {NotFoundApiError} if the row does not exist (404)
-   * @sideeffect Updates the existing daily patient input row without changing the list/detail envelope shapes.
+   * @sideeffect Updates the row and appends an audit log entry.
    */
   public update(id: number, payload: UpdateDailyPatientRequest): Promise<DailyPatientUpdateResponse> {
     return this.client.request<DailyPatientUpdateResponse>({

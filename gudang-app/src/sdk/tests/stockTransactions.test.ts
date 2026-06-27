@@ -31,6 +31,54 @@ describe("StockTransactionsResource", () => {
     expect(init?.method).toBe("POST");
   });
 
+  it("exposes the draft update/submit/cancel endpoints", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Draft updated.",
+            data: { id: 20, approval_status_id: 1, is_revision: false, parent_transaction_id: 19 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Draft submitted.",
+            data: { id: 20, approval_status_id: 2, is_revision: false, parent_transaction_id: 19 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Draft cancelled.",
+            data: { id: 20, approval_status_id: 4, is_revision: false, parent_transaction_id: 19 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+
+    const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
+
+    await sdk.stockTransactions.updateDraft(20, {
+      transaction_date: "2026-08-10",
+      details: [{ item_id: 1, qty: 2 }]
+    });
+    await sdk.stockTransactions.submitDraft(20);
+    await sdk.stockTransactions.cancelDraft(20);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/20");
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PUT");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/20/submit");
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/20/cancel");
+    expect(fetchMock.mock.calls[2]?.[1]?.method).toBe("POST");
+  });
+
   it("posts direct correction payloads to the direct-corrections endpoint", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
@@ -117,6 +165,7 @@ describe("StockTransactionsResource", () => {
       sortDir: "ASC",
       type_id: 1,
       status_id: 2,
+      spk_id: 31,
       transaction_date_from: "2026-04-01",
       transaction_date_to: "2026-04-30",
       created_at_from: "2026-04-01",
@@ -125,7 +174,7 @@ describe("StockTransactionsResource", () => {
 
     const [url] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe(
-      "http://127.0.0.1:8080/api/v1/stock-transactions?q=12345&sortBy=updated_at&sortDir=ASC&type_id=1&status_id=2&transaction_date_from=2026-04-01&transaction_date_to=2026-04-30&created_at_from=2026-04-01&updated_at_to=2026-04-30"
+      "http://127.0.0.1:8080/api/v1/stock-transactions?q=12345&sortBy=updated_at&sortDir=ASC&type_id=1&status_id=2&spk_id=31&transaction_date_from=2026-04-01&transaction_date_to=2026-04-30&created_at_from=2026-04-01&updated_at_to=2026-04-30"
     );
   });
 
