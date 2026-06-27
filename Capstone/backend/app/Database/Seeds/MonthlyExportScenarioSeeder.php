@@ -113,7 +113,7 @@ class MonthlyExportScenarioSeeder extends Seeder
 
             if ($existingTx === 0) {
                 $items = $this->db->table('items')
-                    ->select('id, name, qty')
+                    ->select('id, name, qty, item_category_id')
                     ->where('deleted_at', null)
                     ->where('qty >', 0.5)
                     ->orderBy('id', 'RANDOM')
@@ -122,33 +122,44 @@ class MonthlyExportScenarioSeeder extends Seeder
                     ->getResultArray();
 
                 if (!empty($items)) {
-                    $details = [];
+                    $categoryModel = new ItemCategoryModel();
+                    $basahCatId = $categoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+
+                    $basahDetails = [];
+                    $nonBasahDetails = [];
                     foreach ($items as $item) {
                         $qtyToTake = min((float)$item['qty'], (float)rand(1, 5));
                         if ($qtyToTake > 0.01) {
-                            $details[] = [
+                            $detail = [
                                 'item_id' => (int)$item['id'],
                                 'qty' => $qtyToTake,
                                 'input_unit' => 'base',
                             ];
+                            if ((int)$item['item_category_id'] === $basahCatId) {
+                                $basahDetails[] = $detail;
+                            } else {
+                                $nonBasahDetails[] = $detail;
+                            }
                         }
                     }
 
-                    if (!empty($details)) {
-                        $res = $transactionService->createTransaction([
-                            'type_name' => TransactionTypeModel::NAME_OUT,
-                            'transaction_date' => $dateStr,
-                            'details' => $details,
-                            // Removed 'reason' as it is not allowed by service
-                        ], $users['gudang_id']);
-                        
-                        if (!$res['success']) {
-                            CLI::error("OUT transaction failed for {$dateStr}: " . $res['message'] . " " . json_encode($res['errors'] ?? []));
+                    // Create separate OUT transactions per category to avoid mixed-category rejection
+                    foreach ([$basahDetails, $nonBasahDetails] as $details) {
+                        if (!empty($details)) {
+                            $res = $transactionService->createTransaction([
+                                'type_name' => TransactionTypeModel::NAME_OUT,
+                                'transaction_date' => $dateStr,
+                                'details' => $details,
+                            ], $users['gudang_id']);
+
+                            if (!$res['success']) {
+                                CLI::error("OUT transaction failed for {$dateStr}: " . $res['message'] . " " . json_encode($res['errors'] ?? []));
+                            }
                         }
                     }
                 }
             }
-            $cursor = $cursor->modify('+3 days');
+            $cursor = $cursor->modify('+1 day');
         }
     }
 

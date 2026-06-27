@@ -59,12 +59,32 @@ class MenuScheduleManagementService
 
         $dayOfMonth = (int) $data['day_of_month'];
         $menuId = (int) $data['menu_id'];
+
+        // Guard: prevent duplicate (day_of_month, menu_id) assignments.
+        // The DB uniqueness constraint was intentionally dropped (migration 2026-06-10-100000)
+        // but accidental duplicates silently undercount SPK Basah ingredients.
+        $existing = $this->menuScheduleModel->findAssignmentsByDay($dayOfMonth);
+        foreach ($existing as $row) {
+            if ((int) $row['menu_id'] === $menuId) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        'day_of_month' => sprintf(
+                            'Menu %d is already assigned to day %d.',
+                            $menuId,
+                            $dayOfMonth
+                        ),
+                    ],
+                ];
+            }
+        }
+
         $this->db->transStart();
 
         $created = $this->menuScheduleModel->insert([
             'day_of_month' => $dayOfMonth,
-            'menu_id' => $menuId,
-            'patient_count' => $patientCount,
+            'menu_id'      => $menuId,
         ], true);
 
         if ($created === false) {
@@ -72,7 +92,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Failed to create menu schedule.',
-                'errors' => $this->menuScheduleModel->errors(),
+                'errors'  => $this->menuScheduleModel->errors(),
             ];
         }
 
@@ -94,7 +114,7 @@ class MenuScheduleManagementService
         }
 
         return [
-            'success' => true,
+            'success'  => true,
             'schedule' => $this->getScheduleById((int) $created),
         ];
     }
@@ -113,14 +133,13 @@ class MenuScheduleManagementService
         if (
             !$validation->setRules([
                 'day_of_month' => 'permit_empty|is_natural_no_zero|less_than_equal_to[31]',
-                'menu_id' => 'permit_empty|is_natural_no_zero',
-                'patient_count' => 'permit_empty|is_natural',
+                'menu_id'      => 'permit_empty|is_natural_no_zero',
             ])->run($data)
         ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors' => $validation->getErrors(),
+                'errors'  => $validation->getErrors(),
             ];
         }
 
@@ -141,8 +160,26 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors' => $errors,
+                'errors'  => $errors,
             ];
+        }
+
+        // Guard: prevent update from creating a duplicate (day_of_month, menu_id) pair.
+        $siblings = $this->menuScheduleModel->findAssignmentsByDay($resolvedDayOfMonth, $id);
+        foreach ($siblings as $row) {
+            if ((int) $row['menu_id'] === $resolvedMenuId) {
+                return [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => [
+                        'day_of_month' => sprintf(
+                            'Menu %d is already assigned to day %d.',
+                            $resolvedMenuId,
+                            $resolvedDayOfMonth
+                        ),
+                    ],
+                ];
+            }
         }
 
         $updateData = [];
@@ -151,9 +188,6 @@ class MenuScheduleManagementService
         }
         if (array_key_exists('menu_id', $data)) {
             $updateData['menu_id'] = $resolvedMenuId;
-        }
-        if (array_key_exists('patient_count', $data)) {
-            $updateData['patient_count'] = $data['patient_count'] !== '' ? (int) $data['patient_count'] : null;
         }
 
         if ($updateData === []) {
@@ -374,11 +408,11 @@ class MenuScheduleManagementService
     private function resolveEffectiveAssignments(DateTimeImmutable $date): array
     {
         if ($date->format('m-d') === '02-29') {
-            return [['menu_id' => 9, 'patient_count' => null]];
+            return [['menu_id' => 9]];
         }
 
         if ((int) $date->format('j') === 31) {
-            return [['menu_id' => 11, 'patient_count' => null]];
+            return [['menu_id' => 11]];
         }
 
         $schedules = $this->menuScheduleModel->findAssignmentsByDay((int) $date->format('j'));
@@ -386,11 +420,10 @@ class MenuScheduleManagementService
         if (!empty($schedules)) {
             return array_map(fn($s) => [
                 'menu_id' => (int) $s['menu_id'],
-                'patient_count' => isset($s['patient_count']) ? (int) $s['patient_count'] : null,
             ], $schedules);
         }
 
-        return [['menu_id' => $this->calendarContract->resolvePackageId($date), 'patient_count' => null]];
+        return [['menu_id' => $this->calendarContract->resolvePackageId($date)]];
     }
 
     private function validateWritePayload(array $data): array
@@ -399,14 +432,13 @@ class MenuScheduleManagementService
         if (
             !$validation->setRules([
                 'day_of_month' => 'required|is_natural_no_zero|less_than_equal_to[31]',
-                'menu_id' => 'required|is_natural_no_zero',
-                'patient_count' => 'permit_empty|is_natural',
+                'menu_id'      => 'required|is_natural_no_zero',
             ])->run($data)
         ) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors' => $validation->getErrors(),
+                'errors'  => $validation->getErrors(),
             ];
         }
 
@@ -420,7 +452,7 @@ class MenuScheduleManagementService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors' => $errors,
+                'errors'  => $errors,
             ];
         }
 
@@ -430,14 +462,13 @@ class MenuScheduleManagementService
     private function formatSchedule(array $row): array
     {
         return [
-            'id' => (int) $row['id'],
+            'id'           => (int) $row['id'],
             'day_of_month' => (int) $row['day_of_month'],
-            'menu_id' => (int) $row['menu_id'],
-            'patient_count' => isset($row['patient_count']) ? (int) $row['patient_count'] : null,
-            'created_at' => $row['created_at'],
-            'updated_at' => $row['updated_at'],
-            'menu' => [
-                'id' => (int) $row['menu_id'],
+            'menu_id'      => (int) $row['menu_id'],
+            'created_at'   => $row['created_at'],
+            'updated_at'   => $row['updated_at'],
+            'menu'         => [
+                'id'   => (int) $row['menu_id'],
                 'name' => $row['menu_name'] ?? null,
             ],
         ];

@@ -23,7 +23,7 @@ import type {
 export class DishCompositionsResource {
   public constructor(private readonly client: ApiClient) {}
 
-  /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
+  /** @endpoint GET /api/v1/dish-compositions @access admin | gudang | dapur @param query - Supports standard list pagination, `paginate`, `dish_id`, `item_id`, search, sorting, and created/updated date ranges. `paginate=false` keeps the same envelope and sets `meta.paginated=false`. @returns {Promise<DishCompositionsListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
   public list(query?: ListDishCompositionsQuery): Promise<DishCompositionsListResponse> {
     return this.client.request<DishCompositionsListResponse>({
       method: "GET",
@@ -67,9 +67,10 @@ export class DishCompositionsResource {
   }
 }
 
-function buildDishCompositionsQuery(query: ListDishCompositionsQuery): Record<string, string | number> {
-  const result: Record<string, string | number> = {};
+function buildDishCompositionsQuery(query: ListDishCompositionsQuery): Record<string, string | number | boolean> {
+  const result: Record<string, string | number | boolean> = {};
 
+  if (query.paginate !== undefined) result.paginate = query.paginate;
   if (query.page !== undefined) result.page = query.page;
   if (query.perPage !== undefined) result.perPage = query.perPage;
   if (query.dish_id !== undefined) result.dish_id = query.dish_id;

@@ -36,7 +36,7 @@ class StockTransactions extends BaseController
      *     operationId="listStockTransactions",
      *     tags={"Stock Transactions"},
      *     summary="List stock transactions",
-     *     description="Returns stock transaction headers in the standard data/meta/links envelope. Accessible to admin and gudang users. Runtime accepts page, perPage, q, search, sortBy, sortDir, type_id, status_id, transaction_date_from, transaction_date_to, created_at_from, created_at_to, updated_at_from, and updated_at_to. Unknown query parameters return HTTP 400. List rows include user_name and approved_by_name resolved from user ids when available.",
+ *     description="Returns stock transaction headers in the standard data/meta/links envelope. Accessible to admin and gudang users. Runtime accepts page, perPage, q, search, sortBy, sortDir, type_id, status_id, spk_id, transaction_date_from, transaction_date_to, created_at_from, created_at_to, updated_at_from, and updated_at_to. Unknown query parameters return HTTP 400. List rows include user_name and approved_by_name resolved from user ids when available.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="page", in="query", @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\Parameter(name="perPage", in="query", @OA\Schema(type="integer", minimum=1, maximum=100, example=10)),
@@ -46,6 +46,7 @@ class StockTransactions extends BaseController
      *     @OA\Parameter(name="sortDir", in="query", @OA\Schema(type="string", enum={"ASC","DESC"}, example="DESC")),
      *     @OA\Parameter(name="type_id", in="query", @OA\Schema(type="integer", minimum=1, example=1)),
      *     @OA\Parameter(name="status_id", in="query", @OA\Schema(type="integer", minimum=1, example=2)),
+ *     @OA\Parameter(name="spk_id", in="query", description="Exact SPK calculation id filter. Overrides q when both are sent.", @OA\Schema(type="integer", minimum=1, example=31)),
      *     @OA\Parameter(name="transaction_date_from", in="query", @OA\Schema(type="string", example="2026-04-01")),
      *     @OA\Parameter(name="transaction_date_to", in="query", @OA\Schema(type="string", example="2026-04-30")),
      *     @OA\Parameter(name="created_at_from", in="query", @OA\Schema(type="string", example="2026-04-01 00:00:00")),
@@ -70,6 +71,7 @@ class StockTransactions extends BaseController
             'transaction_date_from', 'transaction_date_to',
             'created_at_from', 'created_at_to',
             'updated_at_from', 'updated_at_to',
+            'spk_id',
         ];
         $unknownParams = array_diff(array_keys($queryParams), $allowedParams);
 
@@ -100,9 +102,9 @@ class StockTransactions extends BaseController
         $search   = trim((string) ($queryParams['q'] ?? $queryParams['search'] ?? ''));
         $sortBy   = (string) ($queryParams['sortBy'] ?? 'transaction_date');
         $sortDir  = (string) ($queryParams['sortDir'] ?? 'DESC');
-        $typeId   = isset($queryParams['type_id']) ? (int) $queryParams['type_id'] : null;
-        $statusId = isset($queryParams['status_id']) ? (int) $queryParams['status_id'] : null;
-
+        $spkId = isset($queryParams['spk_id']) ? (int) $queryParams['spk_id'] : null;
+        $typeId              = isset($queryParams['type_id']) ? (int) $queryParams['type_id'] : null;
+        $statusId            = isset($queryParams['status_id']) ? (int) $queryParams['status_id'] : null;
         $transactionDateFrom = $queryParams['transaction_date_from'] ?? null;
         $transactionDateTo   = $queryParams['transaction_date_to'] ?? null;
         $createdAtFrom       = $queryParams['created_at_from'] ?? null;
@@ -115,7 +117,8 @@ class StockTransactions extends BaseController
             $typeId, $statusId,
             $transactionDateFrom, $transactionDateTo,
             $createdAtFrom, $createdAtTo,
-            $updatedAtFrom, $updatedAtTo
+            $updatedAtFrom, $updatedAtTo,
+            $spkId
         );
 
         $userMap = $this->buildUserNameMapFromTransactions($result['transactions']);
@@ -175,7 +178,7 @@ class StockTransactions extends BaseController
 
         if (! $result['success']) {
             return $this->response
-                ->setStatusCode(400)
+                ->setStatusCode((int) ($result['status_code'] ?? 400))
                 ->setJSON([
                     'message' => $result['message'],
                     'errors'  => $result['errors'] ?? [],
@@ -480,6 +483,147 @@ class StockTransactions extends BaseController
             ]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/stock-transactions/{id}",
+     *     operationId="updateStockTransactionDraft",
+     *     tags={"Stock Transactions"},
+     *     summary="Update BASAH OUT draft",
+     *     description="Replaces detail rows of a pending BASAH OUT draft. Stock is not mutated. Admin and gudang only.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=77)),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/StockTransactionRevisionRequest")),
+     *     @OA\Response(response=200, description="Draft updated."),
+     *     @OA\Response(response=400, description="Validation failed."),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role."),
+     *     @OA\Response(response=404, description="Draft not found.")
+     * )
+     */
+    public function updateDraft(int $id): ResponseInterface
+    {
+        $data = $this->request->getJSON(true) ?? [];
+        $user = auth()->user();
+
+        if ($user === null) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON(['message' => 'Unauthorized.']);
+        }
+
+        $result = $this->transactionService->updateDraft($id, $data, (int) $user->id, $this->request->getIPAddress());
+
+        if (! $result['success']) {
+            $statusCode = (int) ($result['status_code'] ?? 400);
+            return $this->response
+                ->setStatusCode($statusCode)
+                ->setJSON([
+                    'message' => $result['message'],
+                    'errors'  => $result['errors'] ?? [],
+                ]);
+        }
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setJSON([
+                'message' => $result['message'],
+                'data'    => $result['data'],
+            ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/v1/stock-transactions/{id}/submit",
+     *     operationId="submitStockTransactionDraft",
+     *     tags={"Stock Transactions"},
+     *     summary="Submit BASAH OUT draft",
+     *     description="Approves a pending BASAH OUT draft, atomic-stock decrement, and finalizes the transaction. Admin and gudang only.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=77)),
+     *     @OA\Response(response=200, description="Draft submitted and stock decreased."),
+     *     @OA\Response(response=400, description="Validation failed."),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role."),
+     *     @OA\Response(response=404, description="Draft not found.")
+     * )
+     */
+    public function submitDraft(int $id): ResponseInterface
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON(['message' => 'Unauthorized.']);
+        }
+
+        $result = $this->transactionService->submitDraft($id, (int) $user->id, $this->request->getIPAddress());
+
+        if (! $result['success']) {
+            $statusCode = (int) ($result['status_code'] ?? 400);
+            return $this->response
+                ->setStatusCode($statusCode)
+                ->setJSON([
+                    'message' => $result['message'],
+                    'errors'  => $result['errors'] ?? [],
+                ]);
+        }
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setJSON([
+                'message' => $result['message'],
+                'data'    => $result['data'],
+            ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/v1/stock-transactions/{id}/cancel",
+     *     operationId="cancelStockTransactionDraft",
+     *     tags={"Stock Transactions"},
+     *     summary="Cancel BASAH OUT draft",
+     *     description="Rejects a pending BASAH OUT draft without mutating stock. Frees the daily slot. Admin and gudang only.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer", minimum=1, example=77)),
+     *     @OA\Response(response=200, description="Draft cancelled."),
+     *     @OA\Response(response=400, description="Validation failed."),
+     *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
+     *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role."),
+     *     @OA\Response(response=404, description="Draft not found.")
+     * )
+     */
+    public function cancelDraft(int $id): ResponseInterface
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON(['message' => 'Unauthorized.']);
+        }
+
+        $result = $this->transactionService->cancelDraft($id, (int) $user->id, $this->request->getIPAddress());
+
+        if (! $result['success']) {
+            $statusCode = (int) ($result['status_code'] ?? 400);
+            return $this->response
+                ->setStatusCode($statusCode)
+                ->setJSON([
+                    'message' => $result['message'],
+                    'errors'  => $result['errors'] ?? [],
+                ]);
+        }
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setJSON([
+                'message' => $result['message'],
+                'data'    => $result['data'],
+            ]);
+    }
+
+
     private function buildPaginationLinks(array $result): array
     {
         $queryParams = $this->request->getGet();
@@ -516,6 +660,10 @@ class StockTransactions extends BaseController
 
         if (isset($params['type_id']) && (! ctype_digit((string) $params['type_id']) || (int) $params['type_id'] < 1)) {
             $errors['type_id'] = 'The type_id field must be a positive integer.';
+        }
+
+        if (isset($params['spk_id']) && (! ctype_digit((string) $params['spk_id']) || (int) $params['spk_id'] < 1)) {
+            $errors['spk_id'] = 'The spk_id field must be a positive integer.';
         }
 
         if (isset($params['status_id']) && (! ctype_digit((string) $params['status_id']) || (int) $params['status_id'] < 1)) {

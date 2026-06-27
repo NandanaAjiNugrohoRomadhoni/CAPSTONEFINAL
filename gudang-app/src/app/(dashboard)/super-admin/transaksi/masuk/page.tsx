@@ -23,7 +23,6 @@ type Row = {
   unit: string;
   locked: boolean;
 };
-type PrefillDetail = { item_id: number; qty: number };
 
 type AlertState = {
   title: string;
@@ -39,61 +38,6 @@ type SearchableItemSelectProps = {
   onChange: (itemId: number | null, unit?: string) => void;
 };
 
-function normalizePrefillDetails(source: unknown): PrefillDetail[] {
-  const root = source as {
-    data?: {
-      details?: unknown;
-      items?: unknown;
-      recommendations?: unknown;
-      print_ready?: { recommendations?: unknown };
-    };
-  };
-  const candidates =
-    root.data?.details ??
-    root.data?.items ??
-    root.data?.recommendations ??
-    root.data?.print_ready?.recommendations ??
-    [];
-
-  if (!Array.isArray(candidates)) return [];
-
-  const normalizedDetails = candidates
-    .map((candidate) => {
-      const row = candidate as {
-        item_id?: unknown;
-        item?: { id?: unknown };
-        qty?: unknown;
-        final_recommended_qty?: unknown;
-        system_recommended_qty?: unknown;
-        recommended_qty?: unknown;
-        required_qty?: unknown;
-      };
-      const itemId = Number(row.item_id ?? row.item?.id ?? 0);
-      const qty = Number(
-        row.qty ??
-          row.final_recommended_qty ??
-          row.system_recommended_qty ??
-          row.recommended_qty ??
-          row.required_qty ??
-          0,
-      );
-      return { item_id: itemId, qty };
-    })
-    .filter((detail) => Number.isFinite(detail.item_id) && detail.item_id > 0 && Number.isFinite(detail.qty));
-
-  return Array.from(
-    normalizedDetails
-      .reduce((map, detail) => {
-        const existing = map.get(detail.item_id);
-        map.set(detail.item_id, {
-          item_id: detail.item_id,
-          qty: (existing?.qty ?? 0) + detail.qty,
-        });
-        return map;
-      }, new Map<number, PrefillDetail>())
-      .values(),
-  );
-}
 
 export default function BarangMasukPage() {
   const [activeTab, setActiveTab] = useState<"basah" | "kering">("basah");
@@ -241,12 +185,8 @@ export default function BarangMasukPage() {
     setLoadingPrefill(true);
 
     try {
-      let details: PrefillDetail[] = [];
-      const detailResponse =
-        activeTab === "basah"
-          ? await sdk.spk.getBasah(selectedSpkId)
-          : await sdk.spk.getKeringPengemas(selectedSpkId);
-      details = normalizePrefillDetails(detailResponse);
+      const prefillResponse = await sdk.spk.stockInPrefill(selectedSpkId);
+      const details = prefillResponse.data.details;
 
       if (details.length === 0) {
         throw new Error("SPK yang dipilih belum memiliki detail bahan untuk prefill.");

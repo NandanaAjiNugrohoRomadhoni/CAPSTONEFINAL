@@ -95,6 +95,13 @@ export interface RejectStockTransactionRequest {
   reason?: string;
 }
 
+/** Request payload for PUT /api/v1/stock-transactions/{id} — replaces detail rows of pending BASAH OUT draft. */
+export interface UpdateDraftRequest {
+  transaction_date?: string;
+  spk_id?: number | null;
+  details: StockTransactionDetailInput[];
+}
+
 /** Request payload for admin-only `POST /api/v1/stock-transactions/direct-corrections`. */
 export interface DirectStockCorrectionRequest {
   transaction_date: string;

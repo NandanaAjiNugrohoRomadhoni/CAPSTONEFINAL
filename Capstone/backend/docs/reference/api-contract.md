@@ -291,6 +291,33 @@ Unknown query parameters return `400` validation errors.
 }
 ```
 
+##### Summary Endpoint
+
+`GET /api/v1/audit-logs/summary` returns aggregate audit log statistics grouped by date.
+
+**Access:** Requires valid Bearer token and `admin` role
+
+| Query Param | Type | Default | Description |
+|---|---|---|---|
+| `start_date` | string (Y-m-d) | — | Start date for summary range (required) |
+| `end_date` | string (Y-m-d) | — | End date for summary range (required) |
+
+```json
+{
+  "data": [
+    {
+      "date": "2026-06-22",
+      "total": 15,
+      "by_action_type": {
+        "create": 5,
+        "update": 7,
+        "delete": 3
+      }
+    }
+  ]
+}
+```
+
 ### 5.2 Inventory Lookup Endpoints
 
 These endpoints provide reference data for creating and filtering inventory operations. All inventory lookup GET endpoints are accessible to users with `admin`, `dapur`, or `gudang` roles. Write operations on `item-units` and `item-categories` remain restricted to `admin` only.
@@ -1202,6 +1229,10 @@ Creating a new item with the name of a deleted item returns `400` with `errors.r
 | POST | `/api/v1/stock-transactions/direct-corrections` | Admin-only direct stock correction for a single item |
 | GET | `/api/v1/stock-transactions/{id}` | Get stock transaction header only |
 | GET | `/api/v1/stock-transactions/{id}/details` | Get stock transaction item lines only |
+| PUT | `/api/v1/stock-transactions/{id}` | Update draft stock transaction (updateDraft) |
+| POST | `/api/v1/stock-transactions/{id}/submit` | Submit draft transaction for approval (submitDraft) |
+| POST | `/api/v1/stock-transactions/{id}/cancel` | Cancel a draft transaction (cancelDraft) |
+
 
 #### 5.5.2 Access Rules
 
@@ -1229,6 +1260,7 @@ Supported query parameters:
 - `sortDir` — sort direction: `ASC` or `DESC` (default `DESC`)
 - `type_id` — filter by transaction type ID
 - `status_id` — filter by approval status ID
+- `spk_id` — exact SPK calculation ID filter (overrides `q`/`search` when present); integer, nullable
 - `transaction_date_from`, `transaction_date_to` — date range filter on `transaction_date`
 - `created_at_from`, `created_at_to` — date range filter on `created_at`
 - `updated_at_from`, `updated_at_to` — date range filter on `updated_at`
@@ -1275,7 +1307,7 @@ Rules:
 }
 ```
 
-#### 5.5.4 Create Stock Transaction
+#### 5.5.5 Create Stock Transaction
 
 Allowed request fields:
 
@@ -1382,9 +1414,9 @@ Request with unit conversion — `qty` is in convert units (e.g. kg), stored as 
 
 > Catatan: contoh `approval_status_id` di dokumen ini mengikuti seeded development baseline saat ini. Runtime code menetapkan status berdasarkan lookup nama `APPROVED`, bukan literal angka yang di-hardcode.
 
-#### 5.5.5 Get Stock Transaction Header
+#### 5.5.6 Get Stock Transaction Header
 
-`GET /api/v1/stock-transactions/{id}` hanya mengembalikan resource header transaksi, bukan item lines.
+`GET /api/v1/stock-transactions/{id}` hanya mengembalikan resource header transaksi, bukan item lines. Untuk item-level details, lihat `GET /api/v1/stock-transactions/{id}/details` di §5.5.7.
 
 #### Response
 
@@ -1406,7 +1438,7 @@ Request with unit conversion — `qty` is in convert units (e.g. kg), stored as 
 }
 ```
 
-#### 5.5.6 Get Stock Transaction Details
+#### 5.5.7 Get Stock Transaction Details
 
 `GET /api/v1/stock-transactions/{id}/details` hanya mengembalikan item lines transaksi.
 
@@ -1439,7 +1471,7 @@ Request with unit conversion — `qty` is in convert units (e.g. kg), stored as 
 - `input_qty` — original quantity as submitted in the request.
 - `input_unit` — `"base"` (default) or `"convert"` as submitted/defaulted.
 
-#### 5.5.7 Direct Stock Correction
+#### 5.5.8 Direct Stock Correction
 
 Admin can directly correct an item's stock level. The system calculates the required mutation (IN or OUT) based on the target quantity and the expected current quantity.
 
@@ -1484,7 +1516,7 @@ Rules:
 - koreksi langsung disimpan sebagai transaksi final (`is_revision = false`, `parent_transaction_id = null`) dengan status `APPROVED`;
 - jika stok aktual tidak lagi sama dengan `expected_current_qty`, request ditolak agar koreksi tidak menimpa perubahan stok yang lebih baru.
 
-#### 5.5.8 Revision Workflow Actions
+#### 5.5.9 Revision Workflow Actions
 
 Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone 1.
 
@@ -1519,7 +1551,44 @@ Workflow revisi transaksi stok berikut sudah diimplementasikan setelah Milestone
 - request field `reason` disimpan ke kolom `stock_transactions.rejection_reason`, bukan ke `stock_transactions.reason`;
 - parent transaction tetap dipertahankan sebagai histori asal.
 
-#### 5.5.10 Stock Opname Compatibility Facade
+
+#### 5.5.10 Draft Lifecycle (BASAH OUT Workflow)
+
+Stock transactions of type `OUT` with category `BASAH` support a dedicated draft lifecycle that mirrors the operational workflow of the gudang unit.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| PUT | `/api/v1/stock-transactions/{id}` | Update draft transaction header and details (updateDraft) |
+| POST | `/api/v1/stock-transactions/{id}/submit` | Submit draft for approval (submitDraft) |
+| POST | `/api/v1/stock-transactions/{id}/cancel` | Cancel a draft transaction (cancelDraft) |
+
+**Access:** `admin` and `gudang`
+
+**updateDraft:**
+- Replaces the existing draft's header and detail lines entirely.
+- Only applicable while the transaction is in `DRAFT` status. Submitted/approved/rejected transactions return `400`.
+- Follows the same validation rules as create (item uniqueness, negative stock guard, unit conversion).
+
+**submitDraft:**
+- Transitions the draft from `DRAFT` to `SUBMITTED` status, making it immutable.
+- A submitted transaction appears in the approval queue for admin review.
+- Returns `400` if the transaction is not in `DRAFT` status.
+
+**cancelDraft:**
+- Transitions the draft from `DRAFT` to `REJECTED`/cancelled status without affecting stock.
+- Only `DRAFT` or `SUBMITTED` transactions can be cancelled.
+- Returns `400` if the transaction is already approved or posted.
+
+**Error example (wrong status):**
+```json
+{
+  "message": "Validation failed.",
+  "errors": {
+    "status": "Only draft transactions can be updated."
+  }
+}
+```
+#### 5.5.11 Stock Opname Compatibility Facade
 
 The `/api/v1/stock-opnames/*` routes are preserved as a compatibility facade. While the underlying implementation now unifies with the transaction ledger, the dedicated workflow for opname management remains available.
 
@@ -1691,323 +1760,20 @@ Remove a slot assignment.
 }
 ```
 
-### 5.7 Daily Patients & SPK Runtime Contract Freeze
-
-Bagian ini membekukan kontrak route, boundary, dan lifecycle untuk fondasi implementasi SPK basah serta kering/pengemas.
-
-#### 5.7.1 Daily Patients
-
-`daily-patients` adalah input harian pasien untuk tanggal operasional tertentu. Resource ini berdiri sendiri dan tidak ditumpangkan ke `/menu-calendar`.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v1/daily-patients` | List daily patient rows (standard `data/meta/links`) |
-| POST | `/api/v1/daily-patients` | Create daily patient row |
-| PUT | `/api/v1/daily-patients/{id}` | Update daily patient row by numeric id |
-| GET | `/api/v1/daily-patients/{service_date}` | Get daily patient detail by service date (`Y-m-d`) |
-
-Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` dan `PUT` daily-patients tersedia untuk `admin` dan `gudang`.
-
-Collection response contract mengikuti envelope standar (`data`, `meta`, `links`).
-
-Create/detail response contract menggunakan `data` object.
-
-Example create response:
-
-```json
-{
-  "message": "Daily patient created successfully.",
-  "data": {
-    "id": 1,
-    "service_date": "2026-05-01",
-    "total_patients": 120,
-    "notes": null,
-    "created_at": "2026-05-01 06:00:00",
-    "updated_at": "2026-05-01 06:00:00"
-  }
-}
-```
-
-Duplicate create requests now return `400` with an actionable error that includes `existing_id` and directs clients to use `PUT /api/v1/daily-patients/{id}`.
-
-#### 5.7.2 SPK Basah Route Family
-
-SPK basah dipisahkan menjadi tiga surface yang berbeda: menu projection, generation/history, dan stock posting.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v1/spk/basah/menu-calendar` | Projection-only resolver untuk menu calendar context |
-| POST | `/api/v1/spk/basah/operational-stock-preview` | Preview sisa stok untuk tanggal yang sama |
-| POST | `/api/v1/spk/basah/generate` | Generate SPK basah (membuat versi histori baru; duplicate active scope returns 409 unless `regenerate=true`) |
-| GET | `/api/v1/spk/basah/history` | List histori SPK basah |
-| GET | `/api/v1/spk/basah/history/{id}` | Detail histori SPK basah (termasuk rekomendasi item) |
-| POST | `/api/v1/spk/basah/history/{id}/override` | Override rekomendasi qty per item |
-| POST | `/api/v1/spk/basah/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
-
-SPK basah calculation rules:
-
- - `qty_per_patient`, `current_stock_qty`, `required_qty`, `system_recommended_qty`, and `recommended_qty` use `items.unit_base`.
- - SPK basah does not convert quantities to `unit_convert` during generation.
- - `required_qty = ceil(qty_per_patient × (estimated_patients + ceil(estimated_patients × 0.05)))`.
- - `system_recommended_qty = max(required_qty - current_stock_qty, 0)`.
- - Multiple menus assigned to the same date deduplicate shared dishes by `dish_id`; different dishes on the same date still sum.
- - SPK basah applies ceil to final required quantity, so 66.6666 becomes 67.
-
-#### 5.7.3 SPK Kering/Pengemas Route Family
-
-SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v1/spk/kering-pengemas/menu-calendar` | Projection-only resolver |
-| POST | `/api/v1/spk/kering-pengemas/generate` | Generate SPK kering/pengemas (monthly basis; duplicate active scope returns 409 unless `regenerate=true`) |
-| GET | `/api/v1/spk/kering-pengemas/history` | List histori |
-| GET | `/api/v1/spk/kering-pengemas/history/{id}` | Detail histori |
-| POST | `/api/v1/spk/kering-pengemas/history/{id}/override` | Override rekomendasi qty per item |
-| POST | `/api/v1/spk/kering-pengemas/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
-
-SPK kering/pengemas calculation rules:
-
-- `required_qty = previous_month_out_usage × 1.10`.
-- `system_recommended_qty = ceil(max(required_qty - current_stock_qty, 0))`.
-- Whole-unit `ceil()` rounding applies only after subtracting current stock.
-
-#### 5.7.4 Shared SPK Utility
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v1/spk/stock-in-prefill/{id}` | Prefill data untuk transaksi IN berdasarkan SPK |
-
-Access note: endpoint read untuk SPK history/calendar (`GET /spk/basah/menu-calendar`, `GET /spk/basah/history*`, `GET /spk/kering-pengemas/menu-calendar`, `GET /spk/kering-pengemas/history*`) tersedia untuk `admin`, `dapur`, dan `gudang`.
-
-Access note: seluruh write/helper flow SPK yang saat ini diimplementasikan juga tersedia untuk `admin`, `dapur`, dan `gudang`, termasuk `POST /spk/basah/operational-stock-preview`, `POST /spk/basah/generate`, `POST /spk/basah/history/{id}/override`, `POST /spk/kering-pengemas/generate`, `POST /spk/kering-pengemas/history/{id}/override`, dan `GET /spk/stock-in-prefill/{id}`. Final stock posting (`POST /spk/*/history/{id}/post-stock`) tersedia untuk `admin` dan `gudang`.
-
-#### 5.7.5 Controller/Service Boundary Freeze
-
-Kontrak boundary backend dibekukan sebagai berikut:
-
-- `MenuSchedules::calendarProjection` menangani **hanya** `/api/v1/menu-calendar` (menu projection umum).
-- `SpkBasah::*` dan `SpkKeringPengemas::*` menangani domain SPK masing-masing route family.
-- Endpoint `/post-stock` adalah satu-satunya action SPK yang boleh men-trigger pembuatan stock transaction.
-- Endpoint `/generate` **tidak** membuat stock transaction otomatis.
-
-#### 5.7.5 Lifecycle & Regeneration/Versioning Freeze
-
-Regeneration SPK dibekukan dengan semantics berikut:
-
-1. Generate ulang untuk kombinasi konteks yang sama (tanggal/category) harus membuat **baris histori baru** (new row / new version).
-2. Histori versi sebelumnya tidak boleh di-overwrite.
-3. Endpoint history list/detail harus memungkinkan pelacakan versi.
-4. Stock posting adalah langkah terpisah setelah versi dipilih, bukan side effect dari generate.
-5. Jika masih ada SPK aktif (`is_finish=false`) untuk scope yang sama, generate mengembalikan `409 Conflict` beserta metadata SPK existing. Klien harus mengirim `regenerate=true` untuk membuat versi baru secara eksplisit.
-
-Contoh response envelope generate:
-
-```json
-{
-  "message": "SPK generated successfully.",
-  "data": {
-    "id": 31,
-    "version": 3,
-    "regenerated_from_id": 29,
-    "status": "DRAFT",
-    "stock_posted": false,
-    "created_at": "2026-05-01 08:30:00",
-    "updated_at": "2026-05-01 08:30:00"
-  }
-}
-```
-
-### 5.8 Dashboard Aggregate Endpoint (Minimum SRS Scope)
-
-`GET /api/v1/dashboard`
-
-Endpoint ini mengembalikan agregasi dashboard minimum sesuai SRS dengan payload yang dibentuk eksplisit berdasarkan role login (`admin`, `gudang`, `dapur`).
-
-**Access:** `admin`, `dapur`, `gudang`
-
-**Response envelope:**
-
-```json
-{
-  "data": {
-    "role": "admin",
-    "generated_at": "2026-04-15 10:30:00",
-    "aggregates": {
-      "...": "role-specific keys"
-    }
-  }
-}
-```
-
-**Role payload keys (minimum contract):**
-
-- `admin`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `current_menu_cycle` (enhanced with `total_ingredient_items`, `total_required_qty`, `sufficient_items`, `insufficient_items`, `top_shortages`), `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `pending_actions` (new)
-- `gudang`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `today_outgoing` (new), `pending_actions` (new)
-- `dapur`: `current_menu_cycle` (enhanced), `current_menu_composition`, `menu_ingredient_summary` (new), `latest_spk_history` (enhanced with `summary_items` inline), `stock_summary` (enhanced), `dry_stock_status`, `pending_actions` (new)
-
-Unauthorized/forbidden behavior mengikuti filter runtime:
-
-- missing/invalid token → `401` dengan shape `{"message": "..."}`
-- inactive account / role tidak memenuhi policy endpoint → `403` dengan shape `{"message": "..."}`
-
-### 5.9 Reporting Endpoints (Export-ready Dataset)
-
-Reporting API menyediakan dataset JSON siap ekspor (tanpa coupling ke engine PDF).
-
-**Access:** `admin`, `dapur`, `gudang`
-
-Semua endpoint report menggunakan query period mandatory:
-
-- `period_start` (required, `Y-m-d`)
-- `period_end` (required, `Y-m-d`)
-
-Validation contract:
-
-- unknown query parameters -> `400` + `{"message":"Validation failed.","errors":{...}}`
-- malformed date / `period_start > period_end` -> `400` + `errors` per field
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v1/reports/stocks` | Stock report dataset by period and optional stock filters |
-| GET | `/api/v1/reports/transactions` | Stock transaction line dataset by period and optional transaction filters |
-| GET | `/api/v1/reports/spk-history` | SPK history dataset by period and optional SPK filters |
-| GET | `/api/v1/reports/evaluation` | Plan vs realization evaluation dataset with variance |
-| GET | `/api/v1/reports/monthly-stock-export` | Monthly per-item movement export grouped by `transaction_date` |
-
-#### 5.9.1 Stock Report
-
-Optional filters:
-
-- `category_id`
-- `item_id`
-- `is_active` (`true`/`false`/`1`/`0`)
-
-Response shape:
-
-```json
-{
-  "data": {
-    "report_type": "stocks",
-    "period": { "start": "2026-04-10", "end": "2026-04-20" },
-    "filters": {},
-    "summary": {
-      "total_items": 2,
-      "active_items": 2,
-      "total_qty": 1500
-    },
-    "rows": [
-      {
-        "item_id": 1,
-        "item_name": "Beras",
-        "category_id": 2,
-        "category_name": "KERING",
-        "qty": 1000,
-        "unit_base": "gram",
-        "unit_convert": "kg",
-        "is_active": true,
-        "updated_at": "2026-04-15 10:00:00"
-      }
-    ]
-  }
-}
-```
-
-#### 5.9.2 Transaction Report
-
-Optional filters:
-
-- `type_id`
-- `status_id`
-- `item_id`
-
-Response `rows` berisi flattened transaction + detail lines untuk kebutuhan ekspor tabular.
-
-#### 5.9.3 SPK History Report
-
-Optional filters:
-
-- `spk_type` (`basah` / `kering_pengemas`)
-- `category_id`
-
-Response berisi ringkasan per `spk_calculations` row (termasuk agregat rekomendasi qty).
-
-Tambahan kontrak kompatibilitas (non-breaking) untuk rekonsiliasi SRS-vs-runtime:
-
-- `data.compatibility_projection` menyajikan proyeksi SRS-safe dari schema SPK runtime yang lebih kaya.
-- Proyeksi ini **tidak** menggantikan field runtime yang sudah ada pada `data.rows`; proyeksi hanya tambahan untuk consumer SRS/report/export.
-- Mapping rekomendasi SRS: `spk_recommendations.qty` diproyeksikan dari `spk_recommendations.recommended_qty` (final recommended quantity).
-- Kontrak projection `spk_calculations` yang dipertahankan: `id`, `calculation_date`, `target_date_start`, `target_date_end`, `daily_patient_id`, `user_id`, `category_id`, `estimated_patients`, `is_finish`.
-- Kontrak projection `spk_recommendations` yang dipertahankan: `id`, `spk_id`, `item_id`, `qty`.
-
-#### 5.9.4 Evaluation Report (Plan vs Realization)
-
-Optional filters:
-
-- `spk_type` (`basah` / `kering_pengemas`)
-- `category_id`
-
-Evaluation semantics:
-
-- `planned_qty` = total `spk_recommendations.recommended_qty` per SPK dalam periode
-- `realization_qty` = total `stock_transaction_details.qty` untuk transaksi `OUT` + `APPROVED` yang mereferensikan `spk_id` terkait dalam periode
-- `variance_qty` = `realization_qty - planned_qty`
-
-Summary menyertakan total planned/realization/variance lintas baris hasil.
-
-#### 5.9.5 Monthly Stock Export
-
-Optional filters:
-
-- `category_id`
-- `item_id`
-
-Monthly stock export semantics:
-
-- hanya memuat transaksi `APPROVED`;
-- memakai `stock_transactions.transaction_date` sebagai business date filter dan daily grouping axis;
-- filter kategori diterapkan pada level item (`items.item_category_id`), bukan pada semantics SPK;
-- `stok_awal` dibaca dari `monthly_stock_snapshots(period_month, item_id)` untuk bulan `period_start`;
-- `masuk` menjumlahkan `IN` dan `RETURN_IN`;
-- `keluar` menjumlahkan `OUT`;
-- `OPNAME_ADJUSTMENT` tidak dipetakan ke `masuk/keluar` pada versi pertama ini;
-- jika snapshot item tidak ada, `stok_awal` dan seluruh `harian[].sisa` untuk item itu bernilai `null`.
-
-Response shape:
-
-```json
-{
-  "data": {
-    "report_type": "monthly-stock-export",
-    "period": { "start": "2026-04-01", "end": "2026-04-30" },
-    "filters": { "category_id": 3 },
-    "summary": {
-      "total_items": 1,
-      "total_days": 30
-    },
-    "periode": "1-30",
-    "rows": [
-      {
-        "no": 1,
-        "item_id": 3,
-        "nama_bahan_makanan": "Plastik Vakum",
-        "category_id": 3,
-        "category_name": "PENGEMAS",
-        "satuan": "gram",
-        "stok_awal": 250,
-        "harian": [
-          { "tanggal": 12, "masuk": 40, "keluar": 0, "sisa": 290 },
-          { "tanggal": 13, "masuk": 0, "keluar": 5, "sisa": 285 }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### 5.10 Notifications
+### 5.7 Notifications
 
 Endpoint untuk notifikasi sistem.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/notifications` | List notifications for authenticated user (paginated, filterable) |
+| POST | `/api/v1/notifications/{id}/read` | Mark a single notification as read |
+| POST | `/api/v1/notifications/read-all` | Mark all notifications as read |
+| DELETE | `/api/v1/notifications/{id}` | Delete a single notification |
+| DELETE | `/api/v1/notifications` | Delete all notifications for authenticated user |
+
+**Access:** All notification endpoints require a valid Bearer token. Notifications are self-scoped — setiap user hanya dapat melihat dan mengelola notifikasinya sendiri. Semua role (`admin`, `gudang`, `dapur`) memiliki akses yang sama terhadap notifikasi miliknya masing-masing.
+
 
 #### Notification Types & Flow
 Sistem secara otomatis membuat dan mendistribusikan notifikasi berdasarkan event operasional berikut:
@@ -2020,7 +1786,7 @@ Sistem secara otomatis membuat dan mendistribusikan notifikasi berdasarkan event
 | **Pengajuan Stock Opname** | `STOCK_OPNAME` | Role: `admin` | `stock_opnames.id` |
 | **Status Stock Opname** | `STOCK_OPNAME` | User submitter | `stock_opnames.id` |
 
-#### 5.10.1 List Notifications
+#### 5.7.1 List Notifications
 - **Method:** `GET /api/v1/notifications`
 - **Access:** `authenticated` (self-scoped)
 - **Query Parameters:** `page`, `perPage`, `paginate`, `is_read`, `type`, `q`, `sortBy`, `sortDir`
@@ -2058,15 +1824,15 @@ Sistem secara otomatis membuat dan mendistribusikan notifikasi berdasarkan event
 }
 ```
 
-#### 5.10.2 Mark Notification as Read
+#### 5.7.2 Mark Notification as Read
 - **Method:** `POST /api/v1/notifications/{id}/read`
 - **Access:** `authenticated` (owner of notification)
 
-#### 5.10.3 Mark All Notifications as Read
+#### 5.7.3 Mark All Notifications as Read
 - **Method:** `POST /api/v1/notifications/read-all`
 - **Access:** `authenticated` (self-scoped)
 
-#### 5.10.4 List Notifications with Filters, Sorting, and Pagination
+#### 5.7.4 List Notifications with Filters, Sorting, and Pagination
 
 The notifications list endpoint supports filtering, sorting, and pagination control via query parameters.
 
@@ -2193,7 +1959,7 @@ GET /api/v1/notifications?paginate=false
 }
 ```
 
-#### 5.10.5 Delete a Single Notification
+#### 5.7.5 Delete a Single Notification
 - **Method:** `DELETE /api/v1/notifications/{id}`
 - **Access:** `authenticated` (owner of notification)
 - **Behavior:** Only deletes if the notification belongs to the authenticated user.
@@ -2219,7 +1985,7 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 5.10.6 Delete All Notifications
+#### 5.7.6 Delete All Notifications
 - **Method:** `DELETE /api/v1/notifications`
 - **Access:** `authenticated` (self-scoped)
 - **Behavior:** Deletes all notifications for the authenticated user.
@@ -2244,6 +2010,413 @@ Authorization: Bearer <token>
 }
 ```
 
+### 5.8 Stock Snapshots
+
+Stock snapshots provide point-in-time records of inventory quantities. These snapshots are used for monthly stock export and audit reconciliation.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/stock-snapshots` | List all stock snapshots with pagination |
+| POST | `/api/v1/stock-snapshots` | Take a new stock snapshot (records current qty for all items) |
+| GET | `/api/v1/stock-snapshots/current` | Get the most recent snapshot with item-level details |
+
+**Access:**
+- `GET /api/v1/stock-snapshots` — `admin`, `gudang`
+- `POST /api/v1/stock-snapshots` — `admin`, `gudang`
+- `GET /api/v1/stock-snapshots/current` — `admin`, `dapur`, `gudang`
+
+#### 5.8.1 List Snapshots
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "period_month": "2026-06",
+      "snapshot_date": "2026-06-30",
+      "total_items": 50,
+      "total_qty": "15000.00",
+      "created_at": "2026-06-30 23:59:00",
+      "updated_at": "2026-06-30 23:59:00"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "perPage": 10,
+    "total": 1,
+    "totalPages": 1
+  },
+  "links": {
+    "self": "/api/v1/stock-snapshots?page=1&perPage=10",
+    "first": "/api/v1/stock-snapshots?page=1&perPage=10",
+    "last": "/api/v1/stock-snapshots?page=1&perPage=10",
+    "next": null,
+    "previous": null
+  }
+}
+```
+
+#### 5.8.2 Take Snapshot
+
+Creates a new snapshot by recording the current `qty` for every active item. Returns a 201 response with the snapshot header.
+
+**Request:** No request body required.
+
+**Response (201):**
+
+```json
+{
+  "message": "Stock snapshot taken successfully.",
+  "data": {
+    "id": 2,
+    "period_month": "2026-07",
+    "snapshot_date": "2026-07-01",
+    "total_items": 50,
+    "total_qty": "15200.00",
+    "created_at": "2026-07-01 06:00:00",
+    "updated_at": "2026-07-01 06:00:00"
+  }
+}
+```
+
+#### 5.8.3 Current Snapshot
+
+Returns the most recent snapshot with per-item quantity details. Accessible to a wider audience (`admin`, `dapur`, `gudang`) for read-only reference.
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": 2,
+    "period_month": "2026-07",
+    "snapshot_date": "2026-07-01",
+    "items": [
+      { "item_id": 1, "item_name": "Beras", "qty": "1000.00" },
+      { "item_id": 2, "item_name": "Minyak Goreng", "qty": "500.00" }
+    ],
+    "created_at": "2026-07-01 06:00:00",
+    "updated_at": "2026-07-01 06:00:00"
+  }
+}
+```
+
+### 5.9 Daily Patients & SPK Runtime Contract Freeze
+
+Bagian ini membekukan kontrak route, boundary, dan lifecycle untuk fondasi implementasi SPK basah serta kering/pengemas.
+
+#### 5.9.1 Daily Patients
+
+`daily-patients` adalah input harian pasien untuk tanggal operasional tertentu. Resource ini berdiri sendiri dan tidak ditumpangkan ke `/menu-calendar`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/daily-patients` | List daily patient rows (standard `data/meta/links`) |
+| POST | `/api/v1/daily-patients` | Create daily patient row |
+| PUT | `/api/v1/daily-patients/{id}` | Update daily patient row by numeric id |
+| GET | `/api/v1/daily-patients/{service_date}` | Get daily patient detail by service date (`Y-m-d`) |
+
+Access note: `GET` daily-patients tersedia untuk `admin`, `dapur`, dan `gudang`; `POST` dan `PUT` daily-patients tersedia untuk `admin` dan `gudang`.
+
+Collection response contract mengikuti envelope standar (`data`, `meta`, `links`).
+
+Create/detail response contract menggunakan `data` object.
+
+Example create response:
+
+```json
+{
+  "message": "Daily patient created successfully.",
+  "data": {
+    "id": 1,
+    "service_date": "2026-05-01",
+    "total_patients": 120,
+    "notes": null,
+    "created_at": "2026-05-01 06:00:00",
+    "updated_at": "2026-05-01 06:00:00"
+  }
+}
+```
+
+Duplicate create requests now return `400` with an actionable error that includes `existing_id` and directs clients to use `PUT /api/v1/daily-patients/{id}`.
+
+#### 5.9.2 SPK Basah Route Family
+
+SPK basah dipisahkan menjadi tiga surface yang berbeda: menu projection, generation/history, dan stock posting.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/spk/basah/menu-calendar` | Projection-only resolver untuk menu calendar context |
+| POST | `/api/v1/spk/basah/operational-stock-preview` | Preview sisa stok untuk tanggal yang sama |
+| POST | `/api/v1/spk/basah/generate` | Generate SPK basah (membuat versi histori baru; duplicate active scope returns 409 unless `regenerate=true`) |
+| GET | `/api/v1/spk/basah/history` | List histori SPK basah |
+| GET | `/api/v1/spk/basah/history/{id}` | Detail histori SPK basah (termasuk rekomendasi item) |
+| POST | `/api/v1/spk/basah/history/{id}/override` | Override rekomendasi qty per item |
+| POST | `/api/v1/spk/basah/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
+
+SPK basah calculation rules:
+
+ - `qty_per_patient`, `current_stock_qty`, `required_qty`, `system_recommended_qty`, and `recommended_qty` use `items.unit_base`.
+ - SPK basah does not convert quantities to `unit_convert` during generation.
+ - `required_qty = ceil(qty_per_patient × (estimated_patients + ceil(estimated_patients × 0.05)))`.
+ - `system_recommended_qty = max(required_qty - current_stock_qty, 0)`.
+ - Multiple menus assigned to the same date deduplicate shared dishes by `dish_id`; different dishes on the same date still sum.
+ - SPK basah applies ceil to final required quantity, so 66.6666 becomes 67.
+
+#### 5.9.3 SPK Kering/Pengemas Route Family
+
+SPK kering dan pengemas digabung dalam satu family route `spk/kering-pengemas`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/spk/kering-pengemas/menu-calendar` | Projection-only resolver |
+| POST | `/api/v1/spk/kering-pengemas/generate` | Generate SPK kering/pengemas (monthly basis; duplicate active scope returns 409 unless `regenerate=true`) |
+| GET | `/api/v1/spk/kering-pengemas/history` | List histori |
+| GET | `/api/v1/spk/kering-pengemas/history/{id}` | Detail histori |
+| POST | `/api/v1/spk/kering-pengemas/history/{id}/override` | Override rekomendasi qty per item |
+| POST | `/api/v1/spk/kering-pengemas/history/{id}/post-stock` | Explicit stock posting action (membukukan rekomendasi SPK sebagai transaksi stok `IN`), finalizes SPK (`is_finish=true`) |
+
+SPK kering/pengemas calculation rules:
+
+- `required_qty = previous_month_out_usage × 1.10`.
+- `system_recommended_qty = ceil(max(required_qty - current_stock_qty, 0))`.
+- Whole-unit `ceil()` rounding applies only after subtracting current stock.
+
+#### 5.9.4 Shared SPK Utility
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/spk/stock-in-prefill/{id}` | Prefill data untuk transaksi IN berdasarkan SPK |
+
+Access note: endpoint read untuk SPK history/calendar (`GET /spk/basah/menu-calendar`, `GET /spk/basah/history*`, `GET /spk/kering-pengemas/menu-calendar`, `GET /spk/kering-pengemas/history*`) tersedia untuk `admin`, `dapur`, dan `gudang`.
+
+Access note: seluruh write/helper flow SPK yang saat ini diimplementasikan juga tersedia untuk `admin`, `dapur`, dan `gudang`, termasuk `POST /spk/basah/operational-stock-preview`, `POST /spk/basah/generate`, `POST /spk/basah/history/{id}/override`, `POST /spk/kering-pengemas/generate`, `POST /spk/kering-pengemas/history/{id}/override`, dan `GET /spk/stock-in-prefill/{id}`. Final stock posting (`POST /spk/*/history/{id}/post-stock`) tersedia untuk `admin` dan `gudang`.
+
+#### 5.9.5 Controller/Service Boundary Freeze
+
+Kontrak boundary backend dibekukan sebagai berikut:
+
+- `MenuSchedules::calendarProjection` menangani **hanya** `/api/v1/menu-calendar` (menu projection umum).
+- `SpkBasah::*` dan `SpkKeringPengemas::*` menangani domain SPK masing-masing route family.
+- Endpoint `/post-stock` adalah satu-satunya action SPK yang boleh men-trigger pembuatan stock transaction.
+- Endpoint `/generate` **tidak** membuat stock transaction otomatis.
+
+#### 5.9.6 Lifecycle & Regeneration/Versioning Freeze
+
+Regeneration SPK dibekukan dengan semantics berikut:
+
+1. Generate ulang untuk kombinasi konteks yang sama (tanggal/category) harus membuat **baris histori baru** (new row / new version).
+2. Histori versi sebelumnya tidak boleh di-overwrite.
+3. Endpoint history list/detail harus memungkinkan pelacakan versi.
+4. Stock posting adalah langkah terpisah setelah versi dipilih, bukan side effect dari generate.
+5. Jika masih ada SPK aktif (`is_finish=false`) untuk scope yang sama, generate mengembalikan `409 Conflict` beserta metadata SPK existing. Klien harus mengirim `regenerate=true` untuk membuat versi baru secara eksplisit.
+
+Contoh response envelope generate:
+
+```json
+{
+  "message": "SPK generated successfully.",
+  "data": {
+    "id": 31,
+    "version": 3,
+    "regenerated_from_id": 29,
+    "status": "DRAFT",
+    "stock_posted": false,
+    "created_at": "2026-05-01 08:30:00",
+    "updated_at": "2026-05-01 08:30:00"
+  }
+}
+```
+
+### 5.10 Dashboard Aggregate Endpoint (Minimum SRS Scope)
+
+`GET /api/v1/dashboard`
+
+Endpoint ini mengembalikan agregasi dashboard minimum sesuai SRS dengan payload yang dibentuk eksplisit berdasarkan role login (`admin`, `gudang`, `dapur`).
+
+**Access:** `admin`, `dapur`, `gudang`
+
+**Response envelope:**
+
+```json
+{
+  "data": {
+    "role": "admin",
+    "generated_at": "2026-04-15 10:30:00",
+    "aggregates": {
+      "...": "role-specific keys"
+    }
+  }
+}
+```
+
+**Role payload keys (minimum contract):**
+
+- `admin`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `current_menu_cycle` (enhanced with `total_ingredient_items`, `total_required_qty`, `sufficient_items`, `insufficient_items`, `top_shortages`), `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `pending_actions` (new)
+- `gudang`: `stock_summary` (enhanced with `by_category`, `tone_summary`), `dry_stock_status`, `stock_alerts` (new), `spending_trend`, `latest_spk_history` (enhanced with `summary_items` inline), `patient_fluctuation` (enhanced with `delta` per point), `patient_fluctuation_meta` (new: `average`, `highest`, `lowest`), `today_outgoing` (new), `pending_actions` (new)
+- `dapur`: `current_menu_cycle` (enhanced), `current_menu_composition`, `menu_ingredient_summary` (new), `latest_spk_history` (enhanced with `summary_items` inline), `stock_summary` (enhanced), `dry_stock_status`, `pending_actions` (new)
+
+Unauthorized/forbidden behavior mengikuti filter runtime:
+
+- missing/invalid token → `401` dengan shape `{"message": "..."}`
+- inactive account / role tidak memenuhi policy endpoint → `403` dengan shape `{"message": "..."}`
+
+### 5.11 Reporting Endpoints (Export-ready Dataset)
+
+Reporting API menyediakan dataset JSON siap ekspor (tanpa coupling ke engine PDF).
+
+**Access:** `admin`, `dapur`, `gudang`
+
+Semua endpoint report menggunakan query period mandatory:
+
+- `period_start` (required, `Y-m-d`)
+- `period_end` (required, `Y-m-d`)
+
+Validation contract:
+
+- unknown query parameters -> `400` + `{"message":"Validation failed.","errors":{...}}`
+- malformed date / `period_start > period_end` -> `400` + `errors` per field
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/reports/stocks` | Stock report dataset by period and optional stock filters |
+| GET | `/api/v1/reports/transactions` | Stock transaction line dataset by period and optional transaction filters |
+| GET | `/api/v1/reports/spk-history` | SPK history dataset by period and optional SPK filters |
+| GET | `/api/v1/reports/evaluation` | Plan vs realization evaluation dataset with variance |
+| GET | `/api/v1/reports/monthly-stock-export` | Monthly per-item movement export grouped by `transaction_date` |
+
+#### 5.11.1 Stock Report
+
+Optional filters:
+
+- `category_id`
+- `item_id`
+- `is_active` (`true`/`false`/`1`/`0`)
+
+Response shape:
+
+```json
+{
+  "data": {
+    "report_type": "stocks",
+    "period": { "start": "2026-04-10", "end": "2026-04-20" },
+    "filters": {},
+    "summary": {
+      "total_items": 2,
+      "active_items": 2,
+      "total_qty": 1500
+    },
+    "rows": [
+      {
+        "item_id": 1,
+        "item_name": "Beras",
+        "category_id": 2,
+        "category_name": "KERING",
+        "qty": 1000,
+        "unit_base": "gram",
+        "unit_convert": "kg",
+        "is_active": true,
+        "updated_at": "2026-04-15 10:00:00"
+      }
+    ]
+  }
+}
+```
+
+#### 5.11.2 Transaction Report
+
+Optional filters:
+
+- `type_id`
+- `status_id`
+- `item_id`
+
+Response `rows` berisi flattened transaction + detail lines untuk kebutuhan ekspor tabular.
+
+#### 5.11.3 SPK History Report
+
+Optional filters:
+
+- `spk_type` (`basah` / `kering_pengemas`)
+- `category_id`
+
+Response berisi ringkasan per `spk_calculations` row (termasuk agregat rekomendasi qty).
+
+Tambahan kontrak kompatibilitas (non-breaking) untuk rekonsiliasi SRS-vs-runtime:
+
+- `data.compatibility_projection` menyajikan proyeksi SRS-safe dari schema SPK runtime yang lebih kaya.
+- Proyeksi ini **tidak** menggantikan field runtime yang sudah ada pada `data.rows`; proyeksi hanya tambahan untuk consumer SRS/report/export.
+- Mapping rekomendasi SRS: `spk_recommendations.qty` diproyeksikan dari `spk_recommendations.recommended_qty` (final recommended quantity).
+- Kontrak projection `spk_calculations` yang dipertahankan: `id`, `calculation_date`, `target_date_start`, `target_date_end`, `daily_patient_id`, `user_id`, `category_id`, `estimated_patients`, `is_finish`.
+- Kontrak projection `spk_recommendations` yang dipertahankan: `id`, `spk_id`, `item_id`, `qty`.
+
+#### 5.11.4 Evaluation Report (Plan vs Realization)
+
+Optional filters:
+
+- `spk_type` (`basah` / `kering_pengemas`)
+- `category_id`
+
+Evaluation semantics:
+
+- `planned_qty` = total `spk_recommendations.recommended_qty` per SPK dalam periode
+- `realization_qty` = total `stock_transaction_details.qty` untuk transaksi `OUT` + `APPROVED` yang mereferensikan `spk_id` terkait dalam periode
+- `variance_qty` = `realization_qty - planned_qty`
+
+Summary menyertakan total planned/realization/variance lintas baris hasil.
+
+#### 5.11.5 Monthly Stock Export
+
+Optional filters:
+
+- `category_id`
+- `item_id`
+
+Monthly stock export semantics:
+
+- hanya memuat transaksi `APPROVED`;
+- memakai `stock_transactions.transaction_date` sebagai business date filter dan daily grouping axis;
+- filter kategori diterapkan pada level item (`items.item_category_id`), bukan pada semantics SPK;
+- `stok_awal` dibaca dari `monthly_stock_snapshots(period_month, item_id)` untuk bulan `period_start`;
+- `masuk` menjumlahkan `IN` dan `RETURN_IN`;
+- `keluar` menjumlahkan `OUT`;
+- `OPNAME_ADJUSTMENT` tidak dipetakan ke `masuk/keluar` pada versi pertama ini;
+- jika snapshot item tidak ada, `stok_awal` dan seluruh `harian[].sisa` untuk item itu bernilai `null`.
+
+Response shape:
+
+```json
+{
+  "data": {
+    "report_type": "monthly-stock-export",
+    "period": { "start": "2026-04-01", "end": "2026-04-30" },
+    "filters": { "category_id": 3 },
+    "summary": {
+      "total_items": 1,
+      "total_days": 30
+    },
+    "periode": "1-30",
+    "rows": [
+      {
+        "no": 1,
+        "item_id": 3,
+        "nama_bahan_makanan": "Plastik Vakum",
+        "category_id": 3,
+        "category_name": "PENGEMAS",
+        "satuan": "gram",
+        "stok_awal": 250,
+        "harian": [
+          { "tanggal": 12, "masuk": 40, "keluar": 0, "sisa": 290 },
+          { "tanggal": 13, "masuk": 0, "keluar": 5, "sisa": 285 }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## 6. Planned API Surface
 
 Bagian ini berisi endpoint yang masih merupakan target desain dan **belum tersedia sebagai route aktif**.
@@ -2256,14 +2429,14 @@ Endpoint berikut saat ini **belum tersedia** di `app/Config/Routes.php`, walaupu
 |---|---|---|
 | (None) | | |
 
-### 6.2 Monthly Snapshot Endpoints
+### 6.2 Stock Snapshot Endpoints (Partial)
 
-Endpoint berikut masih planned dan belum tersedia sebagai route aktif.
+Basic stock snapshot functionality (`GET /api/v1/stock-snapshots`, `POST /api/v1/stock-snapshots`, `GET /api/v1/stock-snapshots/current`) sudah diimplementasikan di §5.8. Endpoint berikut masih planned:
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/v1/monthly-stock-snapshots` | List monthly stock snapshots |
-| POST | `/api/v1/monthly-stock-snapshots` | Create monthly stock snapshot |
+| GET | `/api/v1/monthly-stock-snapshots` | List monthly stock snapshots (alternate format) |
+| POST | `/api/v1/monthly-stock-snapshots` | Create monthly stock snapshot (alternate format) |
 
 ### 6.3 Deferred From Item Module
 

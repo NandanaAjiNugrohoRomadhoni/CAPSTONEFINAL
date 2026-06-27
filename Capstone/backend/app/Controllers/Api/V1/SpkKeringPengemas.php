@@ -138,7 +138,7 @@ class SpkKeringPengemas extends BaseController
      *     summary="List SPK kering/pengemas history",
      *     description="Returns persisted SPK kering/pengemas history rows in newest-first order by calculation_date descending and id descending. Accessible to admin, dapur, and gudang users.",
      *     security={{"bearerAuth":{}}},
-     *     @OA\Response(response=200, description="SPK kering/pengemas history collection.", @OA\JsonContent(ref="#/components/schemas/SpkBasahHistoryCollectionResponse")),
+     *     @OA\Response(response=200, description="SPK kering/pengemas history collection.", @OA\JsonContent(ref="#/components/schemas/SpkKeringPengemasHistoryCollectionResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
      *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
      * )
@@ -197,7 +197,7 @@ class SpkKeringPengemas extends BaseController
      *     description="Returns one persisted SPK kering/pengemas history row with recommendation items and print_ready payload. Accessible to admin, dapur, and gudang users.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, description="SPK kering/pengemas history identifier.", @OA\Schema(type="integer", minimum=1, example=31)),
-     *     @OA\Response(response=200, description="Persisted SPK kering/pengemas detail response.", @OA\JsonContent(ref="#/components/schemas/SpkBasahShowResponse")),
+     *     @OA\Response(response=200, description="Persisted SPK kering/pengemas detail response.", @OA\JsonContent(ref="#/components/schemas/SpkKeringPengemasShowResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
      *     @OA\Response(response=403, description="Authenticated user lacks the admin, dapur, or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
      *     @OA\Response(response=404, description="SPK kering/pengemas history not found.", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
@@ -303,7 +303,7 @@ class SpkKeringPengemas extends BaseController
      *     description="Finalizes an SPK kering/pengemas history row by aggregating positive recommendation quantities into a stock transaction and marking the SPK as finished. Accessible to admin and gudang users. Runtime rejects missing SPK rows, already-posted SPKs, empty recommendation sets, and all-nonpositive recommendation sets.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(name="id", in="path", required=true, description="SPK kering/pengemas history identifier.", @OA\Schema(type="integer", minimum=1, example=31)),
-     *     @OA\Response(response=200, description="SPK kering/pengemas posted successfully and finalized.", @OA\JsonContent(ref="#/components/schemas/SpkBasahPostStockResponse")),
+     *     @OA\Response(response=200, description="SPK kering/pengemas posted successfully and finalized.", @OA\JsonContent(ref="#/components/schemas/SpkKeringPengemasPostStockResponse")),
      *     @OA\Response(response=400, description="Validation failed because the SPK is already posted, has no recommendation rows, or has no positive quantities to post.", @OA\JsonContent(ref="#/components/schemas/ValidationErrorResponse")),
      *     @OA\Response(response=401, ref="#/components/responses/UnauthorizedMessageResponse"),
      *     @OA\Response(response=403, description="Authenticated user lacks the admin or gudang role required by the route group.", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),

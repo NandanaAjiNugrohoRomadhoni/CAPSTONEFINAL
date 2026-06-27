@@ -96,8 +96,12 @@ class AlterMenuArchitecture extends Migration
         $isSQLite = $this->db->getPlatform() === 'SQLite3';
         $prefix = $this->db->getPrefix();
 
-        // 1. Remove patient_count column
-        $this->forge->dropColumn('menu_schedules', 'patient_count');
+        // 1. Remove patient_count column (if present — it may already be absent
+        // when this down() is invoked during test teardown before the later
+        // RemoveMenuSchedulePatientCount migration has had a chance to re-add it).
+        try {
+            $this->forge->dropColumn('menu_schedules', 'patient_count');
+        } catch (\Exception $e) {}
 
         // 2. Revert foreign keys to RESTRICT
         if (! $isSQLite) {

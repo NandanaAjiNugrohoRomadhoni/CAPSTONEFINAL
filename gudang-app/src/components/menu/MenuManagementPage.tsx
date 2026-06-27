@@ -683,10 +683,11 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
     const previousMenus = menus;
     try {
       const nextIsActive = !selectedMenu.isActive;
-      await sdk.client.request({
-        method: "PATCH",
-        path: `/dishes/${selectedMenu.id}/${nextIsActive ? "reactivate" : "deactivate"}`,
-      });
+      if (nextIsActive) {
+        await sdk.dishes.reactivate(selectedMenu.id);
+      } else {
+        await sdk.dishes.deactivate(selectedMenu.id);
+      }
 
       const updatedMenus = sortMenusByStatusAndName(
         previousMenus.map((menu) =>

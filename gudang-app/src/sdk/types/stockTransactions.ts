@@ -17,10 +17,14 @@ export interface StockTransaction {
   /** Backend-managed approval status identifier. */
   approval_status_id: number;
   approved_by: number | null;
+  approved_by_name: string | null;
   /** Backend derives this from the Bearer token for create requests. */
   user_id: number;
+  user_name: string | null;
   spk_id: number | null;
   reason: string | null;
+  /** Optional admin rejection note stored separately from transaction `reason`. */
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,7 +67,6 @@ export interface ListStockTransactionsQuery {
   sortDir?: "ASC" | "DESC";
   type_id?: number;
   status_id?: number;
-  is_revision?: boolean;
   transaction_date_from?: string;
   transaction_date_to?: string;
   created_at_from?: string;
@@ -79,11 +82,22 @@ export type CreateStockTransactionRequest = TransactionTypeIdentifier & {
   details: StockTransactionDetailInput[];
 };
 
-/** Request payload for `POST /api/v1/stock-transactions/{id}/submit-revision`.
- * Re-submitting before admin review replaces the existing pending revision for the same parent.
- */
+/** Request payload for `POST /api/v1/stock-transactions/{id}/submit-revision`. */
 export interface SubmitRevisionRequest {
   transaction_date: string;
+  spk_id?: number | null;
+  reason?: string;
+  details: StockTransactionDetailInput[];
+}
+
+/** Optional request payload for admin-only `POST /api/v1/stock-transactions/{id}/reject`. */
+export interface RejectStockTransactionRequest {
+  reason?: string;
+}
+
+/** Request payload for PUT /api/v1/stock-transactions/{id} — replaces detail rows of pending BASAH OUT draft. */
+export interface UpdateDraftRequest {
+  transaction_date?: string;
   spk_id?: number | null;
   details: StockTransactionDetailInput[];
 }

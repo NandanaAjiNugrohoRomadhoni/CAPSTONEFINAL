@@ -15,7 +15,7 @@ import type {
  *
  * Wraps:    /api/v1/item-categories
  * Contract: api-contract.md §5.2.1
- * Access:   admin | gudang
+ * Access:   admin | dapur | gudang (read); admin (write)
  *
  * Manages item category lookups used by item master and SPK categorization.
  */
@@ -26,7 +26,7 @@ export class ItemCategoriesResource {
    * Lists item categories with pagination, filtering, and optional full lookup reads.
    *
    * @endpoint GET /api/v1/item-categories
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @param query - Supports `paginate`, `page`, `perPage`, `q`/`search` (`q` wins), `sortBy`, `sortDir`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400. Soft-deleted rows are excluded. `paginate=false` keeps the same envelope and sets `meta.paginated=false`.
    * @returns {Promise<ApiListResponse<ItemCategory>>}
    * @throws {ValidationApiError} if query validation fails (400)
@@ -46,7 +46,7 @@ export class ItemCategoriesResource {
    * Returns one active item category.
    *
    * @endpoint GET /api/v1/item-categories/{id}
-   * @access   admin | gudang
+   * @access   admin | dapur | gudang
    * @returns {Promise<ApiDataResponse<ItemCategory>>}
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)

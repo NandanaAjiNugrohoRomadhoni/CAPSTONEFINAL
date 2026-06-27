@@ -24,7 +24,6 @@ export class ApiClient {
   private readonly defaultHeaders: HeadersInit;
   private readonly fetchImplementation: typeof fetch;
   private readonly getAccessToken?: ApiClientOptions["getAccessToken"];
-  private readonly pendingGetRequests = new Map<string, Promise<unknown>>();
   private accessToken: string | null;
 
   public constructor(options: ApiClientOptions = {}) {
@@ -78,38 +77,15 @@ export class ApiClient {
       requestInit.body = body;
     }
 
-    const requestUrl = this.buildUrl(options.path, options.query);
-    const requestKey = `${requestInit.method ?? "GET"} ${requestUrl} ${headers.get("Authorization") ?? ""}`;
-    const canDedupe = (requestInit.method ?? "GET") === "GET" && options.body === undefined;
+    const response = await this.fetchImplementation(this.buildUrl(options.path, options.query), requestInit);
 
-    if (canDedupe) {
-      const pendingRequest = this.pendingGetRequests.get(requestKey);
-      if (pendingRequest) {
-        return pendingRequest as Promise<TResponse>;
-      }
+    const payload = await parseResponse(response);
+
+    if (!response.ok) {
+      throw toApiError(response.status, payload);
     }
 
-    const requestPromise = this.fetchImplementation(requestUrl, requestInit)
-      .then(async (response) => {
-        const payload = await parseResponse(response);
-
-        if (!response.ok) {
-          throw toApiError(response.status, payload);
-        }
-
-        return payload as TResponse;
-      })
-      .finally(() => {
-        if (canDedupe) {
-          this.pendingGetRequests.delete(requestKey);
-        }
-      });
-
-    if (canDedupe) {
-      this.pendingGetRequests.set(requestKey, requestPromise);
-    }
-
-    return requestPromise;
+    return payload as TResponse;
   }
 
   private buildUrl(path: string, query?: QueryParams): string {

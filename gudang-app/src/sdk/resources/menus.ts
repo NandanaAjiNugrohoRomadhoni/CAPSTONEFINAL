@@ -61,9 +61,9 @@ export class MenusResource {
    *
    * @endpoint POST /api/v1/menu-dishes
    * @access   admin | dapur
-   * @param payload - Writable fields: `menu_id`, `meal_time_id`, `dish_id`. Occupied slots are rejected; this is not an upsert endpoint.
+    * @param payload - Writable fields: `menu_id`, `meal_time_id`, `dish_id`. Occupied slots are rejected, inactive dishes are rejected with `The selected dish is inactive.`, and this is not an upsert endpoint.
    * @returns {Promise<ApiMessageDataResponse<MenuSlot>>}
-   * @throws {ValidationApiError} if validation fails or the slot is already occupied (400)
+    * @throws {ValidationApiError} if validation fails, the selected dish is inactive, or the slot is already occupied (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect Creates a menu slot assignment.
@@ -82,11 +82,11 @@ export class MenusResource {
    * @endpoint PUT /api/v1/menu-dishes/{id}
    * @access   admin | dapur
    * @returns {Promise<ApiMessageDataResponse<MenuSlot>>}
-   * @throws {ValidationApiError} if validation fails or the target slot conflicts (400)
+    * @throws {ValidationApiError} if validation fails, the selected dish is inactive, or the target slot conflicts (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @throws {NotFoundApiError} if the slot assignment does not exist (404)
-   * @sideeffect Replaces slot assignment metadata.
+    * @sideeffect Replaces slot assignment metadata when the replacement dish is still active.
    */
   public updateSlot(id: number, payload: UpdateMenuSlotRequest): Promise<ApiMessageDataResponse<MenuSlot>> {
     return this.client.request<ApiMessageDataResponse<MenuSlot>>({

@@ -121,7 +121,7 @@ function buildPackageCards(
   slots: Array<{
     menu_id: number;
     dish_id: number;
-    menu?: { id: number; name: string };
+    menu?: { id: number; name: string | null };
     meal_time?: { id: number; name: string | null };
     dish?: { id: number; name: string | null };
   }>,
@@ -371,7 +371,7 @@ export default function PackagesManagerPage() {
       menu_id: number;
       meal_time_id: number;
       dish_id: number;
-      menu?: { id: number; name: string };
+      menu?: { id: number; name: string | null };
       meal_time?: { id: number; name: string | null };
       dish?: { id: number; name: string | null };
     }>

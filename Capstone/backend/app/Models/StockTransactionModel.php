@@ -79,6 +79,7 @@ class StockTransactionModel extends Model
         ?string $createdAtTo,
         ?string $updatedAtFrom,
         ?string $updatedAtTo,
+        ?int $spkId = null,
     ): array {
         $validSort = in_array($sortBy, self::SORTABLE_COLUMNS, true) ? $sortBy : 'transaction_date';
         $direction = strtoupper($sortDir) === 'ASC' ? 'ASC' : 'DESC';
@@ -89,6 +90,10 @@ class StockTransactionModel extends Model
         if ($search !== '') {
             $builder->like('stock_transactions.spk_id', $search);
         }
+        if ($spkId !== null) {
+            $builder->where('stock_transactions.spk_id', $spkId);
+        }
+
 
         if ($typeId !== null) {
             $builder->where('stock_transactions.type_id', $typeId);

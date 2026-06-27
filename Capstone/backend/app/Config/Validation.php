@@ -135,6 +135,7 @@ class Validation extends BaseConfig
      * - page: Current page number (1-based)
      * - perPage: Items per page (1-100)
      * - q / search: Free-text search on spk_id
+     * - spk_id: Exact SPK calculation ID filter
      * - sortBy: Field name to sort by (allowlisted in StockTransactionListService)
      * - sortDir: Sort direction (ASC or DESC)
      * - status_id: Filter by approval status
@@ -155,6 +156,7 @@ class Validation extends BaseConfig
         'sortDir'           => 'permit_empty|in_list[ASC,DESC,asc,desc]',
         'status_id'         => 'permit_empty|is_natural_no_zero',
         'type_id'           => 'permit_empty|is_natural_no_zero',
+        'spk_id'            => 'permit_empty|is_natural_no_zero',
         'transaction_date_from' => 'permit_empty|valid_date[Y-m-d]',
         'transaction_date_to'   => 'permit_empty|valid_date[Y-m-d]',
         'created_at_from'   => 'permit_empty|valid_date[Y-m-d]',
@@ -190,6 +192,10 @@ class Validation extends BaseConfig
         'sortDir' => [
             'permit_empty'              => 'The sortDir parameter must be either ASC or DESC.',
             'in_list'                   => 'The sortDir parameter must be either ASC or DESC.',
+        ],
+        'spk_id' => [
+            'permit_empty'              => 'The spk_id parameter must be a positive integer.',
+            'is_natural_no_zero'        => 'The spk_id parameter must be a positive integer.',
         ],
         'status_id' => [
             'permit_empty'              => 'The status_id parameter must be a positive integer.',

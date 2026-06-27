@@ -649,15 +649,9 @@ export default function AdminMenuManagementPage() {
       const linkedSlots = linkedPackages;
 
       if (nextIsActive) {
-        await sdk.client.request({
-          method: "PATCH",
-          path: `/dishes/${selectedMenu.id}/reactivate`,
-        });
+        await sdk.dishes.reactivate(selectedMenu.id);
       } else {
-        await sdk.client.request({
-          method: "PATCH",
-          path: `/dishes/${selectedMenu.id}/deactivate`,
-        });
+        await sdk.dishes.deactivate(selectedMenu.id);
       }
 
       setSuccessState({

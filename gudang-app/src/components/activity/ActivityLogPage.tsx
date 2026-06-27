@@ -27,6 +27,7 @@ import {
   type ActivityType,
   type ActivityModule,
   type ActivityRow,
+  type NormalizedActivityRow,
 } from "@/data/activity-log";
 import type { User } from "@/sdk/types/users";
 
@@ -50,7 +51,7 @@ const MODULE_OPTIONS = [
 
 type ExportActivityRow = {
   no: number;
-  rawDate: string;
+  rawDate: string | null;
   dateTimeLabel: string;
   actor: string;
   role: string;
@@ -114,7 +115,7 @@ function getModuleExportLabel(module: ActivityModule) {
 }
 
 function matchesActivityFilters(
-  row: ActivityRow,
+  row: NormalizedActivityRow,
   filters: {
     searchTerm: string;
     dateRange: { startDate: string; endDate: string };
@@ -148,7 +149,7 @@ function matchesActivityFilters(
   return matchesSearch && matchesDate && matchesType && matchesModule;
 }
 
-function getExportPeriodLabel(rows: ActivityRow[]) {
+function getExportPeriodLabel(rows: NormalizedActivityRow[]) {
   const timestamps = rows
     .map((row) => {
       const value = row.created_at
@@ -247,7 +248,7 @@ function localizeActivityDetail(detail: string, row: Pick<ActivityRow, "activity
 }
 
 export default function ActivityLogPage() {
-  const [activityRows, setActivityRows] = useState<ActivityRow[]>([]);
+  const [activityRows, setActivityRows] = useState<NormalizedActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -354,9 +355,11 @@ export default function ActivityLogPage() {
 
       setLoading(false);
 
-      const data = response.data;
-      if (data.length > 0 && currentPage === 1) {
-        const latestTimestamp = new Date(`${data[0].date}T${data[0].time.replace(".", ":")}:00+07:00`).getTime();
+      const firstRowData = response.data;
+      if (firstRowData.length > 0 && currentPage === 1) {
+        const firstRow = firstRowData[0];
+        const timeStr = firstRow.time ? firstRow.time.replace(".", ":") : "00:00:00";
+        const latestTimestamp = new Date(`${firstRow.date}T${timeStr}:00+07:00`).getTime();
         markActivityLogSeen(latestTimestamp);
       }
     }

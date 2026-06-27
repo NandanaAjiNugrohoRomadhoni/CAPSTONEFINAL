@@ -101,6 +101,18 @@ class StockTransactionService
             ];
         }
 
+        $pendingStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $rejectedStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
+
+        if ($pendingStatusId === null || $rejectedStatusId === null) {
+            return [
+                'success' => false,
+                'message' => 'System error: PENDING or REJECTED approval status not found.',
+                'errors' => [],
+            ];
+        }
+
+
         $forbiddenErrors = $this->collectForbiddenFieldErrors($data);
         if ($forbiddenErrors !== []) {
             return [
@@ -309,6 +321,156 @@ class StockTransactionService
                 }
             }
         }
+        // Determine if OUT is BASAH-only for draft behavior
+        if ($type['name'] === TransactionTypeModel::NAME_OUT) {
+            $itemCategoryModel = new \App\Models\ItemCategoryModel();
+            $basahCategoryId = $itemCategoryModel->getIdByName(\App\Models\ItemCategoryModel::NAME_BASAH);
+
+            $hasBasah = false;
+            $hasNonBasah = false;
+            foreach ($data['details'] as $detail) {
+                $item = $this->itemModel->find((int) $detail['item_id']);
+                if ((int) $item['item_category_id'] === $basahCategoryId) {
+                    $hasBasah = true;
+                } else {
+                    $hasNonBasah = true;
+                }
+            }
+
+            if ($hasBasah && $hasNonBasah) {
+                return [
+                    'success' => false,
+                    'status_code' => 400,
+                    'message' => 'Validation failed.',
+                    'errors' => ['details' => 'OUT transaction cannot mix BASAH and non-BASAH items.'],
+                ];
+            }
+
+            if ($hasBasah) {
+                // BASAH OUT — draft path: PENDING status, no stock mutation
+                // Active day guard: one non-REJECTED OUT per transaction_date
+                $existingActive = $this->detailModel->builder()
+                    ->select('st.id, st.approval_status_id')
+                    ->join('stock_transactions st', 'st.id = stock_transaction_details.transaction_id')
+                    ->join('items', 'items.id = stock_transaction_details.item_id')
+                    ->where('st.transaction_date', $data['transaction_date'])
+                    ->where('st.type_id', (int) $data['type_id'])
+                    ->where('st.is_revision', false)
+                    ->where('st.deleted_at', null)
+                    ->where('st.approval_status_id !=', $rejectedStatusId)
+                    ->where('items.item_category_id', $basahCategoryId)
+                    ->groupBy('st.id')
+                    ->get()
+                    ->getRowArray();
+
+                if ($existingActive !== null) {
+                    $state = ((int) $existingActive['approval_status_id'] === $pendingStatusId) ? 'PENDING' : 'APPROVED';
+                    return [
+                        'success' => false,
+                        'status_code' => 409,
+                        'message' => 'Validation failed.',
+                        'errors' => [
+                            'transaction' => 'OUT Basah ' . ($state === 'PENDING' ? 'draft already exists' : 'transaction has already been submitted') . ' for this date.',
+                        ],
+                        'data' => [
+                            'existing_transaction_id' => (int) $existingActive['id'],
+                            'state' => $state,
+                        ],
+                    ];
+                }
+
+                // Auto-trigger opening stock snapshot (idempotent)
+                (new \App\Services\StockSnapshotService())->ensureOpeningSnapshot(substr((string) $data['transaction_date'], 0, 7));
+
+                $this->db->transStart();
+
+                $transactionData = [
+                    'type_id' => (int) $data['type_id'],
+                    'transaction_date' => $data['transaction_date'],
+                    'is_revision' => false,
+                    'parent_transaction_id' => null,
+                    'approval_status_id' => $pendingStatusId,
+                    'approved_by' => null,
+                    'user_id' => $userId,
+                    'spk_id' => null,
+                ];
+
+                $transactionId = $this->transactionModel->insert($transactionData, true);
+                if ($transactionId === false) {
+                    $this->db->transRollback();
+                    return [
+                        'success' => false,
+                        'message' => 'Failed to create stock transaction.',
+                        'errors' => $this->transactionModel->errors(),
+                    ];
+                }
+
+                foreach ($data['details'] as $detail) {
+                    $inputUnit = $detail['input_unit'] ?? 'base';
+                    $inputQty = (float) $detail['qty'];
+                    $item = $this->itemModel->find((int) $detail['item_id']);
+                    $normalizedQty = $inputUnit === 'convert'
+                        ? $inputQty * (float) $item['conversion_base']
+                        : $inputQty;
+
+                    $detailData = [
+                        'transaction_id' => $transactionId,
+                        'item_id' => (int) $detail['item_id'],
+                        'qty' => $normalizedQty,
+                        'input_qty' => $inputQty,
+                        'input_unit' => $inputUnit,
+                    ];
+
+                    if ($this->detailModel->insert($detailData) === false) {
+                        $this->db->transRollback();
+                        return [
+                            'success' => false,
+                            'message' => 'Failed to create transaction details.',
+                            'errors' => $this->detailModel->errors(),
+                        ];
+                    }
+                    // No stock mutation for BASAH OUT draft
+                }
+
+                $auditLogged = $this->auditService->log(
+                    $userId,
+                    AuditActionType::Create,
+                    'stock_transactions',
+                    (int) $transactionId,
+                    'OUT Basah draft created.',
+                    null,
+                    $transactionData,
+                    $ipAddress
+                );
+                if (!$auditLogged) {
+                    $this->db->transRollback();
+                    return [
+                        'success' => false,
+                        'message' => 'Failed to write audit log.',
+                        'errors' => [],
+                    ];
+                }
+
+                $this->db->transComplete();
+                if ($this->db->transStatus() === false) {
+                    return [
+                        'success' => false,
+                        'message' => 'Transaction failed.',
+                        'errors' => [],
+                    ];
+                }
+
+                return [
+                    'success' => true,
+                    'message' => 'OUT Basah draft created successfully.',
+                    'data' => [
+                        'id' => (int) $transactionId,
+                        'approval_status_id' => $pendingStatusId,
+                        'is_revision' => false,
+                    ],
+                ];
+            }
+        }
 
         // Auto-trigger opening stock snapshot for the transaction's month (idempotent, failure-safe)
         (new StockSnapshotService())->ensureOpeningSnapshot(substr((string) $data['transaction_date'], 0, 7));
@@ -464,6 +626,376 @@ class StockTransactionService
             ],
         ];
     }
+
+    public function updateDraft(int $id, array $data, int $userId, ?string $ipAddress = null): array
+    {
+        $pendingStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        if ($pendingStatusId === null) {
+            return ['success' => false, 'message' => 'System error: PENDING approval status not found.', 'errors' => []];
+        }
+
+        $transaction = $this->transactionModel->findById($id);
+        if ($transaction === null) {
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((bool) $transaction['is_revision']) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Revision transactions cannot be updated as draft.']];
+        }
+
+        if ((int) $transaction['approval_status_id'] !== $pendingStatusId) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only pending drafts can be updated.']];
+        }
+
+        // Verify it is an OUT transaction
+        $type = $this->typeModel->find((int) $transaction['type_id']);
+        if ($type === null || $type['name'] !== TransactionTypeModel::NAME_OUT) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only OUT transactions can be updated as draft.']];
+        }
+
+        // Validate details payload
+        if (!isset($data['details']) || !is_array($data['details'])) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['details' => 'The details field is required and must be an array.']];
+        }
+
+        if ($data['details'] === []) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['details' => 'The details field cannot be empty.']];
+        }
+
+        $itemIds = [];
+        foreach ($data['details'] as $index => $detail) {
+            if (!is_array($detail)) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}" => 'Each detail entry must be an object.']];
+            }
+
+            if (!isset($detail['item_id']) || !is_numeric($detail['item_id'])) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}.item_id" => 'The item_id field is required and must be numeric.']];
+            }
+
+            if (!isset($detail['qty']) || !is_numeric($detail['qty']) || (float) $detail['qty'] <= 0) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}.qty" => 'The qty field is required and must be a positive number.']];
+            }
+
+            if (isset($detail['input_unit']) && !in_array($detail['input_unit'], ['base', 'convert'], true)) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}.input_unit" => 'The input_unit field must be "base" or "convert".']];
+            }
+
+            $itemId = (int) $detail['item_id'];
+            if (in_array($itemId, $itemIds, true)) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}.item_id" => 'Duplicate item_id found in details.']];
+            }
+            $itemIds[] = $itemId;
+
+            $item = $this->itemModel->find($itemId);
+            if ($item === null) {
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details.{$index}.item_id" => 'The selected item is invalid.']];
+            }
+        }
+
+        $this->db->transStart();
+
+        // Lock the transaction row
+        $locked = $this->db->query(
+            'SELECT id, approval_status_id FROM ' . $this->stockTransactionsTable() . ' WHERE id = ? AND deleted_at IS NULL' . $this->forUpdateClause(),
+            [$id]
+        )->getRowArray();
+
+        if ($locked === null) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((int) $locked['approval_status_id'] !== $pendingStatusId) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only pending drafts can be updated.']];
+        }
+
+        // Delete existing details
+        if ($this->detailModel->where('transaction_id', $id)->delete() === false) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to replace draft details.', 'errors' => $this->detailModel->errors()];
+        }
+
+        // Insert new details
+        foreach ($data['details'] as $detail) {
+            $inputUnit = $detail['input_unit'] ?? 'base';
+            $inputQty = (float) $detail['qty'];
+            $item = $this->itemModel->find((int) $detail['item_id']);
+            $normalizedQty = $inputUnit === 'convert'
+                ? $inputQty * (float) $item['conversion_base']
+                : $inputQty;
+
+            $detailData = [
+                'transaction_id' => $id,
+                'item_id' => (int) $detail['item_id'],
+                'qty' => $normalizedQty,
+                'input_qty' => $inputQty,
+                'input_unit' => $inputUnit,
+            ];
+
+            if ($this->detailModel->insert($detailData) === false) {
+                $this->db->transRollback();
+                return ['success' => false, 'message' => 'Failed to update draft details.', 'errors' => $this->detailModel->errors()];
+            }
+        }
+
+        $auditLogged = $this->auditService->log(
+            $userId,
+            AuditActionType::Update,
+            'stock_transactions',
+            $id,
+            'OUT Basah draft updated.',
+            null,
+            $data['details'],
+            $ipAddress
+        );
+        if (!$auditLogged) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to write audit log.', 'errors' => []];
+        }
+
+        $this->db->transComplete();
+        if ($this->db->transStatus() === false) {
+            return ['success' => false, 'message' => 'Transaction failed.', 'errors' => []];
+        }
+
+        return [
+            'success' => true,
+            'message' => 'OUT Basah draft updated successfully.',
+            'data' => [
+                'id' => $id,
+                'approval_status_id' => $pendingStatusId,
+            ],
+        ];
+    }
+
+    public function submitDraft(int $id, int $userId, ?string $ipAddress = null): array
+    {
+        $this->resetQueuedMinStockNotifications();
+
+        $pendingStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $approvedStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+
+        if ($pendingStatusId === null || $approvedStatusId === null) {
+            return ['success' => false, 'message' => 'System error: approval statuses not found.', 'errors' => []];
+        }
+
+        $transaction = $this->transactionModel->findById($id);
+        if ($transaction === null) {
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((bool) $transaction['is_revision']) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Revision transactions cannot be submitted.']];
+        }
+
+        if ((int) $transaction['approval_status_id'] !== $pendingStatusId) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only pending drafts can be submitted.']];
+        }
+
+        // Verify it is an OUT transaction
+        $type = $this->typeModel->find((int) $transaction['type_id']);
+        if ($type === null || $type['name'] !== TransactionTypeModel::NAME_OUT) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only OUT transactions can be submitted.']];
+        }
+
+        // Load details
+        $details = $this->detailModel->getDetailsByTransactionId($id);
+        if ($details === []) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['details' => 'Draft has no detail rows.']];
+        }
+
+        $this->db->transStart();
+
+        // Lock the transaction row
+        $locked = $this->db->query(
+            'SELECT id, approval_status_id FROM ' . $this->stockTransactionsTable() . ' WHERE id = ? AND deleted_at IS NULL' . $this->forUpdateClause(),
+            [$id]
+        )->getRowArray();
+
+        if ($locked === null) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((int) $locked['approval_status_id'] !== $pendingStatusId) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Draft has already been submitted.']];
+        }
+
+        // Check stock sufficiency and decrement atomically
+        foreach ($details as $detail) {
+            $item = $this->itemModel->find((int) $detail['item_id']);
+            if ($item === null) {
+                $this->db->transRollback();
+                return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ["details" => 'Item not found.']];
+            }
+
+            $escapedQty = $this->db->escape(number_format((float) $detail['qty'], 2, '.', ''));
+
+            // Atomic conditional decrement: qty - detail.qty only if qty >= detail.qty
+            $builder = $this->db->table('items');
+            $builder->where('id', (int) $detail['item_id']);
+            $builder->where("qty >= {$escapedQty}", null, false);
+            $builder->set('qty', "qty - {$escapedQty}", false);
+            $builder->set('updated_at', date('Y-m-d H:i:s'));
+
+            if (!$builder->update()) {
+                $this->db->transRollback();
+                return ['success' => false, 'message' => 'Failed to update item quantity.', 'errors' => []];
+            }
+
+            if ($this->db->affectedRows() === 0) {
+                $this->db->transRollback();
+                return [
+                    'success' => false,
+                    'status_code' => 400,
+                    'message' => 'Validation failed.',
+                    'errors' => [
+                        'details' => sprintf(
+                            'Insufficient stock for %s. Available: %s, Requested: %s',
+                            $item['name'],
+                            number_format((float) $item['qty'], 2, '.', ''),
+                            number_format((float) $detail['qty'], 2, '.', '')
+                        ),
+                    ],
+                ];
+            }
+
+            $this->queueMinStockNotificationIfNeeded((int) $detail['item_id']);
+        }
+
+        // Update header to APPROVED
+        $updated = $this->transactionModel->update($id, [
+            'approval_status_id' => $approvedStatusId,
+            'approved_by' => $userId,
+        ]);
+
+        if (!$updated) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to submit draft.', 'errors' => $this->transactionModel->errors()];
+        }
+
+        $auditLogged = $this->auditService->log(
+            $userId,
+            AuditActionType::Submit,
+            'stock_transactions',
+            $id,
+            'OUT Basah draft submitted.',
+            ['approval_status_id' => $pendingStatusId],
+            ['approval_status_id' => $approvedStatusId, 'approved_by' => $userId],
+            $ipAddress
+        );
+        if (!$auditLogged) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to write audit log.', 'errors' => []];
+        }
+
+        $this->db->transComplete();
+        if ($this->db->transStatus() === false) {
+            return ['success' => false, 'message' => 'Transaction failed.', 'errors' => []];
+        }
+
+        $this->flushQueuedMinStockNotifications();
+
+        return [
+            'success' => true,
+            'message' => 'OUT Basah draft submitted successfully.',
+            'data' => [
+                'id' => $id,
+                'approval_status_id' => $approvedStatusId,
+                'is_revision' => false,
+            ],
+        ];
+    }
+
+    public function cancelDraft(int $id, int $userId, ?string $ipAddress = null): array
+    {
+        $pendingStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $rejectedStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
+
+        if ($pendingStatusId === null || $rejectedStatusId === null) {
+            return ['success' => false, 'message' => 'System error: approval statuses not found.', 'errors' => []];
+        }
+
+        $transaction = $this->transactionModel->findById($id);
+        if ($transaction === null) {
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((bool) $transaction['is_revision']) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Revision transactions cannot be cancelled.']];
+        }
+
+        if ((int) $transaction['approval_status_id'] !== $pendingStatusId) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only pending drafts can be cancelled.']];
+        }
+
+        // Verify it is an OUT transaction
+        $type = $this->typeModel->find((int) $transaction['type_id']);
+        if ($type === null || $type['name'] !== TransactionTypeModel::NAME_OUT) {
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only OUT transactions can be cancelled.']];
+        }
+
+        $this->db->transStart();
+
+        // Lock the transaction row
+        $locked = $this->db->query(
+            'SELECT id, approval_status_id FROM ' . $this->stockTransactionsTable() . ' WHERE id = ? AND deleted_at IS NULL' . $this->forUpdateClause(),
+            [$id]
+        )->getRowArray();
+
+        if ($locked === null) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 404, 'message' => 'Stock transaction not found.', 'errors' => []];
+        }
+
+        if ((int) $locked['approval_status_id'] !== $pendingStatusId) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Draft has already been finalized.']];
+        }
+
+        // Update header to REJECTED (cancelled — no stock mutation)
+        $updated = $this->transactionModel->update($id, [
+            'approval_status_id' => $rejectedStatusId,
+            'approved_by' => $userId,
+        ]);
+
+        if (!$updated) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to cancel draft.', 'errors' => $this->transactionModel->errors()];
+        }
+
+        $auditLogged = $this->auditService->log(
+            $userId,
+            AuditActionType::Rejection,
+            'stock_transactions',
+            $id,
+            'OUT Basah draft cancelled.',
+            ['approval_status_id' => $pendingStatusId],
+            ['approval_status_id' => $rejectedStatusId, 'approved_by' => $userId],
+            $ipAddress
+        );
+        if (!$auditLogged) {
+            $this->db->transRollback();
+            return ['success' => false, 'message' => 'Failed to write audit log.', 'errors' => []];
+        }
+
+        $this->db->transComplete();
+        if ($this->db->transStatus() === false) {
+            return ['success' => false, 'message' => 'Transaction failed.', 'errors' => []];
+        }
+
+        return [
+            'success' => true,
+            'message' => 'OUT Basah draft cancelled successfully.',
+            'data' => [
+                'id' => $id,
+                'approval_status_id' => $rejectedStatusId,
+            ],
+        ];
+    }
+
 
     private function collectForbiddenFieldErrors(array $data): array
     {
@@ -1015,6 +1547,24 @@ class StockTransactionService
                 'success' => false,
                 'message' => 'Validation failed.',
                 'errors' => ['id' => 'Revision transactions cannot be revised again.'],
+            ];
+        }
+
+        // Only APPROVED transactions can enter revision workflow
+        $approvedStatusId = $this->approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        if ($approvedStatusId === null) {
+            return [
+                'success' => false,
+                'message' => 'System error: APPROVED approval status not found.',
+                'errors' => [],
+            ];
+        }
+
+        if ((int) $parent['approval_status_id'] !== $approvedStatusId) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => ['id' => 'Only approved transactions can be revised.'],
             ];
         }
 

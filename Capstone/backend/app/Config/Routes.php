@@ -476,6 +476,26 @@ $routes->group(
                     "stock-transactions/(:num)/submit-revision",
                     static fn() => service("response")->setStatusCode(204),
                 );
+                $routes->put(
+                    "stock-transactions/(:num)",
+                    'StockTransactions::updateDraft/$1',
+                );
+                $routes->post(
+                    "stock-transactions/(:num)/submit",
+                    'StockTransactions::submitDraft/$1',
+                );
+                $routes->options(
+                    "stock-transactions/(:num)/submit",
+                    static fn() => service("response")->setStatusCode(204),
+                );
+                $routes->post(
+                    "stock-transactions/(:num)/cancel",
+                    'StockTransactions::cancelDraft/$1',
+                );
+                $routes->options(
+                    "stock-transactions/(:num)/cancel",
+                    static fn() => service("response")->setStatusCode(204),
+                );
             },
             );
 

@@ -18,12 +18,12 @@ import type {
  * Contract: api-contract.md §5.6.2
  * Access:   admin | gudang | dapur
  *
- * Manages dish master data used by menu slots.
+ * Manages dish master data used by menu slots, including active/inactive lifecycle transitions.
  */
 export class DishesResource {
   public constructor(private readonly client: ApiClient) {}
 
-  /** @endpoint GET /api/v1/dishes @access admin | gudang | dapur @param query - Supports standard list pagination, search, sorting, and created/updated date ranges. @returns {Promise<DishesListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
+  /** @endpoint GET /api/v1/dishes @access admin | gudang | dapur @param query - Supports standard list pagination, `paginate`, `is_active`, search, sorting, and created/updated date ranges. `paginate=false` keeps the same envelope and sets `meta.paginated=false`. @returns {Promise<DishesListResponse>} @throws {ValidationApiError} if query validation fails (400) @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @sideeffect None */
   public list(query?: ListDishesQuery): Promise<DishesListResponse> {
     return this.client.request<DishesListResponse>({
       method: "GET",
@@ -58,7 +58,23 @@ export class DishesResource {
     });
   }
 
-  /** @endpoint DELETE /api/v1/dishes/{id} @access admin | dapur @returns {Promise<ApiMessageResponse>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Permanently deletes the dish row. */
+  /** @endpoint PATCH /api/v1/dishes/{id}/deactivate @access admin | dapur @returns {Promise<ApiMessageDataResponse<Dish>>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Sets `is_active=false`, preserves dish compositions, and removes linked menu slot assignments. */
+  public deactivate(id: number): Promise<ApiMessageDataResponse<Dish>> {
+    return this.client.request<ApiMessageDataResponse<Dish>>({
+      method: "PATCH",
+      path: `/dishes/${id}/deactivate`
+    });
+  }
+
+  /** @endpoint PATCH /api/v1/dishes/{id}/reactivate @access admin | dapur @returns {Promise<ApiMessageDataResponse<Dish>>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Sets `is_active=true` and makes the dish assignable again without restoring prior menu slot assignments. */
+  public reactivate(id: number): Promise<ApiMessageDataResponse<Dish>> {
+    return this.client.request<ApiMessageDataResponse<Dish>>({
+      method: "PATCH",
+      path: `/dishes/${id}/reactivate`
+    });
+  }
+
+  /** @endpoint DELETE /api/v1/dishes/{id} @access admin | dapur @returns {Promise<ApiMessageResponse>} @throws {AuthenticationApiError} if no valid Bearer token is provided (401) @throws {AuthorizationApiError} if the caller lacks the required role (403) @throws {NotFoundApiError} if the dish does not exist (404) @sideeffect Permanently deletes the dish row only after it is inactive and detached from menu slots; dish compositions are removed by DB cascade. */
   public delete(id: number): Promise<ApiMessageResponse> {
     return this.client.request<ApiMessageResponse>({
       method: "DELETE",
@@ -67,11 +83,13 @@ export class DishesResource {
   }
 }
 
-function buildDishesQuery(query: ListDishesQuery): Record<string, string | number> {
-  const result: Record<string, string | number> = {};
+function buildDishesQuery(query: ListDishesQuery): Record<string, string | number | boolean> {
+  const result: Record<string, string | number | boolean> = {};
 
+  if (query.paginate !== undefined) result.paginate = query.paginate;
   if (query.page !== undefined) result.page = query.page;
   if (query.perPage !== undefined) result.perPage = query.perPage;
+  if (query.is_active !== undefined) result.is_active = query.is_active;
   if (query.q !== undefined) result.q = query.q;
   if (query.search !== undefined) result.search = query.search;
   if (query.sortBy !== undefined) result.sortBy = query.sortBy;

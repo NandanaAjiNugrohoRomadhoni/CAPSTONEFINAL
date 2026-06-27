@@ -328,14 +328,25 @@ export default function BarangKeluarPage() {
         throw new Error(`Bahan ${itemMap.get(duplicateId)?.name ?? `Item #${duplicateId}`} tidak boleh diinput dua kali.`);
       }
 
-      const serviceDate = toIsoDate(new Date());
       await ensureDailyPatientForDate(serviceDate, totalPatients);
 
-      await sdk.stockTransactions.create({
+      const draftResponse = await sdk.stockTransactions.create({
         type_name: "OUT",
         transaction_date: serviceDate,
         details,
       });
+      const draftId = draftResponse.data.id;
+
+      try {
+        await sdk.stockTransactions.submitDraft(draftId);
+      } catch (submitError) {
+        try {
+          await sdk.stockTransactions.cancelDraft(draftId);
+        } catch {
+          // Ignore cleanup failure; show original submit failure.
+        }
+        throw submitError;
+      }
       refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);

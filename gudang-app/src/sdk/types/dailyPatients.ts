@@ -17,9 +17,18 @@ export interface CreateDailyPatientRequest {
   notes?: string;
 }
 
+/** Request payload for `PUT /api/v1/daily-patients/{id}`. */
+export interface UpdateDailyPatientRequest {
+  service_date?: string;
+  total_patients?: number;
+  notes?: string | null;
+}
+
 /** List response for `GET /api/v1/daily-patients`. */
 export type DailyPatientsListResponse = ApiListResponse<DailyPatient>;
 /** Detail response for `GET /api/v1/daily-patients/{service_date}`. */
 export type DailyPatientResponse = ApiDataResponse<DailyPatient>;
 /** Create response for `POST /api/v1/daily-patients`. */
 export type DailyPatientCreateResponse = ApiMessageDataResponse<DailyPatient>;
+/** Update response for `PUT /api/v1/daily-patients/{id}`. */
+export type DailyPatientUpdateResponse = ApiMessageDataResponse<DailyPatient>;

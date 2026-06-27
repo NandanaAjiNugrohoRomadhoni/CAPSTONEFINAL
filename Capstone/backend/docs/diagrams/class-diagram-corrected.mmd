@@ -1,0 +1,722 @@
+classDiagram
+class BaseController {
+    <<Base Controller>>
+}
+class BaseModel {
+    <<Base Model>>
+}
+class ShieldUserModel {
+    <<Shield User Model>>
+}
+
+namespace AppControllers {
+    class Auth {
+        -AuthService $authService
+        +login() : ResponseInterface
+        +me() : ResponseInterface
+        +logout() : ResponseInterface
+        +changePassword() : ResponseInterface
+    }
+    class Users {
+        -UserManagementService $userService
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +activate(Int $id) : ResponseInterface
+        +deactivate(Int $id) : ResponseInterface
+        +changePassword(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +restore(Int $id) : ResponseInterface
+    }
+    class Items {
+        -ItemManagementService $itemService
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +restore(Int $id) : ResponseInterface
+    }
+    class Dashboard {
+        -DashboardAggregateService $dashboardService
+        +index() : ResponseInterface
+    }
+    class StockTransactions {
+        -StockTransactionService $transactionService
+        -StockTransactionModel $transactionModel
+        -StockTransactionDetailModel $detailModel
+        -AppUserProvider $userProvider
+        +index() : ResponseInterface
+        +create() : ResponseInterface
+        +directCorrection() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +details(Int $id) : ResponseInterface
+        +submitRevision(Int $id) : ResponseInterface
+        +approve(Int $id) : ResponseInterface
+        +reject(Int $id) : ResponseInterface
+    }
+    class StockOpnames {
+        -StockOpnameService $opnameService
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +submit(Int $id) : ResponseInterface
+        +approve(Int $id) : ResponseInterface
+        +reject(Int $id) : ResponseInterface
+        +post(Int $id) : ResponseInterface
+        +index() : ResponseInterface
+    }
+    class Dishes {
+        -DishManagementService $dishService
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +deactivate(Int $id) : ResponseInterface
+        +reactivate(Int $id) : ResponseInterface
+    }
+    class DishCompositions {
+        -DishCompositionManagementService $compositionService
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+    }
+    class Menus {
+        -MenuPackageManagementService $menuService
+        +index() : ResponseInterface
+        +slots() : ResponseInterface
+        +assignSlot() : ResponseInterface
+        +updateSlot(Int $id) : ResponseInterface
+        +deleteSlot(Int $id) : ResponseInterface
+    }
+    class MenuSchedules {
+        -MenuScheduleManagementService $scheduleService
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +calendarProjection() : ResponseInterface
+    }
+    class SpkBasah {
+        -MenuScheduleManagementService $menuScheduleService
+        -SpkBasahGenerationService $spkBasahGenerationService
+        -OperationalStockPreviewService $operationalStockPreviewService
+        -SpkOverrideService $spkOverrideService
+        -SpkCalculationModel $spkCalculationModel
+        -SpkRecommendationModel $spkRecommendationModel
+        -SpkStockPostingService $spkStockPostingService
+        +operationalStockPreview() : ResponseInterface
+        +menuCalendarProjection() : ResponseInterface
+        +generate() : ResponseInterface
+        +history() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +postStock(Int $id) : ResponseInterface
+        +overrideItem(Int $id) : ResponseInterface
+    }
+    class SpkKeringPengemas {
+        -MenuScheduleManagementService $menuScheduleService
+        -SpkKeringPengemasGenerationService $spkKeringPengemasGenerationService
+        -SpkOverrideService $spkOverrideService
+        -SpkCalculationModel $spkCalculationModel
+        -SpkRecommendationModel $spkRecommendationModel
+        -SpkStockPostingService $spkStockPostingService
+        +menuCalendarProjection() : ResponseInterface
+        +generate() : ResponseInterface
+        +history() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +postStock(Int $id) : ResponseInterface
+        +overrideItem(Int $id) : ResponseInterface
+    }
+    class DailyPatients {
+        -DailyPatientService $dailyPatientService
+        +index() : ResponseInterface
+        +show(String $serviceDate) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+    }
+    class ItemCategories {
+        -ItemCategoryModel $itemCategoryModel
+        -ItemModel $itemModel
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +restore(Int $id) : ResponseInterface
+    }
+    class ItemUnits {
+        -ItemUnitModel $itemUnitModel
+        -ItemModel $itemModel
+        +index() : ResponseInterface
+        +show(Int $id) : ResponseInterface
+        +create() : ResponseInterface
+        +update(Int $id) : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +restore(Int $id) : ResponseInterface
+    }
+    class Roles {
+        -RoleModel $roleModel
+        +index() : ResponseInterface
+    }
+    class Notifications {
+        -NotificationService $notificationService
+        +index() : ResponseInterface
+        +markAsRead(Int $id) : ResponseInterface
+        +markAllAsRead() : ResponseInterface
+        +delete(Int $id) : ResponseInterface
+        +deleteAll() : ResponseInterface
+    }
+    class AuditLogs {
+        -AuditLogModel $auditLogModel
+        +index() : ResponseInterface
+        +types() : ResponseInterface
+        +summary() : ResponseInterface
+    }
+    class Reports {
+        -ReportingService $reportingService
+        +stocks() : ResponseInterface
+        +transactions() : ResponseInterface
+        +spkHistory() : ResponseInterface
+        +evaluation() : ResponseInterface
+        +monthlyStockExport() : ResponseInterface
+    }
+    class StockSnapshots {
+        -StockSnapshotService $snapshotService
+        -MonthlyStockSnapshotModel $snapshotModel
+        +take() : ResponseInterface
+        +index() : ResponseInterface
+        +current() : ResponseInterface
+    }
+    class TransactionTypes {
+        -TransactionTypeModel $transactionTypeModel
+        +index() : ResponseInterface
+    }
+    class ApprovalStatuses {
+        -ApprovalStatusModel $approvalStatusModel
+        +index() : ResponseInterface
+    }
+    class MealTimes {
+        -MealTimeModel $mealTimeModel
+        +index() : ResponseInterface
+    }
+    class SpkStockInPrefill {
+        -SpkStockInPrefillService $prefillService
+        +show(Int $spkId) : ResponseInterface
+    }
+}
+
+namespace App.Models {
+    class RoleModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #Bool $useSoftDeletes
+        #String $returnType
+        +findByName(String $name) : ?array
+        +getIdByName(String $name) : ?int
+        +getAll() : array
+        +nameExists(String $name, ?Int $id, Bool $withTrashed) : bool
+    }
+    class UserModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #Bool $useSoftDeletes
+        #String $returnType
+        +getAll() : array
+        +getByUsername(String $username) : ?array
+        +findActiveByUsername(String $username) : ?array
+        +findActiveById(Int $id) : ?array
+        +getWithRole(Int $id) : ?array
+        +getAllWithRoles() : array
+        +getRole(Int $id) : ?array
+        +deactivate(Int $id) : bool
+        +activate(Int $id) : bool
+    }
+    class AppUserProvider {
+        #String $table
+        #String $returnType
+        +findByUsername(String $username) : ?User
+        +findByUsernameIncludingDeleted(String $username) : ?User
+        +usernameExists(String $username, ?Int $id, Bool $withTrashed) : bool
+        +restore(Int $id) : bool
+        +findById($id) : ?User
+        +findByIdIncludingDeleted($id) : ?User
+        +findActiveById(Int $id) : ?User
+        +isActiveUser(User $user) : bool
+        +getUserWithRole(Int $id) : ?array
+        +getActiveUserWithRole(Int $id) : ?array
+        +getAllWithRoles() : array
+        +getAllWithRolesPaginated(Int $page, Int $perPage, String $sort, String $order, String $search, ?Int $roleId, ?Bool $active, ?String $dateFrom, ?String $dateTo, ?String $username, ?String $email) : array
+        +revokeAllUserTokens(Int $userId) : void
+        +delete($id, Bool $purge) : bool
+    }
+    class ItemModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #Bool $useSoftDeletes
+        #String $returnType
+        +getAllWithCategories(Int $page, Int $perPage, ?Int $categoryId, ?Bool $isActive, String $search, String $sortBy, String $sortDir, ?String $createdAtFrom, ?String $createdAtTo, ?String $updatedAtFrom, ?String $updatedAtTo) : array
+        +findWithCategory(Int $id) : ?array
+        +findByIdIncludingDeleted(Int $id) : ?array
+        +findByNameIncludingDeleted(String $name) : ?array
+        +nameExists(String $name, ?Int $id, Bool $withTrashed) : bool
+        +restore(Int $id) : bool
+        +countActiveItemsByCategoryId(Int $categoryId) : int
+        +countActiveItemsByItemUnitId(Int $unitId) : int
+    }
+    class StockTransactionModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #Bool $useSoftDeletes
+        #String $returnType
+        +getAllPaginated(Int $page, Int $perPage) : array
+        +getAllPaginatedFiltered(Int $page, Int $perPage, String $sort, String $order, String $search, ?Int $typeId, ?Int $approvalStatusId, ?String $dateFrom, ?String $dateTo, ?String $legacySource, ?String $username, ?String $itemName, ?String $approvalStatus) : array
+        +findById(Int $id) : ?array
+        +findRevisionById(Int $id) : ?array
+        +findLatestApprovedRevisionByParentId(Int $parentId, Int $typeId, ?Int $approvalStatusId) : ?array
+        +findApprovedRevisionByParentId(Int $parentId, Int $typeId, ?Int $approvalStatusId) : ?array
+        +findPendingRevisionByParentId(Int $parentId, Int $typeId) : ?array
+        +hasPendingRevision(Int $parentId, Int $typeId, ?Int $approvalStatusId) : bool
+    }
+    class StockTransactionDetailModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #String $returnType
+        +getDetailsByTransactionId(Int $transactionId) : array
+    }
+    class MenuModel {
+        #String $table
+    }
+    class MenuDishModel {
+        #String $table
+        #String $returnType
+        +getAllWithRelations() : array
+        +getByIdWithRelations(Int $id) : ?array
+        +findDishesBySlot(Int $menuId, Int $mealTimeId) : array
+        +countByMenuId(Int $menuId) : int
+        +countByDishId(Int $dishId) : int
+        +deleteByDishId(Int $dishId) : bool
+    }
+    class MenuScheduleModel {
+        #String $table
+        #String $returnType
+        +getAllWithMenu() : array
+        +findWithMenuById(Int $id) : ?array
+        +findAssignmentsByDay(Int $day, ?Int $menuId) : array
+        +getDayToMenuMap() : array
+        +countByMenuId(Int $menuId) : int
+    }
+    class DishModel {
+        #String $table
+        #String $returnType
+        +getAllDishes(Int $page, Int $perPage, ?String $categoryId, ?Bool $isActive, String $sort, String $order, String $search, ?String $dateFrom, ?String $dateTo, ?String $name, ?String $unitBase) : array
+        +findById(Int $id) : ?array
+        +nameExists(String $name, ?Int $id) : bool
+    }
+    class DishCompositionModel {
+        #String $table
+        #String $returnType
+        +getAllCompositions(Int $page, Int $perPage, ?Int $dishId, ?Int $itemId, String $sort, String $order, String $search, ?String $dateFrom, ?String $dateTo, ?String $dishName, ?String $itemName) : array
+        +findById(Int $id) : ?array
+        +existsByDishAndItem(Int $dishId, Int $itemId, ?Int $id) : bool
+        +countByDishId(Int $dishId) : int
+        +getDishesByItemId(Int $itemId) : array
+    }
+    class DailyPatientModel {
+        #String $table
+        #String $returnType
+        +findByServiceDate(String $date, ?Int $id) : ?array
+    }
+    class SpkCalculationModel {
+        #String $table
+        #String $returnType
+        +getLatestByScopeKey(String $scopeKey) : ?array
+        +getNextVersionForScope(String $scopeKey) : int
+    }
+    class SpkRecommendationModel {
+        #String $table
+        #String $returnType
+        +getBySpkId(Int $spkId) : array
+    }
+    class MonthlyStockSnapshotModel {
+        #String $table
+        #String $returnType
+        +getAllPaginatedFiltered(Int $page, Int $perPage, ?String $period, ?Int $itemId, ?Int $categoryId) : array
+    }
+    class StockOpnameModel {
+        #String $table
+        #String $returnType
+        +findById(Int $id) : ?array
+        +getAllPaginatedFiltered(Int $page, Int $perPage, ?String $state, ?String $dateFrom, ?String $dateTo, ?String $search, ?String $creator, String $sort, String $order, String $type, ?String $approvalStatus, ?String $legacySource, ?String $username, ?String $itemName) : array
+    }
+    class StockOpnameDetailModel {
+        #String $table
+        #String $primaryKey
+        #Array $allowedFields
+        #Bool $useTimestamps
+        #String $returnType
+        +getDetailsByStockOpnameId(Int $opnameId) : array
+    }
+    class ItemCategoryModel {
+        #String $table
+    }
+    class ItemUnitModel {
+        #String $table
+    }
+    class TransactionTypeModel {
+        #String $table
+        #String $returnType
+        +getIdByName(String $name) : ?int
+        +nameExists(String $name, ?Int $id, Bool $withTrashed) : bool
+    }
+    class ApprovalStatusModel {
+        #String $table
+        #String $returnType
+        +findByName(String $name) : ?array
+        +getIdByName(String $name) : ?int
+        +nameExists(String $name, ?Int $id, Bool $withTrashed) : bool
+    }
+    class MealTimeModel {
+        #String $table
+    }
+    class AuditLogModel {
+        #String $table
+    }
+    class NotificationModel {
+        #String $table
+    }
+}
+
+namespace App.Services {
+    class AuthService {
+        -AppUserProvider $userProvider
+        -UserModel $userModel
+        -AuditService $auditService
+        -BaseConnection $db
+        +attemptLogin(String $username, String $password, ?String $ipAddress) : array
+        +logout(User $user, ?String $ipAddress) : bool
+        +getCurrentUser(User $user) : ?array
+        +changePassword(User $user, String $currentPassword, String $newPassword) : array
+    }
+    class UserManagementService {
+        -AppUserProvider $userProvider
+        -RoleModel $roleModel
+        -AuditService $auditService
+        -BaseConnection $db
+        +getAllUsers(Array $filters) : array
+        +getUserById(Int $id) : ?array
+        +createUser(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateUser(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +activateUser(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +deactivateUser(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +changePassword(Int $id, String $newPassword, ?Int $actorId, ?String $ipAddress) : array
+        +deleteUser(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +restoreUser(Int $id, ?Int $actorId, ?String $ipAddress) : array
+    }
+    class ItemManagementService {
+        -ItemModel $itemModel
+        -ItemCategoryModel $itemCategoryModel
+        -ItemUnitModel $itemUnitModel
+        -AuditService $auditService
+        -BaseConnection $db
+        +getAllItems(Array $filters) : array
+        +getItemById(Int $id) : ?array
+        +createItem(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateItem(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +deleteItem(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +restoreItem(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +isItemUsedInDishes(Int $id) : array
+    }
+    class StockTransactionService {
+        -ApprovalStatusModel $approvalStatusModel
+        -ItemModel $itemModel
+        -StockTransactionDetailModel $detailModel
+        -StockTransactionModel $transactionModel
+        -TransactionTypeModel $typeModel
+        -NotificationService $notificationService
+        -AuditService $auditService
+        -BaseConnection $db
+        +createTransaction(Array $data, Int $userId, ?String $ipAddress) : array
+        +createDirectCorrection(Array $data, Int $userId, ?String $ipAddress) : array
+        +createOpnameAdjustmentEntries(Array $data, Int $userId, ?String $ipAddress) : array
+        +submitRevision(Int $parentTransactionId, Array $data, Int $userId, ?String $ipAddress) : array
+        +approveRevision(Int $revisionId, Int $approverId, ?String $ipAddress) : array
+        +rejectRevision(Int $revisionId, Array $data, Int $approverId, ?String $ipAddress) : array
+        +flushQueuedMinStockNotifications() : void
+    }
+    class StockSnapshotService {
+        -ItemModel $itemModel
+        -AuditService $auditService
+        -BaseConnection $db
+        +takeOpeningSnapshot(String $month) : array
+        +getCurrentMonthStatus() : array
+        +ensureOpeningSnapshot(String $month) : void
+        +retakeOpeningSnapshot(String $month) : array
+    }
+    class StockOpnameService {
+        +createDraft(Array $data, Int $userId, ?String $ipAddress) : array
+        +updateDraft(Int $id, Array $data, Int $userId, ?String $ipAddress) : array
+        +submit(Int $id, Int $userId, ?String $ipAddress) : array
+        +approve(Int $id, Int $userId, ?String $ipAddress) : array
+        +reject(Int $id, Array $data, Int $userId, ?String $ipAddress) : array
+        +post(Int $id, Int $userId, ?String $ipAddress) : array
+        +list(Int $page, Int $perPage, ?String $state, ?String $dateFrom, ?String $dateTo, ?String $search, ?String $creator, String $sort, String $order) : array
+        +findByIdWithDetails(Int $id) : ?array
+    }
+    class HistoricalOpnameBackfillService {
+        +backfill(?String $fromDate, ?String $toDate) : array
+    }
+    class DashboardAggregateService {
+        -AppUserProvider $userProvider
+        -ItemCategoryModel $itemCategoryModel
+        -TransactionTypeModel $transactionTypeModel
+        -SpkCalculationModel $spkCalculationModel
+        -BaseConnection $db
+        -MenuScheduleManagementService $menuScheduleService
+        -PendingActionCounter $pendingCounter
+        +getDashboardAggregateForUser(Int $userId) : array
+    }
+    class ReportingService {
+        +getStockReport(Array $query) : array
+        +getTransactionReport(Array $query) : array
+        +getSpkHistoryReport(Array $query) : array
+        +getEvaluationReport(Array $query) : array
+        +getMonthlyStockExport(Array $query) : array
+    }
+    class AuditService {
+        -AuditLogModel $auditLogModel
+        +log(?Int $actorId, AuditActionType $actionType, String $tableName, Int $recordId, ?String $message, ?Array $oldValues, ?Array $newValues, ?String $ipAddress) : bool
+    }
+    class NotificationService {
+        -NotificationModel $notificationModel
+        -RoleModel $roleModel
+        -AppUserProvider $userProvider
+        +sendToUser(Int $userId, String $type, String $title, String $body, ?Array $data) : bool
+        +sendToRole(String $roleName, String $type, String $title, String $body, ?Array $data) : bool
+        +markAsRead(Int $notificationId, Int $userId) : bool
+        +markAllAsRead(Int $userId) : bool
+        +deleteNotification(Int $notificationId, Int $userId) : bool
+        +deleteAllNotifications(Int $userId) : bool
+        +getUserNotifications(Int $userId, ?Int $page, ?Int $perPage, ?Bool $unreadOnly) : array
+        +countUnread(Int $userId) : int
+    }
+    class PendingActionCounter {
+        +buildForAdmin(Int $userId) : array
+        +buildForGudang(Int $userId) : array
+        +buildForDapur(Int $userId) : array
+    }
+    class MenuPackageManagementService {
+        +getAllMenus() : array
+        +getAllSlots() : array
+        +assignDishToSlot(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateSlotAssignment(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +deleteSlotAssignment(Int $id, ?Int $actorId, ?String $ipAddress) : array
+    }
+    class DishManagementService {
+        +getAllDishes(Array $queryParams) : array
+        +getDishById(Int $id) : ?array
+        +createDish(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateDish(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +deleteDish(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +deactivateDish(Int $id, ?Int $actorId, ?String $ipAddress) : array
+        +reactivateDish(Int $id, ?Int $actorId, ?String $ipAddress) : array
+    }
+    class DishCompositionManagementService {
+        +getAllCompositions(Array $queryParams) : array
+        +getCompositionById(Int $id) : ?array
+        +createComposition(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateComposition(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +deleteComposition(Int $id, ?Int $actorId, ?String $ipAddress) : array
+    }
+    class MenuScheduleManagementService {
+        +getAllSchedules() : array
+        +getScheduleById(Int $id) : ?array
+        +createSchedule(Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +updateSchedule(Int $id, Array $data, ?Int $actorId, ?String $ipAddress) : array
+        +resolveCalendar(Array $queryParams) : array
+    }
+    class DailyPatientService {
+        +getAllDailyPatients() : array
+        +getDailyPatientById(Int $id) : ?array
+        +getDailyPatientByServiceDate(String $serviceDate) : ?array
+        +createDailyPatient(Array $data) : array
+        +updateDailyPatient(Int $id, Array $data) : array
+    }
+    class SpkBasahGenerationService {
+        +generate(Array $data, Int $userId) : array
+    }
+    class SpkKeringPengemasGenerationService {
+        +generate(Array $data, Int $userId) : array
+    }
+    class SpkPersistenceService {
+        +createVersionedSpk(Array $headerData, Array $recommendations) : array
+    }
+    class SpkOverrideService {
+        +overrideItem(Int $spkId, Int $itemId, Int $newQty, Int $userId, ?String $ipAddress) : array
+    }
+    class SpkStockPostingService {
+        +post(Int $spkId, String $spkType, Int $actorId, ?String $ipAddress) : array
+    }
+    class SpkStockInPrefillService {
+        +buildDraftFromSpk(Int $spkId) : array
+    }
+    class SpkReportCompatibilityService {
+        +projectForSrs(Array $headerRow, Array $recommendationRows) : array
+        +validateProjectionContract(Array $projection) : array
+    }
+    class OperationalStockPreviewService {
+        +previewSameDay(Array $data) : array
+    }
+    class MenuPackageCatalog {
+        +packageMap() : array
+        +mealTimeMap() : array
+    }
+    class MenuCalendarContract {
+        +resolvePackageId(DateTimeImmutable $date) : int
+    }
+    class OpenApiSpecService {
+        -OpenApiDocs $config
+        +sourceFiles() : array
+        +cachePath() : String
+        +getSpecJson(Bool $forceRefresh) : array
+        +buildSpecJson() : String
+        +isCacheFresh() : Bool
+        +isValidSpecJson(String $json) : Bool
+        +writeCacheAtomically(String $json) : void
+        +readCacheJson() : String
+    }
+}
+
+BaseController <|-- Auth
+BaseController <|-- Users
+BaseController <|-- Items
+BaseController <|-- Dashboard
+BaseController <|-- StockTransactions
+BaseController <|-- StockOpnames
+BaseController <|-- Dishes
+BaseController <|-- DishCompositions
+BaseController <|-- Menus
+BaseController <|-- MenuSchedules
+BaseController <|-- SpkBasah
+BaseController <|-- SpkKeringPengemas
+BaseController <|-- DailyPatients
+BaseController <|-- ItemCategories
+BaseController <|-- ItemUnits
+BaseController <|-- Roles
+BaseController <|-- Notifications
+BaseController <|-- AuditLogs
+BaseController <|-- Reports
+BaseController <|-- StockSnapshots
+BaseController <|-- TransactionTypes
+BaseController <|-- ApprovalStatuses
+BaseController <|-- MealTimes
+BaseController <|-- SpkStockInPrefill
+
+BaseModel <|-- RoleModel
+BaseModel <|-- UserModel
+BaseModel <|-- ItemModel
+BaseModel <|-- StockTransactionModel
+BaseModel <|-- StockTransactionDetailModel
+BaseModel <|-- MenuModel
+BaseModel <|-- MenuDishModel
+BaseModel <|-- MenuScheduleModel
+BaseModel <|-- DishModel
+BaseModel <|-- DishCompositionModel
+BaseModel <|-- DailyPatientModel
+BaseModel <|-- SpkCalculationModel
+BaseModel <|-- SpkRecommendationModel
+BaseModel <|-- MonthlyStockSnapshotModel
+BaseModel <|-- StockOpnameModel
+BaseModel <|-- StockOpnameDetailModel
+BaseModel <|-- ItemCategoryModel
+BaseModel <|-- ItemUnitModel
+BaseModel <|-- TransactionTypeModel
+BaseModel <|-- ApprovalStatusModel
+BaseModel <|-- MealTimeModel
+BaseModel <|-- AuditLogModel
+BaseModel <|-- NotificationModel
+
+ShieldUserModel <|-- AppUserProvider
+
+Auth ..> AuthService : uses
+Users ..> UserManagementService : uses
+Items ..> ItemManagementService : uses
+Dashboard ..> DashboardAggregateService : uses
+StockTransactions ..> StockTransactionService : uses
+StockTransactions ..> StockTransactionModel : uses
+StockTransactions ..> StockTransactionDetailModel : uses
+StockTransactions ..> AppUserProvider : uses
+StockOpnames ..> StockOpnameService : uses
+StockOpnames ..> AppUserProvider : uses
+Dishes ..> DishManagementService : uses
+DishCompositions ..> DishCompositionManagementService : uses
+Menus ..> MenuPackageManagementService : uses
+MenuSchedules ..> MenuScheduleManagementService : uses
+SpkBasah ..> MenuScheduleManagementService : uses
+SpkBasah ..> SpkBasahGenerationService : uses
+SpkBasah ..> OperationalStockPreviewService : uses
+SpkBasah ..> SpkOverrideService : uses
+SpkBasah ..> SpkCalculationModel : uses
+SpkBasah ..> SpkRecommendationModel : uses
+SpkBasah ..> SpkStockPostingService : uses
+SpkKeringPengemas ..> MenuScheduleManagementService : uses
+SpkKeringPengemas ..> SpkKeringPengemasGenerationService : uses
+SpkKeringPengemas ..> SpkOverrideService : uses
+SpkKeringPengemas ..> SpkCalculationModel : uses
+SpkKeringPengemas ..> SpkRecommendationModel : uses
+SpkKeringPengemas ..> SpkStockPostingService : uses
+DailyPatients ..> DailyPatientService : uses
+ItemCategories ..> ItemCategoryModel : uses
+ItemCategories ..> ItemModel : uses
+ItemUnits ..> ItemUnitModel : uses
+ItemUnits ..> ItemModel : uses
+Roles ..> RoleModel : uses
+Notifications ..> NotificationService : uses
+TransactionTypes ..> TransactionTypeModel : uses
+ApprovalStatuses ..> ApprovalStatusModel : uses
+MealTimes ..> MealTimeModel : uses
+SpkStockInPrefill ..> SpkStockInPrefillService : uses
+StockSnapshots ..> StockSnapshotService : uses
+StockSnapshots ..> MonthlyStockSnapshotModel : uses
+
+AuthService ..> AppUserProvider : uses
+AuthService ..> UserModel : uses
+AuthService ..> AuditService : uses
+UserManagementService ..> AppUserProvider : uses
+UserManagementService ..> RoleModel : uses
+UserManagementService ..> AuditService : uses
+ItemManagementService ..> ItemModel : uses
+ItemManagementService ..> ItemCategoryModel : uses
+ItemManagementService ..> ItemUnitModel : uses
+ItemManagementService ..> AuditService : uses
+StockTransactionService ..> ApprovalStatusModel : uses
+StockTransactionService ..> ItemModel : uses
+StockTransactionService ..> StockTransactionDetailModel : uses
+StockTransactionService ..> StockTransactionModel : uses
+StockTransactionService ..> TransactionTypeModel : uses
+StockTransactionService ..> NotificationService : uses
+StockTransactionService ..> AuditService : uses
+StockTransactionService ..> StockSnapshotService : uses
+DashboardAggregateService ..> AppUserProvider : uses
+DashboardAggregateService ..> ItemCategoryModel : uses
+DashboardAggregateService ..> TransactionTypeModel : uses
+DashboardAggregateService ..> SpkCalculationModel : uses
+DashboardAggregateService ..> MenuScheduleManagementService : uses
+DashboardAggregateService ..> PendingActionCounter : uses
+AuditService ..> AuditLogModel : uses
+NotificationService ..> NotificationModel : uses
+NotificationService ..> RoleModel : uses
+NotificationService ..> AppUserProvider : uses

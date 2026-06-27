@@ -1,82 +1,46 @@
 import type { ApiClient } from "../client";
-import type { ApiListResponse } from "../types";
-
-export type AuditLogActivityType = "Create" | "Update" | "Delete";
-export type AuditLogModule =
-  | "Transaksi"
-  | "Master Barang"
-  | "Menu"
-  | "Pengguna"
-  | "SPK"
-  | "Stok"
-  | "Laporan";
-
-export interface AuditLogEntry {
-  id: number;
-  date: string;
-  time: string;
-  actor: string;
-  actorInitials: string;
-  actorInfo?: {
-    id: number | null;
-    name: string;
-    username?: string | null;
-  };
-  activityType: AuditLogActivityType;
-  activityLabel?: string;
-  module: AuditLogModule;
-  detail: string;
-  description?: string;
-  target?: {
-    table?: string | null;
-    recordId?: number | null;
-  };
-  changes?: {
-    before?: unknown;
-    after?: unknown;
-    diff?: unknown[];
-  };
-  ipAddress?: string | null;
-  rawActionType?: string | null;
-  created_at?: string | null;
-}
-
-export interface ListAuditLogsQuery {
-  page?: number;
-  perPage?: number;
-  paginate?: boolean;
-  q?: string;
-  action_type?: string;
-  table_name?: string;
-  sortBy?: "id" | "created_at" | "action_type" | "table_name" | "record_id";
-  sortDir?: "ASC" | "DESC";
-}
-
-type AuditLogsListResponse = ApiListResponse<AuditLogEntry>;
+import type { AuditLogListQuery, AuditLogListResponse, AuditLogTypesResponse, AuditLogSummaryResponse } from "../types";
 
 export class AuditLogsResource {
-  public constructor(private readonly client: ApiClient) {}
+    public constructor(private readonly client: ApiClient) { }
 
-  public list(query?: ListAuditLogsQuery): Promise<AuditLogsListResponse> {
-    return this.client.request<AuditLogsListResponse>({
-      method: "GET",
-      path: "/audit-logs",
-      ...(query ? { query: buildAuditLogsQuery(query) } : {}),
-    });
-  }
+    public list(query?: AuditLogListQuery): Promise<AuditLogListResponse> {
+        return this.client.request<AuditLogListResponse>({
+            method: "GET",
+            path: "/audit-logs",
+            ...(query ? { query: buildAuditLogQuery(query) } : {})
+        });
+    }
+
+    public types(): Promise<AuditLogTypesResponse> {
+        return this.client.request<AuditLogTypesResponse>({
+            method: "GET",
+            path: "/audit-logs/types"
+        });
+    }
+
+    public summary(): Promise<AuditLogSummaryResponse> {
+        return this.client.request<AuditLogSummaryResponse>({
+            method: "GET",
+            path: "/audit-logs/summary"
+        });
+    }
 }
 
-function buildAuditLogsQuery(query: ListAuditLogsQuery): Record<string, string | number | boolean> {
-  const result: Record<string, string | number | boolean> = {};
+function buildAuditLogQuery(query: AuditLogListQuery): Record<string, string | number> {
+    const result: Record<string, string | number> = {};
 
-  if (query.page !== undefined) result.page = query.page;
-  if (query.perPage !== undefined) result.perPage = query.perPage;
-  if (query.paginate !== undefined) result.paginate = query.paginate;
-  if (query.q !== undefined) result.q = query.q;
-  if (query.action_type !== undefined) result.action_type = query.action_type;
-  if (query.table_name !== undefined) result.table_name = query.table_name;
-  if (query.sortBy !== undefined) result.sortBy = query.sortBy;
-  if (query.sortDir !== undefined) result.sortDir = query.sortDir;
+    if (query.page !== undefined) result.page = query.page;
+    if (query.perPage !== undefined) result.perPage = query.perPage;
+    if (query.paginate !== undefined) result.paginate = query.paginate ? "true" : "false";
+    if (query.q !== undefined) result.q = query.q;
+    if (query.action_type !== undefined) result.action_type = query.action_type;
+    if (query.table_name !== undefined) result.table_name = query.table_name;
+    if (query.sortBy !== undefined) result.sortBy = query.sortBy;
+    if (query.sortDir !== undefined) result.sortDir = query.sortDir;
+    if (query.start_date !== undefined) result.start_date = query.start_date;
+    if (query.end_date !== undefined) result.end_date = query.end_date;
+    if (query.user_id !== undefined) result.user_id = query.user_id;
 
-  return result;
+    return result;
 }

@@ -7,6 +7,7 @@ import type {
   DirectStockCorrectionRequest,
   ListStockTransactionsQuery,
   RejectStockTransactionRequest,
+  UpdateDraftRequest,
   StockTransaction,
   StockTransactionCreateResult,
   StockTransactionDetail,
@@ -185,6 +186,50 @@ export class StockTransactionsResource {
       method: "POST",
       path: `/stock-transactions/${id}/reject`,
       ...(payload ? { body: payload } : {})
+    });
+  }
+
+  /**
+   * Replaces detail rows of a pending BASAH OUT draft. Stock is NOT mutated.
+   *
+   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} PUT /stock-transactions/{id} → updateDraft
+   */
+  public updateDraft(
+    id: number,
+    payload: UpdateDraftRequest,
+  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
+      method: "PUT",
+      path: `/stock-transactions/${id}`,
+      body: payload,
+    });
+  }
+
+  /**
+   * Approves a pending BASAH OUT draft with atomic stock decrement.
+   *
+   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} POST /stock-transactions/{id}/submit → submitDraft
+   */
+  public submitDraft(
+    id: number,
+  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
+      method: "POST",
+      path: `/stock-transactions/${id}/submit`,
+    });
+  }
+
+  /**
+   * Cancels a pending BASAH OUT draft without mutating stock.
+   *
+   * @see {@link https://github.com/…/backend/app/Config/Routes.php|Routes} POST /stock-transactions/{id}/cancel → cancelDraft
+   */
+  public cancelDraft(
+    id: number,
+  ): Promise<ApiMessageDataResponse<StockTransactionCreateResult>> {
+    return this.client.request<ApiMessageDataResponse<StockTransactionCreateResult>>({
+      method: "POST",
+      path: `/stock-transactions/${id}/cancel`,
     });
   }
 }

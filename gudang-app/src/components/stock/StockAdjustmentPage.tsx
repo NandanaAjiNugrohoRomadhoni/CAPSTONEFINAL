@@ -384,14 +384,11 @@ function buildFallbackOpnameData({
     details: [
       {
         id: Number(`${header.id}${itemId}`),
-        opname_id: header.id,
+        stock_opname_id: header.id,
         item_id: itemId,
         system_qty: systemQty,
         counted_qty: countedQty,
         variance_qty: countedQty - systemQty,
-        notes: null,
-        created_at: header.created_at,
-        updated_at: header.updated_at,
       },
     ],
   };
@@ -735,7 +732,7 @@ export default function StockAdjustmentPage({
           countedQtyLabel: formatNumber(countedQtyValue, Number.isInteger(countedQtyValue) ? 0 : 1),
           variance,
           varianceLabel: formatNumber(variance, Number.isInteger(variance) ? 0 : 1),
-          reason: detail.notes ?? opname.header.notes ?? opname.header.rejection_reason ?? "-",
+          reason: opname.header.notes ?? opname.header.rejection_reason ?? "-",
         };
       }),
     );
@@ -949,14 +946,22 @@ export default function StockAdjustmentPage({
       } catch {
         nextOpname = buildFallbackOpnameData({
           header: {
-            ...response.data,
+            id: response.data.id,
+            state: response.data.state,
             opname_date: toIsoDate(new Date()),
-            created_by: response.data.created_by ?? Number(user?.id ?? 0),
-            approved_by: response.data.approved_by ?? null,
-            rejection_reason: response.data.rejection_reason ?? null,
-            notes: response.data.notes ?? null,
-            created_at: response.data.created_at ?? new Date().toISOString(),
-            updated_at: response.data.updated_at ?? new Date().toISOString(),
+            created_by: Number(user?.id ?? 0),
+            submitted_by: null,
+            approved_by: null,
+            rejected_by: null,
+            posted_by: null,
+            submitted_at: null,
+            approved_at: null,
+            rejected_at: null,
+            posted_at: null,
+            rejection_reason: null,
+            notes: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           },
           itemId: selectedItemId,
           systemQty: selectedSystemQty,

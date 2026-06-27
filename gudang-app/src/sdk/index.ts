@@ -1,7 +1,6 @@
 export * from "./client";
 export * from "./errors";
 export * from "./resources/auth";
-export * from "./resources/auditLogs";
 export * from "./resources/approvalStatuses";
 export * from "./resources/dailyPatients";
 export * from "./resources/dishes";
@@ -12,6 +11,7 @@ export * from "./resources/itemUnits";
 export * from "./resources/mealTimes";
 export * from "./resources/menus";
 export * from "./resources/menuSchedules";
+export * from "./resources/auditLogs";
 export * from "./resources/notifications";
 export * from "./resources/roles";
 export * from "./resources/spk";
@@ -21,10 +21,10 @@ export * from "./resources/users";
 export * from "./resources/dashboard";
 export * from "./resources/reports";
 export * from "./resources/stockOpnames";
+export * from "./resources/stockSnapshots";
 export * from "./types";
 
 import { ApiClient, type ApiClientOptions } from "./client";
-import { AuditLogsResource } from "./resources/auditLogs";
 import { ApprovalStatusesResource } from "./resources/approvalStatuses";
 import { AuthResource } from "./resources/auth";
 import { DailyPatientsResource } from "./resources/dailyPatients";
@@ -36,6 +36,7 @@ import { ItemUnitsResource } from "./resources/itemUnits";
 import { MealTimesResource } from "./resources/mealTimes";
 import { MenusResource } from "./resources/menus";
 import { MenuSchedulesResource } from "./resources/menuSchedules";
+import { AuditLogsResource } from "./resources/auditLogs";
 import { NotificationsResource } from "./resources/notifications";
 import { RolesResource } from "./resources/roles";
 import { SpkResource } from "./resources/spk";
@@ -45,6 +46,7 @@ import { UsersResource } from "./resources/users";
 import { DashboardResource } from "./resources/dashboard";
 import { ReportsResource } from "./resources/reports";
 import { StockOpnamesResource } from "./resources/stockOpnames";
+import { StockSnapshotsResource } from "./resources/stockSnapshots";
 
 /**
  * High-level SDK entry point for the current Capstone API surface.
@@ -52,7 +54,6 @@ import { StockOpnamesResource } from "./resources/stockOpnames";
 export class CapstoneSdk {
   public readonly client: ApiClient;
   public readonly approvalStatuses: ApprovalStatusesResource;
-  public readonly auditLogs: AuditLogsResource;
   public readonly auth: AuthResource;
   public readonly dailyPatients: DailyPatientsResource;
   public readonly dishes: DishesResource;
@@ -64,6 +65,7 @@ export class CapstoneSdk {
   public readonly mealTimes: MealTimesResource;
   public readonly menus: MenusResource;
   public readonly menuSchedules: MenuSchedulesResource;
+  public readonly auditLogs: AuditLogsResource;
   public readonly notifications: NotificationsResource;
   public readonly spk: SpkResource;
   public readonly stockTransactions: StockTransactionsResource;
@@ -72,11 +74,11 @@ export class CapstoneSdk {
   public readonly dashboard: DashboardResource;
   public readonly reports: ReportsResource;
   public readonly stockOpnames: StockOpnamesResource;
+  public readonly stockSnapshots: StockSnapshotsResource;
 
   public constructor(options: ApiClientOptions) {
     this.client = new ApiClient(options);
     this.approvalStatuses = new ApprovalStatusesResource(this.client);
-    this.auditLogs = new AuditLogsResource(this.client);
     this.auth = new AuthResource(this.client);
     this.dailyPatients = new DailyPatientsResource(this.client);
     this.dishes = new DishesResource(this.client);
@@ -88,6 +90,7 @@ export class CapstoneSdk {
     this.mealTimes = new MealTimesResource(this.client);
     this.menus = new MenusResource(this.client);
     this.menuSchedules = new MenuSchedulesResource(this.client);
+    this.auditLogs = new AuditLogsResource(this.client);
     this.notifications = new NotificationsResource(this.client);
     this.spk = new SpkResource(this.client);
     this.stockTransactions = new StockTransactionsResource(this.client);
@@ -96,6 +99,7 @@ export class CapstoneSdk {
     this.dashboard = new DashboardResource(this.client);
     this.reports = new ReportsResource(this.client);
     this.stockOpnames = new StockOpnamesResource(this.client);
+    this.stockSnapshots = new StockSnapshotsResource(this.client);
   }
 
   /**

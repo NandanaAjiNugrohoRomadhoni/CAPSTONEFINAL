@@ -47,8 +47,11 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
             ->findAll();
 
         $this->assertCount(1, $recommendations);
-        $this->assertSame(10500.0, (float) $recommendations[0]['required_qty']);
-        $this->assertSame(10500.0, (float) $recommendations[0]['recommended_qty']);
+        // Two separate menus each containing the same dish:
+        // each menu assignment is processed independently after the deduplication fix.
+        // Required = ceil(100.0 * 105) * 2 menus = 10500 * 2 = 21000
+        $this->assertSame(21000.0, (float) $recommendations[0]['required_qty']);
+        $this->assertSame(21000.0, (float) $recommendations[0]['recommended_qty']);
     }
 
     public function testSpkBasahRoundingBug(): void

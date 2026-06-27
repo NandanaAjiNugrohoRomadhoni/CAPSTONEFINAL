@@ -1,19 +1,27 @@
 import sdk from "@/lib";
 import type {
-  AuditLogActivityType,
   AuditLogEntry,
-  AuditLogModule,
-  ListAuditLogsQuery,
-} from "@/sdk/resources/auditLogs";
+  AuditLogListQuery,
+} from "@/sdk/types";
 import type { ApiListResponse } from "@/sdk/types/common";
+
+type AuditLogActivityType = "Create" | "Update" | "Delete";
+type AuditLogModule = string;
 
 export type ActivityType = AuditLogActivityType;
 export type ActivityModule = AuditLogModule;
 export type ActivityRow = AuditLogEntry;
+export interface NormalizedActivityRow extends AuditLogEntry {
+  actorInitials: string;
+  activityType: AuditLogActivityType;
+  date: string;
+  time: string;
+}
 
 const ACTIVITY_LAST_VIEWED_KEY = "capstone-activity-log-last-viewed-at";
 
-export function normalizeActivityRow(row: any): ActivityRow {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function normalizeActivityRow(row: any): NormalizedActivityRow {
   const actorName = row.actorInfo?.username?.trim() || row.actor || "Sistem";
 
   const initials = actorName
@@ -76,7 +84,7 @@ export function normalizeActivityRow(row: any): ActivityRow {
   };
 }
 
-export async function loadActivityRows(query?: ListAuditLogsQuery): Promise<ApiListResponse<ActivityRow>> {
+export async function loadActivityRows(query?: AuditLogListQuery): Promise<ApiListResponse<NormalizedActivityRow>> {
   try {
     const response = await sdk.auditLogs.list({
       sortBy: "created_at",
@@ -169,7 +177,7 @@ export async function getLatestActivityTimestamp(): Promise<number> {
     return latestTimestamp > getStoredActivityLogSeenAt();
   }
 
-  export function parseActivityTimestamp(row: Pick<ActivityRow, "date" | "time" | "created_at">) {
+  export function parseActivityTimestamp(row: Pick<NormalizedActivityRow, "date" | "time" | "created_at">) {
     if (row.created_at) {
       const isoStr = row.created_at.replace(" ", "T") + "Z";
       const d = new Date(isoStr);
@@ -177,8 +185,11 @@ export async function getLatestActivityTimestamp(): Promise<number> {
         return d.getTime();
       }
     }
-    const normalizedTime = row.time.replace(".", ":");
-    return new Date(`${row.date}T${normalizedTime}:00+07:00`).getTime();
+    if (row.time) {
+      const normalizedTime = row.time.replace(".", ":");
+      return new Date(`${row.date}T${normalizedTime}:00+07:00`).getTime();
+    }
+    return 0;
   }
 
   export function formatActivityDate(value: string) {

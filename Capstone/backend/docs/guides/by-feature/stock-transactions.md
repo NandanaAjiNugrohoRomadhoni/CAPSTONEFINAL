@@ -4,10 +4,13 @@ Manages the movement and history of inventory items.
 
 ## Endpoints
 
-- `GET /api/v1/stock-transactions`: List transactions.
-- `POST /api/v1/stock-transactions`: Create a new transaction (typically `PENDING`).
+- `GET /api/v1/stock-transactions`: List transactions. Supports pagination (`page`, `perPage`), filtering (`type_id`, `status_id`, `spk_id`, `transaction_date_from`/`_to`, `created_at_from`/`_to`, `updated_at_from`/`_to`), search (`q` or `search` fuzzy-match on `spk_id`), and sorting (`sortBy`, `sortDir`).
+- `POST /api/v1/stock-transactions`: Create a new stock transaction. Allowed fields: `type_id` / `type_name`, `transaction_date`, `spk_id` (optional), `details[]` with `item_id`, `qty`, `input_unit`.
 - `GET /api/v1/stock-transactions/{id}`: Show transaction summary.
 - `GET /api/v1/stock-transactions/{id}/details`: List specific items in the transaction.
+- `PUT /api/v1/stock-transactions/{id}`: Update a pending BASAH OUT draft. Replaces detail rows; stock is not mutated.
+- `POST /api/v1/stock-transactions/{id}/submit`: Submit a pending BASAH OUT draft. Approves, decrements stock, and finalizes the transaction.
+- `POST /api/v1/stock-transactions/{id}/cancel`: Cancel (reject) a pending BASAH OUT draft. Frees the daily slot; stock is not mutated.
 - `POST /api/v1/stock-transactions/{id}/submit-revision`: Propose changes to a transaction.
 - `POST /api/v1/stock-transactions/{id}/approve`: Finalize and post transaction (Admin).
 - `POST /api/v1/stock-transactions/{id}/reject`: Deny a pending transaction (Admin).

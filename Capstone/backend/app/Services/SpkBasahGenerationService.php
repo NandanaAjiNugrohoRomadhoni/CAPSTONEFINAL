@@ -168,8 +168,10 @@ class SpkBasahGenerationService
 
     private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array
     {
-        $requiredByDate   = [];
+        $requiredByDate     = [];
         $currentStockByItem = [];
+        // Compute the buffered patient count once — it is constant for the entire SPK generation.
+        $patientCountWithBuffer = $estimatedPatients + (int) ceil($estimatedPatients * 0.05);
 
         foreach ($targetDates as $targetDate) {
             $menuProjection = $this->menuScheduleService->resolveCalendar(['date' => $targetDate]);
@@ -194,10 +196,11 @@ class SpkBasahGenerationService
                 ];
             }
 
-            $dishIds = [];
-
+            // Process each assignment independently so that:
+            // - the same menu assigned twice contributes its ingredients twice, and
+            // - two different menus sharing a dish each contribute that dish's ingredients separately.
             foreach ($assignments as $assignment) {
-                $menuId = (int) $assignment['menu_id'];
+                $menuId     = (int) $assignment['menu_id'];
                 $menuDishes = $this->db
                     ->table('menu_dishes')
                     ->select('id, dish_id')
@@ -216,63 +219,60 @@ class SpkBasahGenerationService
                 }
 
                 foreach ($menuDishes as $menuDish) {
-                    $dishIds[(int) $menuDish['dish_id']] = true;
-                }
-            }
+                    $dishId       = (int) $menuDish['dish_id'];
+                    $compositions = $this->db
+                        ->table('dish_compositions')
+                        ->select('item_id, qty_per_patient')
+                        ->where('dish_id', $dishId)
+                        ->get()
+                        ->getResultArray();
 
-            foreach (array_keys($dishIds) as $dishId) {
-                $compositions = $this->db
-                    ->table('dish_compositions')
-                    ->select('item_id, qty_per_patient')
-                    ->where('dish_id', $dishId)
-                    ->get()
-                    ->getResultArray();
-
-                if ($compositions === []) {
-                    return [
-                        'success' => false,
-                        'message' => 'Validation failed.',
-                        'errors'  => [
-                            'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
-                        ],
-                    ];
-                }
-
-                foreach ($compositions as $composition) {
-                    $itemId = (int) $composition['item_id'];
-                    $item   = $this->itemModel->find($itemId);
-
-                    if ($item === null) {
+                    if ($compositions === []) {
                         return [
                             'success' => false,
                             'message' => 'Validation failed.',
                             'errors'  => [
-                                'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
+                                'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
                             ],
                         ];
                     }
 
-                    if ((int) $item['item_category_id'] !== $basahCategoryId) {
-                        continue;
-                    }
+                    foreach ($compositions as $composition) {
+                        $itemId = (int) $composition['item_id'];
+                        $item   = $this->itemModel->find($itemId);
 
-                    $requiredQty = ceil(((float) $composition['qty_per_patient']) * ($estimatedPatients + (int) ceil($estimatedPatients * 0.05)));
-                    if (! isset($requiredByDate[$targetDate])) {
-                        $requiredByDate[$targetDate] = [];
-                    }
+                        if ($item === null) {
+                            return [
+                                'success' => false,
+                                'message' => 'Validation failed.',
+                                'errors'  => [
+                                    'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
+                                ],
+                            ];
+                        }
 
-                    $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
+                        if ((int) $item['item_category_id'] !== $basahCategoryId) {
+                            continue;
+                        }
 
-                    if (! isset($currentStockByItem[$itemId])) {
-                        $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
+                        $requiredQty = ceil(((float) $composition['qty_per_patient']) * $patientCountWithBuffer);
+                        if (! isset($requiredByDate[$targetDate])) {
+                            $requiredByDate[$targetDate] = [];
+                        }
+
+                        $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
+
+                        if (! isset($currentStockByItem[$itemId])) {
+                            $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
+                        }
                     }
                 }
             }
         }
 
         return [
-            'success'              => true,
-            'required_by_date'     => $requiredByDate,
+            'success'               => true,
+            'required_by_date'      => $requiredByDate,
             'current_stock_by_item' => $currentStockByItem,
         ];
     }

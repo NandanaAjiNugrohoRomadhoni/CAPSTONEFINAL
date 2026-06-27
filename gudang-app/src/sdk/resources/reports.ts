@@ -1,5 +1,12 @@
 import type { ApiClient } from "../client";
-import type { ReportResponse, ReportParams } from "../types/reports";
+import type {
+  ReportParams,
+  StockReportResponse,
+  TransactionReportResponse,
+  SpkHistoryReportResponse,
+  EvaluationReportResponse,
+  MonthlyStockExportResponse,
+} from "../types/reports";
 
 // Aligned with api-contract.md §5.9 — 2026-04-29
 /**
@@ -30,8 +37,8 @@ export class ReportsResource {
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect None
    */
-  public async getStocks(params: ReportParams): Promise<ReportResponse> {
-    return this.client.request<ReportResponse>({
+  public async getStocks(params: ReportParams): Promise<StockReportResponse> {
+    return this.client.request<StockReportResponse>({
       method: "GET",
       path: "/reports/stocks",
       query: { ...params }
@@ -50,8 +57,8 @@ export class ReportsResource {
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect None
    */
-  public async getTransactions(params: ReportParams): Promise<ReportResponse> {
-    return this.client.request<ReportResponse>({
+  public async getTransactions(params: ReportParams): Promise<TransactionReportResponse> {
+    return this.client.request<TransactionReportResponse>({
       method: "GET",
       path: "/reports/transactions",
       query: { ...params }
@@ -70,8 +77,8 @@ export class ReportsResource {
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect None
    */
-  public async getSpkHistory(params: ReportParams): Promise<ReportResponse> {
-    return this.client.request<ReportResponse>({
+  public async getSpkHistory(params: ReportParams): Promise<SpkHistoryReportResponse> {
+    return this.client.request<SpkHistoryReportResponse>({
       method: "GET",
       path: "/reports/spk-history",
       query: { ...params }
@@ -90,10 +97,30 @@ export class ReportsResource {
    * @throws {AuthorizationApiError} if the caller lacks the required role (403)
    * @sideeffect None
    */
-  public async getEvaluation(params: ReportParams): Promise<ReportResponse> {
-    return this.client.request<ReportResponse>({
+  public async getEvaluation(params: ReportParams): Promise<EvaluationReportResponse> {
+    return this.client.request<EvaluationReportResponse>({
       method: "GET",
       path: "/reports/evaluation",
+      query: { ...params }
+    });
+  }
+
+  /**
+   * Returns the monthly per-item stock movement export dataset.
+   *
+   * @endpoint GET /api/v1/reports/monthly-stock-export
+   * @access   admin | gudang | dapur
+   * @param params - Must include `period_start` and `period_end`. Supports `category_id` and `item_id`. Unknown params return 400.
+   * @returns {Promise<ReportResponse>}
+   * @throws {ValidationApiError} if the period is missing, malformed, reversed, or query params are unsupported (400)
+   * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
+   * @throws {AuthorizationApiError} if the caller lacks the required role (403)
+   * @sideeffect None
+   */
+  public async getMonthlyStockExport(params: ReportParams & { category_id?: number; item_id?: number }): Promise<MonthlyStockExportResponse> {
+    return this.client.request<MonthlyStockExportResponse>({
+      method: "GET",
+      path: "/reports/monthly-stock-export",
       query: { ...params }
     });
   }

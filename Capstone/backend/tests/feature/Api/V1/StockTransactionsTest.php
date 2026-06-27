@@ -4231,6 +4231,41 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertCount(1, $json['data']);
         $this->assertSame(12345, (int) $json['data'][0]['spk_id']);
     }
+    public function testListTransactionsFiltersBySpkId(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $inType    = $typeModel->where('name', 'IN')->first();
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-09-27',
+                'spk_id'           => 12345,
+                'details'          => [['item_id' => 1, 'qty' => 10]],
+            ])->assertStatus(201);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id'          => $inType['id'],
+                'transaction_date' => '2026-09-28',
+                'spk_id'           => 99999,
+                'details'          => [['item_id' => 1, 'qty' => 10]],
+            ])->assertStatus(201);
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->get('api/v1/stock-transactions?spk_id=12345');
+
+        $result->assertStatus(200);
+
+        $json = json_decode($result->getJSON(), true);
+        $this->assertArrayHasKey('data', $json);
+        $this->assertCount(1, $json['data']);
+        $this->assertSame(12345, (int) $json['data'][0]['spk_id']);
+    }
 
     public function testListTransactionsRejectsInvalidSortBy(): void
     {

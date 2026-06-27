@@ -142,9 +142,8 @@ describe("SpkResource", () => {
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
 
     await sdk.spk.generateBasah({
-      daily_patient_id: 1,
       service_date: "2026-03-01",
-      category_id: 1
+      regenerate: false
     });
     await sdk.spk.listBasah();
     await sdk.spk.getBasah(10);
@@ -157,9 +156,8 @@ describe("SpkResource", () => {
     expect(generateInit?.method).toBe("POST");
     expect(generateInit?.body).toBe(
       JSON.stringify({
-        daily_patient_id: 1,
         service_date: "2026-03-01",
-        category_id: 1
+        regenerate: false
       })
     );
     expect(listUrl).toBe("http://127.0.0.1:8080/api/v1/spk/basah/history");
@@ -299,7 +297,7 @@ describe("SpkResource", () => {
 
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
 
-    await sdk.spk.generateKeringPengemas({ target_month: "2026-04" });
+    await sdk.spk.generateKeringPengemas({ target_month: "2026-04", regenerate: true });
     await sdk.spk.listKeringPengemas();
     await sdk.spk.getKeringPengemas(21);
 
@@ -309,7 +307,7 @@ describe("SpkResource", () => {
 
     expect(generateUrl).toBe("http://127.0.0.1:8080/api/v1/spk/kering-pengemas/generate");
     expect(generateInit?.method).toBe("POST");
-    expect(generateInit?.body).toBe(JSON.stringify({ target_month: "2026-04" }));
+    expect(generateInit?.body).toBe(JSON.stringify({ target_month: "2026-04", regenerate: true }));
     expect(listUrl).toBe("http://127.0.0.1:8080/api/v1/spk/kering-pengemas/history");
     expect(listInit?.method).toBe("GET");
     expect(getUrl).toBe("http://127.0.0.1:8080/api/v1/spk/kering-pengemas/history/21");

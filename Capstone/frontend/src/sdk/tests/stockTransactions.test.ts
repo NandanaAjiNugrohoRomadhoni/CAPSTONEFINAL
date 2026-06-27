@@ -269,4 +269,39 @@ describe("StockTransactionsResource", () => {
 
     expect("delete" in sdk.stockTransactions).toBe(false);
   });
+
+  it("sends draft lifecycle requests to the correct endpoints", async () => {
+    const mockResponse = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            message: "OK",
+            data: { id: 10 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(mockResponse);
+
+    const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
+
+    await sdk.stockTransactions.updateDraft(10, {
+      transaction_date: "2026-04-15",
+      details: [{ item_id: 1, qty: 2, input_unit: "base" }],
+    });
+    const [updateUrl, updateInit] = fetchMock.mock.calls[0] ?? [];
+    expect(updateUrl).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/10");
+    expect(updateInit?.method).toBe("PUT");
+
+    await sdk.stockTransactions.submitDraft(10);
+    const [submitUrl, submitInit] = fetchMock.mock.calls[1] ?? [];
+    expect(submitUrl).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/10/submit");
+    expect(submitInit?.method).toBe("POST");
+
+    await sdk.stockTransactions.cancelDraft(10);
+    const [cancelUrl, cancelInit] = fetchMock.mock.calls[2] ?? [];
+    expect(cancelUrl).toBe("http://127.0.0.1:8080/api/v1/stock-transactions/10/cancel");
+    expect(cancelInit?.method).toBe("POST");
+  });
 });

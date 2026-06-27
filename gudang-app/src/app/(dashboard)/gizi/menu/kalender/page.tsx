@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import sdk from "@/lib";
 import { formatLongDate, normaliseMealLabel } from "@/lib/admin-utils";
 import { listAllPaginatedRows } from "@/lib/pagination";
+import type { CalendarDay } from "@/sdk/types";
 import { getCsvMenuPackageLabel } from "@/lib/menu-csv-plan";
 import {
   AdminPageHeading,
@@ -65,7 +66,7 @@ export default function Page() {
   const monthPickerRef = useRef<HTMLInputElement | null>(null);
   const [viewDate, setViewDate] = useState<Date>(today);
   const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
-  const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
+  const [calendarEntries, setCalendarEntries] = useState<CalendarDay[]>([]);
   const [menuPackages, setMenuPackages] = useState<MenuRow[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,10 +95,10 @@ export default function Page() {
 
         if (cancelled) return;
 
-        const calendarData = Array.isArray(calendarResponse.data)
-          ? (calendarResponse.data as CalendarEntry[])
+        const calendarData: CalendarDay[] = Array.isArray(calendarResponse.data)
+          ? calendarResponse.data
           : calendarResponse.data
-            ? [calendarResponse.data as CalendarEntry]
+            ? [calendarResponse.data]
             : [];
 
         setCalendarEntries(calendarData);
@@ -161,7 +162,7 @@ export default function Page() {
   }, [daysInMonth, offset, previousMonthDays]);
 
   const projectedEntryMap = useMemo(() => {
-    const map = new Map<number, CalendarEntry>();
+    const map = new Map<number, CalendarDay>();
     for (const entry of calendarEntries) {
       map.set(entry.day_of_month, entry);
     }
@@ -183,10 +184,12 @@ export default function Page() {
           menu_name: packageLabel,
         });
       } else if (projected) {
-        const packageIndex = menuPackages.findIndex((item) => item.id === projected.menu_id);
+        const packageIndex = menuPackages.findIndex((item) => item.id === (projected.assignments[0]?.menu_id ?? 0));
         map.set(day, {
-          ...projected,
-          menu_name: packageIndex >= 0 ? getCsvMenuPackageLabel(packageIndex) : projected.menu_name,
+          date: projected.date ?? toLocalDateString(viewDate.getFullYear(), viewDate.getMonth(), day),
+          day_of_month: day,
+          menu_id: projected.assignments[0]?.menu_id ?? 0,
+          menu_name: packageIndex >= 0 ? getCsvMenuPackageLabel(packageIndex) : "",
         });
       }
     }
