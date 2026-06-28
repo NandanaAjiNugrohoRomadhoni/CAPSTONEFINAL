@@ -20,6 +20,39 @@ export interface NormalizedActivityRow extends AuditLogEntry {
 
 const ACTIVITY_LAST_VIEWED_KEY = "capstone-activity-log-last-viewed-at";
 
+function parseBackendActivityTimestamp(row: Pick<NormalizedActivityRow, "date" | "time" | "created_at">) {
+  if (row.created_at) {
+    const isoStr = row.created_at.replace(" ", "T");
+    const parsed = new Date(isoStr);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  if (row.date && row.time) {
+    const normalizedTime = row.time.replace(".", ":");
+    const parsed = new Date(`${row.date}T${normalizedTime}:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function formatDateParts(date: Date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`,
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeActivityRow(row: any): NormalizedActivityRow {
   const actorName = row.actorInfo?.username?.trim() || row.actor || "Sistem";
@@ -45,33 +78,12 @@ export function normalizeActivityRow(row: any): NormalizedActivityRow {
   let dateVal = row.date || "";
   let timeVal = row.time || "";
 
-  let dateObj: Date | null = null;
-  if (row.created_at) {
-    const isoStr = row.created_at.replace(" ", "T") + "Z";
-    const d = new Date(isoStr);
-    if (!Number.isNaN(d.getTime())) {
-      dateObj = d;
-    }
-  }
-
-  if (!dateObj && row.date && row.time) {
-    const normalizedTime = row.time.replace(".", ":");
-    const d = new Date(`${row.date}T${normalizedTime}:00Z`);
-    if (!Number.isNaN(d.getTime())) {
-      dateObj = d;
-    }
-  }
+  const dateObj = parseBackendActivityTimestamp(row);
 
   if (dateObj) {
-    const wibMs = dateObj.getTime() + 7 * 60 * 60 * 1000;
-    const wibDate = new Date(wibMs);
-    const yyyy = wibDate.getUTCFullYear();
-    const mm = String(wibDate.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(wibDate.getUTCDate()).padStart(2, "0");
-    const hh = String(wibDate.getUTCHours()).padStart(2, "0");
-    const min = String(wibDate.getUTCMinutes()).padStart(2, "0");
-    dateVal = `${yyyy}-${mm}-${dd}`;
-    timeVal = `${hh}:${min}`;
+    const parts = formatDateParts(dateObj);
+    dateVal = parts.date;
+    timeVal = parts.time;
   }
 
   return {
@@ -205,19 +217,9 @@ export async function getLatestActivityTimestamp(): Promise<number> {
     return latestTimestamp > getStoredActivityLogSeenAt();
   }
 
-  export function parseActivityTimestamp(row: Pick<NormalizedActivityRow, "date" | "time" | "created_at">) {
-    if (row.created_at) {
-      const isoStr = row.created_at.replace(" ", "T") + "Z";
-      const d = new Date(isoStr);
-      if (!Number.isNaN(d.getTime())) {
-        return d.getTime();
-      }
-    }
-    if (row.time) {
-      const normalizedTime = row.time.replace(".", ":");
-      return new Date(`${row.date}T${normalizedTime}:00+07:00`).getTime();
-    }
-    return 0;
+export function parseActivityTimestamp(row: Pick<NormalizedActivityRow, "date" | "time" | "created_at">) {
+    const parsed = parseBackendActivityTimestamp(row);
+    return parsed ? parsed.getTime() : 0;
   }
 
   export function formatActivityDate(value: string) {
@@ -227,4 +229,11 @@ export async function getLatestActivityTimestamp(): Promise<number> {
       return `${day}/${month}/${year}`;
     }
     return value;
+  }
+
+  export function formatActivityDateFromDate(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return formatActivityDate(`${year}-${month}-${day}`);
   }

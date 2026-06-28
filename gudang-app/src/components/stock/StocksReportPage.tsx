@@ -78,11 +78,6 @@ const statCards = [
   },
 ] as const;
 
-const ALL_STOCK_REPORT_PERIOD = {
-  period_start: "2000-01-01",
-  period_end: "2099-12-31",
-} as const;
-
 type NoticeState = {
   title: string;
   headline: string;
@@ -179,40 +174,30 @@ export default function StocksReportPage({
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadReportData = useCallback(async () => {
-    const [reportResponse, itemsResponse] = await Promise.allSettled([
-      sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
-      listAllItems(),
-    ]);
-
-    const nextReportRows =
-      reportResponse.status === "fulfilled" ? (reportResponse.value.data.rows ?? []) : [];
-    const nextItems =
-      itemsResponse.status === "fulfilled" ? itemsResponse.value : [];
-
-    const itemsMap = new Map(nextItems.map((item) => [item.id, item]));
-
-    const enrichedReportRows = nextReportRows.map((row) => {
-      const itemId = firstNumber(row, ["item_id", "id"]);
-      const item = itemsMap.get(itemId);
-      if (item) {
-        return {
-          ...row,
-          min_stock: item.min_stock,
-        };
-      }
-      return row;
+    const nextItems = await listAllItems({
+      sortBy: "id",
+      sortDir: "ASC",
     });
 
-    setReportRows(enrichedReportRows);
+    const transformedRows = nextItems.map((item) => ({
+      item_id: item.id,
+      item_name: item.name,
+      category_id: item.item_category_id,
+      category_name: item.category?.name ?? "-",
+      qty: Number(item.qty ?? 0),
+      unit_base: item.unit_base,
+      unit_convert: item.unit_convert,
+      min_stock: item.min_stock,
+      is_active: item.is_active,
+      updated_at: item.updated_at,
+      item_unit_base: item.item_unit_base,
+      item_unit_convert: item.item_unit_convert,
+      item_category_id: item.item_category_id,
+      name: item.name,
+      category: item.category,
+    })) as StockReportRow[];
 
-    if (nextReportRows.length === 0) {
-      const loadError =
-        reportResponse.status === "rejected" ? reportResponse.reason : null;
-
-      if (loadError) {
-        setError(getErrorMessage(loadError, "Gagal memuat stok bahan."));
-      }
-    }
+    setReportRows(transformedRows);
   }, []);
 
   useEffect(() => {

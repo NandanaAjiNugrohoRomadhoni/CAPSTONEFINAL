@@ -121,6 +121,7 @@ function normalizeTransactionDirection(label: string) {
   const normalized = label.trim().toUpperCase();
   if (normalized.includes("MASUK") || normalized === "IN") return "IN";
   if (normalized.includes("KELUAR") || normalized === "OUT") return "OUT";
+  if (normalized.includes("RETUR") || normalized.includes("RETURN")) return "IN";
   return "MIXED";
 }
 
@@ -344,7 +345,6 @@ export default function GudangTransactionHistoryPage() {
         currentUser?.username,
       );
       const transactionLabel = getStockMovementTypeLabel(typeMap.get(transaction.type_id));
-      if (!transactionLabel) return [];
 
       return [{
         transaction,
@@ -1291,11 +1291,13 @@ function normaliseTransactionLabel(value?: string | null) {
   return value ?? "-";
 }
 
-function getStockMovementTypeLabel(value?: string | null): "Masuk" | "Keluar" | null {
+function getStockMovementTypeLabel(value?: string | null): string {
   const upper = (value ?? "").trim().toUpperCase();
   if (upper === "IN" || upper === "MASUK") return "Masuk";
   if (upper === "OUT" || upper === "KELUAR") return "Keluar";
-  return null;
+  if (upper === "RETURN_IN" || upper.includes("RETUR") || upper.includes("RETURN")) return "Retur Masuk";
+  if (upper.includes("OPNAME")) return "Penyesuaian Stok";
+  return value?.trim() || "-";
 }
 
 function getRevisionStockShortageMessage(rows: RevisionRow[], items: ItemRow[], isOutgoing: boolean) {

@@ -125,7 +125,9 @@ class DailyPatients extends BaseController
     public function create(): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->dailyPatientService->createDailyPatient($data);
+        $user = auth()->user();
+        $userId = $user !== null ? (int) $user->id : null;
+        $result = $this->dailyPatientService->createDailyPatient($data, $userId);
 
         if (! $result['success']) {
             return $this->response
@@ -165,7 +167,9 @@ class DailyPatients extends BaseController
     public function update(int $id): ResponseInterface
     {
         $data = $this->request->getJSON(true) ?? [];
-        $result = $this->dailyPatientService->updateDailyPatient($id, $data);
+        $user = auth()->user();
+        $userId = $user !== null ? (int) $user->id : null;
+        $result = $this->dailyPatientService->updateDailyPatient($id, $data, $userId);
 
         if (! $result['success']) {
             $statusCode = match ($result['message']) {

@@ -18,6 +18,7 @@
 CI_DEBUG = false
 
 CI_ENVIRONMENT = development
+CI_DEBUG = false
 
 #--------------------------------------------------------------------
 # APP

@@ -751,13 +751,17 @@ function ConfirmSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div
-            aria-hidden="true"
-            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
-            data-selected-spk={selectedSpkId ?? ""}
-            data-summary-count={summaryCount}
-          />
-          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-slate-600">{""}</div>
+          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm leading-6 text-slate-700">
+            Apakah Anda yakin ingin menyimpan{" "}
+            <span className="font-semibold text-blue-700">{summaryCount} bahan</span> ini?
+          </div>
+          {selectedSpkId ? (
+            <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-slate-700">
+              Data barang masuk dari SPK{" "}
+              <span className="font-semibold text-amber-700">{`ID SPK ${selectedSpkId}`}</span>{" "}
+              akan disimpan ke sistem.
+            </div>
+          ) : null}
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">

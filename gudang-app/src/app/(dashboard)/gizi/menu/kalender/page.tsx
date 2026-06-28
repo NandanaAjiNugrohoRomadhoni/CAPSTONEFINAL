@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import sdk from "@/lib";
 import { formatLongDate, normaliseMealLabel } from "@/lib/admin-utils";
+import { resolveFrontendMenuCalendarEntry } from "@/lib/menu-calendar";
 import { listAllPaginatedRows } from "@/lib/pagination";
 import type { CalendarDay } from "@/sdk/types";
 import { getCsvMenuPackageLabel } from "@/lib/menu-csv-plan";
@@ -30,10 +31,6 @@ const mealDisplayOrder = ["SIANG", "SORE", "PAGI"];
 
 function sortMenuPackages(packages: MenuRow[]) {
   return [...packages].sort((a, b) => a.id - b.id);
-}
-
-function toLocalDateString(year: number, monthIndex: number, day: number) {
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 type CalendarEntry = {
@@ -173,24 +170,17 @@ export default function Page() {
     const map = new Map<number, CalendarEntry>();
 
     for (let day = 1; day <= daysInMonth; day += 1) {
-      const projected = projectedEntryMap.get(day);
-      const cycleMenu = menuPackages.length > 0 ? menuPackages[(day - 1) % menuPackages.length] : null;
-      if (cycleMenu) {
-        const packageLabel = getCsvMenuPackageLabel((day - 1) % menuPackages.length);
-        map.set(day, {
-          date: projected?.date ?? toLocalDateString(viewDate.getFullYear(), viewDate.getMonth(), day),
-          day_of_month: day,
-          menu_id: cycleMenu.id,
-          menu_name: packageLabel,
-        });
-      } else if (projected) {
-        const packageIndex = menuPackages.findIndex((item) => item.id === (projected.assignments[0]?.menu_id ?? 0));
-        map.set(day, {
-          date: projected.date ?? toLocalDateString(viewDate.getFullYear(), viewDate.getMonth(), day),
-          day_of_month: day,
-          menu_id: projected.assignments[0]?.menu_id ?? 0,
-          menu_name: packageIndex >= 0 ? getCsvMenuPackageLabel(packageIndex) : "",
-        });
+      const projected = projectedEntryMap.get(day) ?? null;
+      const resolved = resolveFrontendMenuCalendarEntry({
+        year: viewDate.getFullYear(),
+        monthIndex: viewDate.getMonth(),
+        day,
+        menuPackages,
+        projected,
+      });
+
+      if (resolved) {
+        map.set(day, resolved);
       }
     }
 

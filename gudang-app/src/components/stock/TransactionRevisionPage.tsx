@@ -11,7 +11,7 @@ import {
 } from "@/components/admin/ui";
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { formatDate, getErrorMessage, resolveDetailItemName, resolveDetailUnit } from "@/lib/admin-utils";
-import { isIsoDateInRange } from "@/lib/date-range";
+import { isIsoDateInRange, normalizeIsoDateRange } from "@/lib/date-range";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -480,10 +480,6 @@ export default function TransactionRevisionPage({
       });
     });
 
-    const periodLabel =
-      dateRange.startDate && dateRange.endDate
-        ? `${formatDate(dateRange.startDate)} s/d ${formatDate(dateRange.endDate)}`
-        : "Semua tanggal";
     const printedAt = formatDate(new Date().toISOString().slice(0, 10));
 
     const statusCounts = visibleRevisions.reduce(
@@ -496,6 +492,13 @@ export default function TransactionRevisionPage({
       },
       { approved: 0, rejected: 0, pending: 0 },
     );
+
+    const normalizedDateRange = normalizeIsoDateRange(dateRange);
+    const periodLabel = normalizedDateRange.startDate
+      ? normalizedDateRange.startDate === normalizedDateRange.endDate
+        ? formatDate(normalizedDateRange.startDate)
+        : `${formatDate(normalizedDateRange.startDate)} s/d ${formatDate(normalizedDateRange.endDate)}`
+      : "Semua tanggal";
 
     const summaryHtml = `
       <table class="summary">
@@ -511,9 +514,7 @@ export default function TransactionRevisionPage({
       <table class="summary">
         <tr><td class="summary-label">Pencarian</td><td class="summary-value">${escapeSpreadsheetHtml(search.trim() || "Semua Nama")}</td></tr>
         <tr><td class="summary-label">Rentang Tanggal</td><td class="summary-value">${escapeSpreadsheetHtml(
-          dateRange.startDate && dateRange.endDate
-            ? `${formatDate(dateRange.startDate)} - ${formatDate(dateRange.endDate)}`
-            : "Semua Tanggal",
+          periodLabel,
         )}</td></tr>
         <tr><td class="summary-label">Status</td><td class="summary-value">${escapeSpreadsheetHtml(
           selectedStatus ? getStatusLabel(Number(selectedStatus)) : "Semua Status",

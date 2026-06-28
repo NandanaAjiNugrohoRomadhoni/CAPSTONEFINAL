@@ -8,8 +8,8 @@ class DailyPatientSeeder extends Seeder
 {
     /**
      * Deterministic baseline date for all seeded operational data.
-     * All date-bearing seeders (MenuScheduleSeeder, DailyPatientSeeder, SpkPersistenceSeeder)
-     * use this as the anchor point to ensure reproducible, stable seeding across fresh runs.
+     * All date-bearing seeders (DailyPatientSeeder) use this as the anchor
+     * point to ensure reproducible, stable seeding across fresh runs.
      */
     private const BASELINE_DATE = '2026-04-15';
 

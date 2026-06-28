@@ -72,6 +72,7 @@ export default function BarangKeluarPage() {
   const [validatedMeta, setValidatedMeta] = useState<{ totalItems: number; menuName: string } | null>(null);
   const [savedRecommendation, setSavedRecommendation] = useState<SavedRecommendation | null>(null);
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [confirmDrySaveOpen, setConfirmDrySaveOpen] = useState(false);
   const [recommendationPreviewOpen, setRecommendationPreviewOpen] = useState(false);
   const [recommendationRows, setRecommendationRows] = useState<BasahValidatedRow[]>([]);
   const [recommendationMeta, setRecommendationMeta] = useState<{ totalItems: number; menuName: string } | null>(null);
@@ -409,7 +410,9 @@ export default function BarangKeluarPage() {
         message: "",
       });
       setRows([createManualRow()]);
+      setConfirmDrySaveOpen(false);
     } catch (saveError) {
+      setConfirmDrySaveOpen(false);
       openAlert(
         setAlertState,
         "Penyimpanan Gagal",
@@ -747,7 +750,7 @@ export default function BarangKeluarPage() {
               </button>
               <button
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                onClick={() => void saveDryOutput()}
+                onClick={() => setConfirmDrySaveOpen(true)}
                 type="button"
                 disabled={saving}
               >
@@ -772,6 +775,14 @@ export default function BarangKeluarPage() {
         totalRows={validatedRows.length}
         onClose={() => setConfirmSaveOpen(false)}
         onConfirm={() => void saveBasahOutput()}
+        saving={saving}
+      />
+
+      <ConfirmDrySaveModal
+        open={confirmDrySaveOpen}
+        totalRows={rows.filter((row) => row.item_id !== null && Number(row.qty) > 0).length}
+        onClose={() => setConfirmDrySaveOpen(false)}
+        onConfirm={() => void saveDryOutput()}
         saving={saving}
       />
 
@@ -933,12 +944,73 @@ function ConfirmBasahSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div
-            aria-hidden="true"
-            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
-            data-patient-count={patientCount}
-            data-total-rows={totalRows}
-          />
+          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm leading-6 text-slate-700">
+            Apakah Anda yakin ingin menyimpan <span className="font-semibold text-blue-700">{totalRows} bahan</span> ini?
+          </div>
+          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-slate-700">
+            Pengeluaran bahan untuk <span className="font-semibold text-amber-700">{patientCount} pasien</span> akan dicatat ke sistem.
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+          <button
+            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+          >
+            Batal
+          </button>
+          <button
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            disabled={saving}
+            onClick={onConfirm}
+            type="button"
+          >
+            {saving ? "Menyimpan..." : "Ya, Konfirmasi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDrySaveModal({
+  open,
+  totalRows,
+  onClose,
+  onConfirm,
+  saving,
+}: {
+  open: boolean;
+  totalRows: number;
+  onClose: () => void;
+  onConfirm: () => void;
+  saving: boolean;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[77] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/35 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative w-full max-w-[420px] overflow-hidden rounded-[22px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-[22px] font-semibold leading-none text-slate-900">Konfirmasi Simpan</h2>
+            <p className="mt-2 text-sm text-slate-400">Pastikan data pengeluaran bahan kering & pengemas sudah benar.</p>
+          </div>
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-slate-200 hover:text-slate-500"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm leading-6 text-slate-700">
+            Apakah Anda yakin ingin menyimpan <span className="font-semibold text-blue-700">{totalRows} bahan</span> ini?
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">

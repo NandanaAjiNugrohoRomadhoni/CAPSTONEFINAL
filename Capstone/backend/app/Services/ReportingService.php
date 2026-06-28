@@ -28,7 +28,7 @@ class ReportingService
         $this->auditService = new AuditService();
     }
 
-    public function getStockReport(array $query): array
+    public function getStockReport(array $query, ?int $userId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateReportQuery($query, ['category_id', 'item_id', 'is_active']);
         if (! $validated['success']) {
@@ -69,11 +69,9 @@ class ReportingService
                 $activeItems++;
             }
         }
-
-        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
         try {
             $this->auditService->log(
-                null,
+                $userId,
                 AuditActionType::Create,
                 'reports',
                 0,
@@ -114,7 +112,7 @@ class ReportingService
         ];
     }
 
-    public function getTransactionReport(array $query): array
+    public function getTransactionReport(array $query, ?int $userId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateReportQuery($query, ['type_id', 'status_id', 'item_id']);
         if (! $validated['success']) {
@@ -157,10 +155,9 @@ class ReportingService
         foreach ($rows as $row) {
             $totalQty += (float) $row['qty'];
         }
-        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
         try {
             $this->auditService->log(
-                null,
+                $userId,
                 AuditActionType::Create,
                 'reports',
                 0,
@@ -172,7 +169,6 @@ class ReportingService
         } catch (\Throwable $e) {
             // silently ignore audit failures
         }
-
         return [
             'success' => true,
             'data' => [
@@ -269,7 +265,7 @@ class ReportingService
         return trim((string) ($row['reason'] ?? '')) === 'Legacy opname posting line';
     }
 
-    public function getSpkHistoryReport(array $query): array
+    public function getSpkHistoryReport(array $query, ?int $userId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateReportQuery($query, ['spk_type', 'category_id']);
         if (! $validated['success']) {
@@ -312,10 +308,9 @@ class ReportingService
 
             $compatibilityRows[] = $this->spkReportCompatibilityService->projectForSrs($headerRow, $recommendationRows);
         }
-        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
         try {
             $this->auditService->log(
-                null,
+                $userId,
                 AuditActionType::Create,
                 'reports',
                 0,
@@ -370,7 +365,7 @@ class ReportingService
         ];
     }
 
-    public function getEvaluationReport(array $query): array
+    public function getEvaluationReport(array $query, ?int $userId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateReportQuery($query, ['spk_type', 'category_id']);
         if (! $validated['success']) {
@@ -455,10 +450,9 @@ class ReportingService
                 'variance_qty' => round($variance, 2),
             ];
         }
-        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
         try {
             $this->auditService->log(
-                null,
+                $userId,
                 AuditActionType::Create,
                 'reports',
                 0,
@@ -491,7 +485,7 @@ class ReportingService
         ];
     }
 
-    public function getMonthlyStockExport(array $query): array
+    public function getMonthlyStockExport(array $query, ?int $userId = null, ?string $ipAddress = null): array
     {
         $validated = $this->validateReportQuery($query, ['category_id', 'item_id']);
         if (! $validated['success']) {
@@ -646,10 +640,9 @@ class ReportingService
                 'harian' => $harian,
             ];
         }
-        $ipAddress = function_exists('service') ? service('request')?->getIPAddress() : null;
         try {
             $this->auditService->log(
-                null,
+                $userId,
                 AuditActionType::Create,
                 'reports',
                 0,

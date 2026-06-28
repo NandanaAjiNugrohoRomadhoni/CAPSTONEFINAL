@@ -99,6 +99,14 @@ type CompositionGroup = {
   items: Array<NonNullable<DashboardState["current_menu_composition"]>[number]>;
 };
 
+type CompositionSessionGroup = {
+  key: string;
+  mealTime: string;
+  mealTimeId: number;
+  dishNames: string[];
+  items: Array<NonNullable<DashboardState["current_menu_composition"]>[number]>;
+};
+
 type MenuIngredientRow = {
   itemId: number;
   itemName: string;
@@ -346,7 +354,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
     return sourceRows
       .slice()
       .sort((a, b) => String(b.transaction_date ?? "").localeCompare(String(a.transaction_date ?? "")))
-      .slice(0, 5)
+      .slice(0, 8)
       .map((row) => {
         const relatedStock = stockRows.find((stock) => stock.item_name === row.item_name);
         const tone = getStockTone(Number(relatedStock?.qty ?? 0), Number(relatedStock?.min_stock ?? 1));
@@ -422,17 +430,20 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
     const rows = (dashboard.current_menu_composition ?? []) as NonNullable<
       DashboardState["current_menu_composition"]
     >;
-    const grouped = new Map<string, CompositionGroup>();
+    const grouped = new Map<string, CompositionSessionGroup>();
 
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
       const mealTime = normaliseMealLabel(row.meal_time);
-      const dishId = Number(row.dish_id ?? index + 1);
-      const key = `${mealTime}-${dishId}`;
+      const dishName = row.dish_name ?? "-";
+      const key = mealTime;
       const existing = grouped.get(key);
       const mealTimeId = mealTime === "PAGI" ? 1 : mealTime === "SIANG" ? 2 : mealTime === "SORE" ? 3 : 99;
 
       if (existing) {
         existing.items.push(row);
+        if (!existing.dishNames.includes(dishName)) {
+          existing.dishNames.push(dishName);
+        }
         return;
       }
 
@@ -440,13 +451,12 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
         key,
         mealTime,
         mealTimeId,
-        dishId,
-        dishName: row.dish_name ?? "-",
+        dishNames: [dishName],
         items: [row],
       });
     });
 
-    return [...grouped.values()].sort((a, b) => a.mealTimeId - b.mealTimeId || a.dishName.localeCompare(b.dishName));
+    return [...grouped.values()].sort((a, b) => a.mealTimeId - b.mealTimeId);
   }, [dashboard.current_menu_composition, mode]);
 
   const menuIngredientRows = useMemo(() => {
@@ -618,68 +628,44 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
       {mode === "dapur" ? (
         <>
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.12fr_0.88fr]">
-            <SurfaceCard
-              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
-              onClick={() => router.push(dashboardCardRoutes.composition)}
-            >
-              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F4F8FF] to-white px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#2155CD]">
-                      Komposisi Hari Ini
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">Komposisi Menu Hari Ini</h3>
-                    <p className="mt-1 text-xs text-[#64748B]">
-                      {currentDateLabel} - {activeMenu} - {formatNumber(Number(latestPatients ?? 0))} pasien
-                    </p>
-                  </div>
-                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.composition)}>
-                    Detail
-                  </MiniActionButton>
+            <SurfaceCard className="overflow-hidden">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <div>
+                  <h3 className="text-base font-semibold text-[#16213E]">Komposisi Menu Hari Ini</h3>
+                  <p className="mt-1 text-xs text-[#94A3B8]">
+                    {currentDateLabel} - {activeMenu} - {formatNumber(Number(latestPatients ?? 0))} pasien
+                  </p>
                 </div>
+                <MiniActionButton>Detail</MiniActionButton>
               </div>
 
-              <div className="flex-1 overflow-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="sticky top-0 z-10 bg-gradient-to-r from-[#2155CD] to-[#6EA8FF] text-[11px] font-semibold uppercase tracking-wide text-white">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
+                      <th className="px-4 py-3">Waktu</th>
                       <th className="px-4 py-3">Menu</th>
                       <th className="px-4 py-3">Komposisi Bahan</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E6EEFF] text-sm text-gray-700">
-                    {compositionRows.map((row, index) => (
-                      <tr key={row.key} className={index % 2 === 0 ? "bg-white" : "bg-[#F8FBFF] hover:bg-[#EEF4FF]/70"}>
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex items-start gap-3">
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
-                                getMealPalette(row.mealTime).label
-                              } bg-white/90 ring-1 ring-inset ring-[#D7E0EE]`}
-                            >
-                              {row.mealTime}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-[#16213E]">{row.dishName}</p>
-                              <p className="mt-1 text-xs text-[#64748B]">{row.items.length} bahan utama</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-[#475569]">
-                          <div className="flex flex-wrap gap-2">
-                            {renderCompositionChips(row.items)}
-                            {row.items.length > 4 ? (
-                              <span className="rounded-full bg-[#E2E8F0] px-3 py-1 text-xs font-semibold text-[#475569]">
-                                +{row.items.length - 4} lagi
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="text-sm text-gray-700">
+                  {compositionRows.map((row) => (
+                    <tr key={row.key} className="border-t border-gray-200">
+                      <td className="px-4 py-4 align-top">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                          {row.mealTime}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-medium text-gray-900">{renderMenuSummary(row.dishNames)}</p>
+                        <p className="mt-1 text-xs text-[#94A3B8]">{row.dishNames.length} menu</p>
+                      </td>
+                      <td className="px-4 py-4 text-[#475569]">{renderCompositionSummary(row.items)}</td>
+                    </tr>
+                  ))}
                     {!loading && compositionRows.length === 0 ? (
                       <tr>
-                        <td className="px-4 py-10 text-center text-gray-400" colSpan={2}>
+                        <td className="px-4 py-8 text-center text-gray-400" colSpan={3}>
                           Belum ada komposisi menu yang tersedia.
                         </td>
                       </tr>
@@ -776,81 +762,57 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
               </div>
 
               <div className="flex-1 px-5 py-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {stockSummaryBoxes.map((box) => (
-                    <div key={box.label} className={`rounded-2xl px-4 py-3 ${box.tone}`}>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide">{box.label}</div>
-                      <div className="mt-1 text-lg font-bold">{formatNumber(box.value)}</div>
-                      <div className="text-xs opacity-80">Bahan</div>
+                    <div
+                      key={box.label}
+                      className={`flex min-h-[128px] flex-col justify-between rounded-3xl px-6 py-5 ${box.tone}`}
+                    >
+                      <div className="text-[12px] font-semibold uppercase tracking-wide">{box.label}</div>
+                      <div>
+                        <div className="text-3xl font-bold leading-none">{formatNumber(box.value)}</div>
+                        <div className="mt-2 text-sm opacity-80">Bahan</div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </SurfaceCard>
 
-            <SurfaceCard
-              className="flex h-full flex-col overflow-hidden border border-[#D9E6FF] bg-white shadow-sm"
-              onClick={() => router.push(dashboardCardRoutes.outbound)}
-            >
-              <div className="border-b border-[#D9E6FF] bg-gradient-to-r from-[#F4F8FF] to-white px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#64748B]">
-                      Tren Pasien
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold text-[#16213E]">Tren Pasien 7 Hari Terakhir</h3>
-                    <p className="mt-1 text-xs text-[#64748B]">Ringkasan visual jumlah pasien per hari</p>
-                  </div>
-                  <MiniActionButton onClick={() => router.push(dashboardCardRoutes.outbound)}>
-                    Detail
-                  </MiniActionButton>
-                </div>
-              </div>
+            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari Terakhir</h3>
+              <div className="mt-5 flex h-[280px] items-end gap-3">
+                {patientPoints.map((point) => {
+                  const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
+                  const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 210, 22);
 
-              <div className="flex flex-1 flex-col px-5 py-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl bg-[#EEF4FF] px-3 py-2">
-                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Rata-rata</div>
-                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.average)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-[#ECFDF3] px-3 py-2">
-                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Tertinggi</div>
-                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.highest)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-[#FFF7CC] px-3 py-2">
-                    <div className="text-[11px] uppercase tracking-wide text-[#64748B]">Terendah</div>
-                    <div className="mt-1 text-lg font-bold text-[#16213E]">{formatNumber(patientStats.lowest)}</div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-1 items-end gap-3 min-h-[260px]">
-                  {patientPoints.map((point) => {
-                    const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
-                    const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 180, 24);
-
-                    return (
-                      <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
-                        <div className="text-xs font-semibold text-[#64748B]">
-                          {formatNumber(Number(point.total_patients ?? 0))}
-                        </div>
-                        <div className="flex h-[190px] w-full items-end">
-                          <div
-                            className="w-full rounded-t-2xl bg-gradient-to-t from-[#BFD7FF] to-[#DDE9FF] shadow-[0_8px_20px_rgba(33,85,205,0.12)]"
-                            style={{ height: `${barHeight}px` }}
-                          />
-                        </div>
-                        <div className="text-[11px] text-[#64748B]">{formatCompactDate(point.service_date)}</div>
+                  return (
+                    <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
+                      <div className="text-xs font-semibold text-[#111827]">
+                        {formatNumber(Number(point.total_patients ?? 0))}
                       </div>
-                    );
-                  })}
-                  {!loading && patientPoints.length === 0 ? (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
-                      Belum ada data pasien.
+                      <div className="flex h-[220px] w-full items-end">
+                        <div
+                          className="w-full rounded-t-xl bg-[#2155CD] shadow-[0_10px_24px_rgba(33,85,205,0.18)]"
+                          style={{ height: `${barHeight}px` }}
+                        />
+                      </div>
+                      <div className="text-[11px] text-[#111827]">{formatCompactDate(point.service_date)}</div>
                     </div>
-                  ) : null}
-                </div>
+                  );
+                })}
+                {!loading && patientPoints.length === 0 ? (
+                  <div className="flex h-full w-full items-center justify-center text-sm text-[#111827]">
+                    Belum ada data pasien.
+                  </div>
+                ) : null}
               </div>
-            </SurfaceCard>
+              <div className="mt-4 flex justify-between text-sm text-[#111827]">
+                <span>Rata-rata: {formatNumber(patientStats.average)}</span>
+                <span>Tertinggi: {formatNumber(patientStats.highest)}</span>
+                <span>Terendah: {formatNumber(patientStats.lowest)}</span>
+              </div>
+            </section>
           </div>
         </>
       ) : (
@@ -870,39 +832,41 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
               </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gradient-to-r from-[#2155CD] to-[#6EA8FF] text-[11px] font-semibold uppercase tracking-wide text-white">
-                  <tr>
-                    <th className="px-4 py-3">Bahan</th>
-                    <th className="px-4 py-3">Keluar</th>
-                    <th className="px-4 py-3">Sisa Stok</th>
-                    <th className="px-4 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E6EEFF] text-sm text-gray-700">
-                  {todayOutRows.map((row, index) => (
-                    <tr key={`${row.id}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-[#F8FBFF] hover:bg-[#EEF4FF]/70"}>
-                      <td className="px-4 py-4">
-                        <p className="font-semibold text-[#16213E]">{row.itemName}</p>
-                        <p className="text-xs text-[#64748B]">{row.category}</p>
-                      </td>
-                      <td className="px-4 py-4">{row.outgoing}</td>
-                      <td className="px-4 py-4">{row.remaining}</td>
-                      <td className="px-4 py-4">
-                        <StatusPill tone={row.tone}>{row.label}</StatusPill>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && todayOutRows.length === 0 ? (
+            <div className="flex-1 overflow-hidden">
+              <div className="max-h-[236px] overflow-y-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="sticky top-0 bg-[#F1F5F9] text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
-                      <td className="px-4 py-10 text-center text-gray-400" colSpan={4}>
-                        Belum ada transaksi keluar pada periode ini.
-                      </td>
+                      <th className="px-4 py-3">Bahan</th>
+                      <th className="px-4 py-3">Keluar</th>
+                      <th className="px-4 py-3">Sisa Stok</th>
+                      <th className="px-4 py-3">Status</th>
                     </tr>
-                  ) : null}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="text-sm text-gray-700">
+                    {todayOutRows.map((row, index) => (
+                      <tr key={`${row.id}-${index}`} className="border-t border-gray-200">
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-gray-900">{row.itemName}</p>
+                          <p className="text-xs text-[#94A3B8]">{row.category}</p>
+                        </td>
+                        <td className="px-4 py-4 text-[#475569]">{row.outgoing}</td>
+                        <td className="px-4 py-4 text-[#475569]">{row.remaining}</td>
+                        <td className="px-4 py-4">
+                          <StatusPill tone={row.tone}>{row.label}</StatusPill>
+                        </td>
+                      </tr>
+                    ))}
+                    {!loading && todayOutRows.length === 0 ? (
+                      <tr>
+                        <td className="px-4 py-10 text-center text-gray-400" colSpan={4}>
+                          Belum ada transaksi keluar pada periode ini.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </SurfaceCard>
         ) : (
@@ -928,8 +892,8 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
                 <tbody className="text-sm text-gray-700">
                   {compositionRows.map((row) => (
                     <tr key={row.key} className="border-t border-gray-200">
-                      <td className="px-4 py-4">
-                        <p className="font-medium text-gray-900">{row.dishName}</p>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-medium text-gray-900">{renderMenuSummary(row.dishNames)}</p>
                         <p className="text-xs text-[#94A3B8]">{row.mealTime}</p>
                       </td>
                       <td className="px-4 py-4 text-[#475569]">
@@ -950,40 +914,42 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           </SurfaceCard>
         )}
 
-          <SurfaceCard className="overflow-hidden p-6">
+          {mode === "gudang" ? (
+          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <h3 className="font-semibold text-gray-900">Tren Pasien 7 Hari Terakhir</h3>
-            <div className="mt-4 flex h-[240px] items-end gap-3">
-            {patientPoints.map((point) => {
-              const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
-              const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 170, 24);
+            <div className="mt-5 flex h-[280px] items-end gap-3">
+              {patientPoints.map((point) => {
+                const highest = Math.max(...patientPoints.map((entry) => Number(entry.total_patients ?? 0)), 1);
+                const barHeight = Math.max((Number(point.total_patients ?? 0) / highest) * 210, 22);
 
-              return (
-                <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="text-xs font-semibold text-[#94A3B8]">
-                    {formatNumber(Number(point.total_patients ?? 0))}
+                return (
+                  <div key={point.service_date} className="flex flex-1 flex-col items-center gap-2">
+                    <div className="text-xs font-semibold text-[#111827]">
+                      {formatNumber(Number(point.total_patients ?? 0))}
+                    </div>
+                    <div className="flex h-[220px] w-full items-end">
+                      <div
+                        className="w-full rounded-t-xl bg-[#2155CD] shadow-[0_10px_24px_rgba(33,85,205,0.18)]"
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    </div>
+                    <div className="text-[11px] text-[#111827]">{formatCompactDate(point.service_date)}</div>
                   </div>
-                  <div className="flex h-[180px] w-full items-end">
-                    <div
-                      className="w-full rounded-t-xl bg-[#D9E7FF] shadow-[0_8px_20px_rgba(33,85,205,0.12)]"
-                      style={{ height: `${barHeight}px` }}
-                    />
-                  </div>
-                  <div className="text-[11px] text-[#94A3B8]">{formatCompactDate(point.service_date)}</div>
+                );
+              })}
+              {!loading && patientPoints.length === 0 ? (
+                <div className="flex h-full w-full items-center justify-center text-sm text-[#111827]">
+                  Belum ada data pasien.
                 </div>
-              );
-            })}
-            {!loading && patientPoints.length === 0 ? (
-              <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
-                Belum ada data pasien.
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-4 flex justify-between text-sm text-gray-400">
-            <span>Rata-rata: {formatNumber(patientStats.average)}</span>
-            <span>Tertinggi: {formatNumber(patientStats.highest)}</span>
-            <span>Terendah: {formatNumber(patientStats.lowest)}</span>
-          </div>
-          </SurfaceCard>
+              ) : null}
+            </div>
+            <div className="mt-4 flex justify-between text-sm text-[#111827]">
+              <span>Rata-rata: {formatNumber(patientStats.average)}</span>
+              <span>Tertinggi: {formatNumber(patientStats.highest)}</span>
+              <span>Terendah: {formatNumber(patientStats.lowest)}</span>
+            </div>
+          </section>
+          ) : null}
         </div>
       )}
 
@@ -1240,7 +1206,15 @@ function renderCompositionSummary(items: NonNullable<DashboardState["current_men
   return remaining > 0 ? `${preview} +${remaining} lagi` : preview;
 }
 
-function renderPackageSummary(groups: CompositionGroup[]) {
+function renderMenuSummary(names: string[]) {
+  const uniqueNames = [...new Set(names.filter(Boolean))];
+  if (uniqueNames.length === 0) return "-";
+  const preview = uniqueNames.slice(0, 2).join(", ");
+  const remaining = uniqueNames.length - 2;
+  return remaining > 0 ? `${preview} +${remaining} lagi` : preview;
+}
+
+function renderPackageSummary(groups: Array<{ items: Array<{ item_name?: string | null }> }>) {
   const flattened = groups.flatMap((group) => group.items);
   const names = [...new Set(flattened.map((item) => item.item_name).filter((value): value is string => Boolean(value)))];
   if (names.length === 0) return "Menu aktif hari ini";

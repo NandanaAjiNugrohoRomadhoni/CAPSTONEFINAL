@@ -291,7 +291,7 @@ class DefaultBaselineCoverageTest extends CIUnitTestCase
 
         // Count varies by current month length and SPK generation behavior;
         // validate order-of-magnitude correctness rather than exact count.
-        $this->assertGreaterThan(20, $count, 'audit_logs should contain entries from MonthlyExportScenarioSeeder and RuntimeCurrentMonthSpkScenarioSeeder operational data creation');
+        $this->assertGreaterThan(20, $count, 'audit_logs should contain entries from seeders operational data creation');
     }
     private function assertLookupNames(string $table, array $expectedNames, string $message): void
     {

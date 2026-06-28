@@ -100,16 +100,7 @@ The project currently provides these seeders:
 - `MenuSeeder`
 - `ItemUnitSeeder`
 - `ItemSeeder`
-- `DishSeeder`
-- `DishCompositionSeeder`
-- `MenuDishSeeder`
-- `MenuScheduleSeeder`
-- `DailyPatientSeeder`
-- `StockTransactionSeeder`
-- `StockOpnameSeeder`
-- `SpkPersistenceSeeder`
-- `TestSeeder`
-- `RuntimeCurrentMonthSpkScenarioSeeder`
+- `CsvMenuPlanSeeder`
 - `RuntimeCurrentMonthSeeder`
 
 To seed the full development baseline in the correct order, run:
@@ -129,15 +120,7 @@ php spark db:seed TestSeeder
 7. `ItemUnitSeeder`
 8. `UserSeeder`
 9. `ItemSeeder`
-10. `DishSeeder`
-11. `DishCompositionSeeder`
-12. `MenuDishSeeder`
-13. `MenuScheduleSeeder`
-14. `DailyPatientSeeder`
-15. `StockTransactionSeeder`
-16. `StockOpnameSeeder`
-17. `SpkPersistenceSeeder`
-18. `RuntimeCurrentMonthSpkScenarioSeeder`
+10. `CsvMenuPlanSeeder`
 
 `TestSeeder` is the single safe root seeder for the full development baseline. It seeds shared lookup and domain prerequisites once, then runs the runtime current-month scenario directly without re-invoking `RuntimeCurrentMonthSeeder`, which avoids duplicate reference/master inserts.
 

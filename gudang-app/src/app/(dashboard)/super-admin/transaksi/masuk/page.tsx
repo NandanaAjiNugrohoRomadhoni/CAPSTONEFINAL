@@ -46,6 +46,7 @@ export default function BarangMasukPage() {
   const [rows, setRows] = useState<Row[]>([createEmptyRow()]);
   const [spkOptions, setSpkOptions] = useState<SpkHistoryRow[]>([]);
   const [selectedSpkId, setSelectedSpkId] = useState<number | null>(null);
+  const [prefilledFromSpk, setPrefilledFromSpk] = useState(false);
   const [prefillModalOpen, setPrefillModalOpen] = useState(false);
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [loadingPrefill, setLoadingPrefill] = useState(false);
@@ -154,6 +155,7 @@ export default function BarangMasukPage() {
 
   function resetForm() {
     setSelectedSpkId(null);
+    setPrefilledFromSpk(false);
     resetRows();
   }
 
@@ -205,6 +207,7 @@ export default function BarangMasukPage() {
           };
         }),
       );
+      setPrefilledFromSpk(true);
       setPrefillModalOpen(false);
     } catch (prefillError) {
       openAlert(
@@ -481,6 +484,7 @@ export default function BarangMasukPage() {
         open={confirmSaveOpen}
         summaryCount={summaryCount}
         selectedSpkId={selectedSpkId}
+        prefilledFromSpk={prefilledFromSpk}
         onClose={() => setConfirmSaveOpen(false)}
         onConfirm={() => void handleSave()}
         saving={saving}
@@ -721,6 +725,7 @@ function ConfirmSaveModal({
   open,
   summaryCount,
   selectedSpkId,
+  prefilledFromSpk,
   onClose,
   onConfirm,
   saving,
@@ -728,6 +733,7 @@ function ConfirmSaveModal({
   open: boolean;
   summaryCount: number;
   selectedSpkId: number | null;
+  prefilledFromSpk: boolean;
   onClose: () => void;
   onConfirm: () => void;
   saving: boolean;
@@ -753,13 +759,16 @@ function ConfirmSaveModal({
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div
-            aria-hidden="true"
-            className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-slate-600"
-            data-selected-spk={selectedSpkId ?? ""}
-            data-summary-count={summaryCount}
-          />
-          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-slate-600">{""}</div>
+          <div className="rounded-[18px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm leading-6 text-slate-700">
+            Apakah Anda yakin ingin menyimpan <span className="font-semibold text-blue-700">{summaryCount} bahan</span> ini?
+          </div>
+          {prefilledFromSpk ? (
+            <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-slate-700">
+              Data barang masuk dari SPK{" "}
+              <span className="font-semibold text-amber-700">{selectedSpkId ? `ID SPK ${selectedSpkId}` : "yang dipilih"}</span>{" "}
+              akan disimpan ke sistem.
+            </div>
+          ) : null}
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">

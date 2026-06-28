@@ -12,7 +12,7 @@ import {
 } from "@/components/admin/ui";
 import DateRangePicker from "@/components/filters/DateRangePicker";
 import { buildExportFilename } from "@/lib/export-filename";
-import { isIsoDateInRange } from "@/lib/date-range";
+import { isIsoDateInRange, normalizeIsoDateRange } from "@/lib/date-range";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -22,9 +22,11 @@ import {
 import { listAllPaginatedRows } from "@/lib/pagination";
 import {
   formatActivityDate,
+  formatActivityDateFromDate,
   buildActivityLogQuery,
   loadActivityRows,
   markActivityLogSeen,
+  parseActivityTimestamp,
   type ActivityType,
   type ActivityModule,
   type ActivityRow,
@@ -34,9 +36,9 @@ import type { User } from "@/sdk/types/users";
 
 const ACTIVITY_TYPE_OPTIONS = [
   { value: "Semua Jenis", label: "Semua Jenis" },
-  { value: "Create", label: "Create" },
-  { value: "Update", label: "Update" },
-  { value: "Delete", label: "Delete" },
+  { value: "Create", label: "Tambah" },
+  { value: "Update", label: "Ubah" },
+  { value: "Delete", label: "Hapus" },
 ];
 
 const MODULE_OPTIONS = [
@@ -115,6 +117,19 @@ function getModuleExportLabel(module: ActivityModule) {
   }
 }
 
+function getActivityTypeLabel(activityType: ActivityType) {
+  switch (activityType) {
+    case "Create":
+      return "Tambah";
+    case "Update":
+      return "Ubah";
+    case "Delete":
+      return "Hapus";
+    default:
+      return activityType;
+  }
+}
+
 function matchesActivityFilters(
   row: NormalizedActivityRow,
   filters: {
@@ -125,14 +140,18 @@ function matchesActivityFilters(
   },
 ) {
   const query = filters.searchTerm.trim().toLowerCase();
+  const localizedDetail = localizeActivityDetail(row.detail, row);
   const matchesSearch =
     query.length === 0 ||
     [
+      row.actorInfo?.name,
       row.actor,
       row.actorInfo?.username,
       row.activityLabel ?? row.activityType,
+      getActivityTypeLabel(row.activityType),
       row.module,
       row.detail,
+      localizedDetail,
       formatActivityDate(row.date),
       row.time,
     ]
@@ -153,9 +172,7 @@ function matchesActivityFilters(
 function getExportPeriodLabel(rows: NormalizedActivityRow[]) {
   const timestamps = rows
     .map((row) => {
-      const value = row.created_at
-        ? new Date(row.created_at.replace(" ", "T") + "Z").getTime()
-        : new Date(`${row.date}T${row.time.replace(".", ":")}:00+07:00`).getTime();
+      const value = parseActivityTimestamp(row);
       return Number.isFinite(value) ? value : null;
     })
     .filter((value): value is number => value !== null);
@@ -166,8 +183,8 @@ function getExportPeriodLabel(rows: NormalizedActivityRow[]) {
 
   const start = new Date(Math.min(...timestamps));
   const end = new Date(Math.max(...timestamps));
-  const startLabel = formatActivityDate(start.toISOString().slice(0, 10));
-  const endLabel = formatActivityDate(end.toISOString().slice(0, 10));
+  const startLabel = formatActivityDateFromDate(start);
+  const endLabel = formatActivityDateFromDate(end);
 
   return startLabel === endLabel ? startLabel : `${startLabel} s/d ${endLabel}`;
 }
@@ -196,11 +213,16 @@ function localizeActivityDetail(detail: string, row: Pick<ActivityRow, "activity
     const normalized = subject.trim().toLowerCase();
     if (!normalized) return subject;
 
+    if (normalized.includes("out basah")) return "pengeluaran bahan basah";
     if (normalized.includes("spk history report")) return "laporan riwayat SPK";
     if (normalized.includes("transaction report")) return "laporan riwayat transaksi";
     if (normalized.includes("stock report")) return "laporan stok";
     if (normalized.includes("activity log")) return "log aktivitas";
     if (normalized.includes("stock adjustment")) return "laporan penyesuaian stok";
+    if (normalized.includes("stock transaction revision")) return "revisi transaksi stok";
+    if (normalized.includes("stock transaction")) return "transaksi stok";
+    if (normalized.includes("daily patient")) return "data pasien harian";
+    if (normalized.includes("spk version")) return "versi SPK";
     if (normalized.includes("menu package")) return "laporan paket menu";
     if (normalized.includes("user")) return "pengguna";
     if (normalized.includes("item")) return "bahan";
@@ -216,6 +238,24 @@ function localizeActivityDetail(detail: string, row: Pick<ActivityRow, "activity
   };
 
   const lower = rawDetail.toLowerCase();
+  const exactPhraseMap: Array<[RegExp, string]> = [
+    [/^spk version created\.?$/i, "Versi SPK dibuat."],
+    [/^out basah draft submitted\.?$/i, "Draft pengeluaran bahan basah diajukan."],
+    [/^out basah draft created\.?$/i, "Draft pengeluaran bahan basah dibuat."],
+    [/^stock transaction created(?: successfully)?\.?$/i, "Transaksi stok dibuat."],
+    [/^stock transaction revision approved(?: successfully)?\.?$/i, "Revisi transaksi stok disetujui."],
+    [/^stock transaction revision submitted(?: successfully)?\.?$/i, "Revisi transaksi stok diajukan."],
+    [/^daily patient created(?: successfully)?\.?$/i, "Data pasien harian dibuat."],
+    [/^user logged in\.?$/i, "Pengguna masuk."],
+    [/^user logged out\.?$/i, "Pengguna keluar."],
+  ];
+
+  for (const [pattern, localized] of exactPhraseMap) {
+    if (pattern.test(rawDetail)) {
+      return localized;
+    }
+  }
+
   if (lower.startsWith("exported ")) {
     const subject = rawDetail.slice("Exported ".length);
     return buildSentence("Mengekspor", subject);
@@ -282,6 +322,10 @@ export default function ActivityLogPage() {
 
   // Check if we can do server-side pagination for active filters
   const canServerPaginate = useMemo(() => {
+    if (debouncedSearchTerm.trim() !== "") {
+      return false;
+    }
+
     // selectedActivityType: "Semua Jenis", "Create", and "Delete" are server-paginated.
     // "Update" maps to multiple backend action types, so it must be client-filtered.
     if (selectedActivityType !== "Semua Jenis" && selectedActivityType !== "Create" && selectedActivityType !== "Delete") {
@@ -295,7 +339,7 @@ export default function ActivityLogPage() {
     }
 
     return true;
-  }, [dateRange, selectedActivityType, selectedModule]);
+  }, [debouncedSearchTerm, dateRange, selectedActivityType, selectedModule]);
 
   // Effect to load data
   useEffect(() => {
@@ -308,10 +352,6 @@ export default function ActivityLogPage() {
         sortBy: "created_at",
         sortDir: "DESC",
       });
-
-      if (debouncedSearchTerm.trim() !== "") {
-        query.q = debouncedSearchTerm.trim();
-      }
 
       if (selectedActivityType === "Create") {
         query.action_type = "create";
@@ -327,12 +367,13 @@ export default function ActivityLogPage() {
         query.table_name = "reports";
       }
 
-      if (dateRange.startDate !== "") {
-        query.start_date = dateRange.startDate;
+      const normalizedDateRange = normalizeIsoDateRange(dateRange);
+      if (normalizedDateRange.startDate !== "") {
+        query.start_date = normalizedDateRange.startDate;
       }
 
-      if (dateRange.endDate !== "") {
-        query.end_date = dateRange.endDate;
+      if (normalizedDateRange.endDate !== "") {
+        query.end_date = normalizedDateRange.endDate;
       }
 
       if (canServerPaginate) {
@@ -362,8 +403,7 @@ export default function ActivityLogPage() {
       const firstRowData = response.data;
       if (firstRowData.length > 0 && currentPage === 1) {
         const firstRow = firstRowData[0];
-        const timeStr = firstRow.time ? firstRow.time.replace(".", ":") : "00:00:00";
-        const latestTimestamp = new Date(`${firstRow.date}T${timeStr}:00+07:00`).getTime();
+        const latestTimestamp = parseActivityTimestamp(firstRow);
         markActivityLogSeen(latestTimestamp);
       }
     }
@@ -376,22 +416,15 @@ export default function ActivityLogPage() {
   }, [currentPage, debouncedSearchTerm, selectedActivityType, selectedModule, dateRange, canServerPaginate]);
 
   const filteredRows = useMemo(() => {
-    if (canServerPaginate) {
-      return activityRows;
-    }
-
     return activityRows.filter((row) => {
-      const matchesDate = isIsoDateInRange(row.date, dateRange);
-
-      const matchesType =
-        selectedActivityType === "Semua Jenis" || row.activityType === selectedActivityType;
-
-      const matchesModule =
-        selectedModule === "Semua Modul" || row.module === selectedModule;
-
-      return matchesDate && matchesType && matchesModule;
+      return matchesActivityFilters(row, {
+        searchTerm: debouncedSearchTerm,
+        dateRange,
+        selectedActivityType,
+        selectedModule,
+      });
     });
-  }, [activityRows, canServerPaginate, dateRange, selectedActivityType, selectedModule]);
+  }, [activityRows, debouncedSearchTerm, dateRange, selectedActivityType, selectedModule]);
 
   const totalPages = useMemo(() => {
     if (canServerPaginate) {
@@ -461,12 +494,13 @@ export default function ActivityLogPage() {
         exportQuery.table_name = "reports";
       }
 
-      if (dateRange.startDate !== "") {
-        exportQuery.start_date = dateRange.startDate;
+      const normalizedDateRange = normalizeIsoDateRange(dateRange);
+      if (normalizedDateRange.startDate !== "") {
+        exportQuery.start_date = normalizedDateRange.startDate;
       }
 
-      if (dateRange.endDate !== "") {
-        exportQuery.end_date = dateRange.endDate;
+      if (normalizedDateRange.endDate !== "") {
+        exportQuery.end_date = normalizedDateRange.endDate;
       }
 
       const [rowsResponse, users] = await Promise.all([
@@ -496,30 +530,30 @@ export default function ActivityLogPage() {
         return;
       }
 
-      const exportRows: ExportActivityRow[] = exportSource.map((row, index) => {
-        const actorId = row.actorInfo?.id ?? null;
-        const actorName = String(row.actor ?? "").trim().toLowerCase();
-        const actorUsername = String(row.actorInfo?.username ?? "").trim().toLowerCase();
-        const actorLabel = row.actor === "Sistem" ? "Sistem" : row.actorInfo?.username?.trim() || row.actor;
-        const role =
-          row.actor === "Sistem"
-            ? "Sistem"
-            : (actorId !== null && userRoleMap.get(`id:${actorId}`)) ||
-              (actorUsername && userRoleMap.get(`username:${actorUsername}`)) ||
+        const exportRows: ExportActivityRow[] = exportSource.map((row, index) => {
+          const actorId = row.actorInfo?.id ?? null;
+          const actorName = String(row.actor ?? "").trim().toLowerCase();
+          const actorUsername = String(row.actorInfo?.username ?? "").trim().toLowerCase();
+          const actorLabel = row.actor === "Sistem" ? "Sistem" : row.actorInfo?.name?.trim() || row.actor;
+          const role =
+            row.actor === "Sistem"
+              ? "Sistem"
+              : (actorId !== null && userRoleMap.get(`id:${actorId}`)) ||
+                (actorUsername && userRoleMap.get(`username:${actorUsername}`)) ||
               (actorName && userRoleMap.get(`name:${actorName}`)) ||
               "-";
-        return {
-          no: index + 1,
-          rawDate: row.date,
-          dateTimeLabel: `${formatActivityDate(row.date)}<br />${row.time || "-"}`,
-          actor: actorLabel,
-          role,
-          module: getModuleExportLabel(row.module),
-          activity: row.activityLabel?.trim() || row.activityType,
-          detail: localizeActivityDetail(row.detail || "-", row),
-          activityType: row.activityType,
-        };
-      });
+          return {
+            no: index + 1,
+            rawDate: row.date,
+            dateTimeLabel: `${formatActivityDate(row.date)}<br />${row.time || "-"}`,
+            actor: actorLabel,
+            role,
+            module: getModuleExportLabel(row.module),
+            activity: getActivityTypeLabel(row.activityType),
+            detail: localizeActivityDetail(row.detail || "-", row),
+            activityType: row.activityType,
+          };
+        });
 
       const totalActivities = exportRows.length;
       const roleCounts = {
@@ -533,9 +567,7 @@ export default function ActivityLogPage() {
         delete: exportRows.filter((row) => row.activityType === "Delete").length,
       };
       const periodLabel = getExportPeriodLabel(exportSource);
-      const todayLabel = formatActivityDate(
-        new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      );
+      const todayLabel = formatActivityDateFromDate(new Date());
 
       const summaryHtml = `
         <table class="summary">
@@ -543,11 +575,16 @@ export default function ActivityLogPage() {
           <tr><td class="summary-label">Aktivitas Super Admin</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.superAdmin, 0)} item</td></tr>
           <tr><td class="summary-label">Aktivitas Petugas Gudang</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.gudang, 0)} item</td></tr>
           <tr><td class="summary-label">Aktivitas Petugas Gizi</td><td class="summary-value">${formatSpreadsheetNumber(roleCounts.gizi, 0)} item</td></tr>
-          <tr><td class="summary-label">Aktivitas Create</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.create, 0)} item</td></tr>
-          <tr><td class="summary-label">Aktivitas Update</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.update, 0)} item</td></tr>
-          <tr><td class="summary-label">Aktivitas Delete</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.delete, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Tambah</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.create, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Ubah</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.update, 0)} item</td></tr>
+          <tr><td class="summary-label">Aktivitas Hapus</td><td class="summary-value">${formatSpreadsheetNumber(activityCounts.delete, 0)} item</td></tr>
         </table>
       `;
+
+      const selectedActivityTypeLabel =
+        selectedActivityType === "Semua Jenis"
+          ? "Semua Jenis"
+          : getActivityTypeLabel(selectedActivityType as ActivityType);
 
       const filterSummaryHtml = `
         <table>
@@ -557,7 +594,7 @@ export default function ActivityLogPage() {
           <tr><td>Nama Pengguna</td><td>${escapeSpreadsheetHtml(debouncedSearchTerm.trim() || "Semua Nama")}</td></tr>
           <tr><td>Role</td><td>${escapeSpreadsheetHtml("Semua Role")}</td></tr>
           <tr><td>Modul</td><td>${escapeSpreadsheetHtml(selectedModule)}</td></tr>
-          <tr><td>Jenis Aktivitas</td><td>${escapeSpreadsheetHtml(selectedActivityType)}</td></tr>
+          <tr><td>Jenis Aktivitas</td><td>${escapeSpreadsheetHtml(selectedActivityTypeLabel)}</td></tr>
         </table>
       `;
 
@@ -680,7 +717,7 @@ export default function ActivityLogPage() {
                 <input
                   className="w-full bg-transparent text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Cari..."
+                  placeholder="Cari nama petugas atau detail aktivitas..."
                   value={searchTerm}
                 />
               </label>
@@ -739,13 +776,10 @@ export default function ActivityLogPage() {
                   <td className="px-6 py-4 font-medium text-gray-900">{formatActivityDate(row.date)}</td>
                   <td className="px-6 py-4">{row.time}</td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${getAvatarTone(row.activityType)}`}>
-                        {row.actorInitials}
-                      </div>
-            <span className="font-semibold text-gray-900">{row.actorInfo?.username?.trim() || row.actor}</span>
-          </div>
-        </td>
+                    <span className="font-semibold text-gray-900">
+                      {row.actorInfo?.name?.trim() || row.actor}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <ActivityBadge tone={row.activityType} />
                   </td>
@@ -797,7 +831,7 @@ function ActivityBadge({ tone }: { tone: ActivityType }) {
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${palette[tone]}`}>
-      {tone}
+      {getActivityTypeLabel(tone)}
     </span>
   );
 }
@@ -808,15 +842,4 @@ function ModuleBadge({ label }: { label: ActivityModule }) {
       {label}
     </span>
   );
-}
-
-function getAvatarTone(activityType: ActivityType) {
-  switch (activityType) {
-    case "Create":
-      return "bg-[#22C55E]";
-    case "Update":
-      return "bg-[#6366F1]";
-    case "Delete":
-      return "bg-[#EF4444]";
-  }
 }

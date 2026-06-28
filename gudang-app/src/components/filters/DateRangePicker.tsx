@@ -93,6 +93,11 @@ export default function DateRangePicker({
   } | null>(null);
 
   const displayValue = useMemo(() => {
+    if (startDate && endDate) {
+      const formattedStart = formatDisplayDate(startDate);
+      const formattedEnd = formatDisplayDate(endDate);
+      return formattedStart === formattedEnd ? formattedStart : `${formattedStart} - ${formattedEnd}`;
+    }
     if (startDate) {
       return formatDisplayDate(startDate);
     }
@@ -311,7 +316,9 @@ export default function DateRangePicker({
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        <span className={displayValue ? "text-[#334155]" : "text-[#94A3B8]"}>
+        <span
+          className={`min-w-0 flex-1 truncate whitespace-nowrap ${displayValue ? "text-[#334155]" : "text-[#94A3B8]"}`}
+        >
           {displayValue || placeholder}
         </span>
         <span className="ml-3 flex items-center gap-2 text-[#94A3B8]">

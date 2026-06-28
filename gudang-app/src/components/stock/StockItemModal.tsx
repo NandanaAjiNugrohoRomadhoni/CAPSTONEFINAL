@@ -201,7 +201,7 @@ export default function StockItemModal({
                 {mode === "create" || mode === "edit" ? (
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">
-                      Satuan Besar <span className="text-red-500">*</span>
+                      Satuan Kecil <span className="text-red-500">*</span>
                     </span>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
@@ -219,7 +219,7 @@ export default function StockItemModal({
                       value={form.unitName}
                     >
                       <option value="" disabled>
-                        Pilih satuan besar
+                        Pilih satuan kecil
                       </option>
                       {availableItemUnits.map((unit) => (
                         <option key={unit.id} value={unit.name}>
@@ -233,7 +233,7 @@ export default function StockItemModal({
                 {mode === "create" || mode === "edit" ? (
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">
-                      Satuan Kecil <span className="text-red-500">*</span>
+                      Satuan Besar <span className="text-red-500">*</span>
                     </span>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
@@ -245,7 +245,7 @@ export default function StockItemModal({
                       value={form.unitConvertName ?? ""}
                     >
                       <option value="" disabled>
-                        Pilih satuan kecil
+                        Pilih satuan besar
                       </option>
                       {availableItemUnits.map((unit) => (
                         <option key={unit.id} value={unit.name}>

@@ -44,14 +44,5 @@ class TestSeeder extends Seeder
         // dishes, dish compositions, and menu_dishes.
         $this->call("CsvMenuPlanSeeder"); // Full menu plan from JSON (replaces DishSeeder, DishCompositionSeeder, MenuDishSeeder)
 
-        // === PHASE 5: Operational Baseline (depend on all above) ===
-        // Schedules, patients, transactions, opnames, and SPK depend on the full baseline.
-        $this->call("MenuScheduleSeeder"); // Menu schedules: calendar baseline
-        $this->call("DailyPatientSeeder"); // Daily patients: patient counts per schedule
-        $this->call("StockTransactionSeeder"); // Stock transactions: IN/OUT/RETURN_IN lifecycle samples
-        $this->call("StockOpnameSeeder"); // Stock opnames: opname lifecycle samples (DRAFT..POSTED)
-        $this->call("SpkPersistenceSeeder"); // SPK calculations/recommendations: versioned baseline
-        $this->call("MonthlyExportScenarioSeeder"); // 2-month operational history for export reports
-        $this->call("RuntimeCurrentMonthSpkScenarioSeeder"); // Runtime-relative current-month SPK scenario without reseeding shared prerequisites
     }
 }

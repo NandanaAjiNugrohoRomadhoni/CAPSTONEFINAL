@@ -127,7 +127,7 @@ export function buildMenuPackageSpreadsheetHtml() {
   `;
 
   const rowsHtml = packageRows
-    .map((pkg) => {
+    .map((pkg, packageIndex) => {
       const rowCount = pkg.rowCount;
       const mealRows = {
         siang: pkg.mealRows.siang,
@@ -141,7 +141,11 @@ export function buildMenuPackageSpreadsheetHtml() {
         const cells: string[] = [];
 
         if (rowIndex === 0) {
-          cells.push(`<td class="rank" rowspan="${rowCount}">${escapeSpreadsheetHtml(pkg.key)}</td>`);
+          cells.push(
+            `<td class="rank" rowspan="${rowCount}">${escapeSpreadsheetHtml(
+              formatSpreadsheetNumber(packageIndex + 1, 0),
+            )}</td>`,
+          );
         }
 
         for (const mealKey of mealOrder) {

@@ -53,7 +53,7 @@ class DailyPatientService
         return $row === null ? null : $this->formatRow($row);
     }
 
-    public function createDailyPatient(array $data): array
+    public function createDailyPatient(array $data, ?int $userId = null): array
     {
         $validation = service('validation');
         if (
@@ -108,7 +108,7 @@ class DailyPatientService
             ];
         }
 
-        if (!$this->auditService->log($data['user_id'] ?? null, AuditActionType::Create, 'daily_patients', (int) $created, 'Daily patient created.', null, $data, null)) {
+        if (!$this->auditService->log($userId, AuditActionType::Create, 'daily_patients', (int) $created, 'Daily patient created.', null, $data, null)) {
             $this->db->transRollback();
             return [
                 'success' => false,
@@ -132,7 +132,7 @@ class DailyPatientService
         ];
     }
 
-    public function updateDailyPatient(int $id, array $data): array
+    public function updateDailyPatient(int $id, array $data, ?int $userId = null): array
     {
         $existingRow = $this->dailyPatientModel->find($id);
         if ($existingRow === null) {
@@ -204,7 +204,7 @@ class DailyPatientService
             ];
         }
 
-        if (!$this->auditService->log($data['user_id'] ?? null, AuditActionType::Update, 'daily_patients', $id, 'Daily patient updated.', $existingRow, $payload, null)) {
+        if (!$this->auditService->log($userId, AuditActionType::Update, 'daily_patients', $id, 'Daily patient updated.', $existingRow, $payload, null)) {
             $this->db->transRollback();
             return [
                 'success' => false,

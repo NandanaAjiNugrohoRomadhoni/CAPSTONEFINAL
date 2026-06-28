@@ -30,6 +30,7 @@ import {
   type NotificationRole,
 } from "@/lib/stock-adjustment-notifications";
 import SearchableItemSelect from "@/components/admin/ui/SearchableItemSelect";
+import { normalizeIsoDateRange } from "@/lib/date-range";
 
 const ITEM_METADATA_CACHE_KEY = "capstone-stock-item-metadata-cache";
 const INVALID_STOCK_OPNAME_IDS_CACHE_KEY = "capstone-invalid-stock-opname-ids";
@@ -758,6 +759,8 @@ export default function StockAdjustmentPage({
     ).sort((left, right) => left.localeCompare(right, "id-ID"));
   }, [tableRows]);
 
+  const normalizedDateRange = normalizeIsoDateRange(dateRange);
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const normalizedCategoryFilter = normalizeFilterValue(categoryFilter);
@@ -770,8 +773,9 @@ export default function StockAdjustmentPage({
         row.createdByLabel.toLowerCase().includes(normalizedSearch) ||
         row.categoryName.toLowerCase().includes(normalizedSearch) ||
         `PS-${String(row.headerId).padStart(4, "0")}`.toLowerCase().includes(normalizedSearch);
-      const matchesDateFrom = !dateRange.startDate || row.opnameDate >= dateRange.startDate;
-      const matchesDateTo = !dateRange.endDate || row.opnameDate <= dateRange.endDate;
+      const matchesDateFrom =
+        !normalizedDateRange.startDate || row.opnameDate >= normalizedDateRange.startDate;
+      const matchesDateTo = !normalizedDateRange.endDate || row.opnameDate <= normalizedDateRange.endDate;
       const matchesCategory =
         normalizedCategoryFilter === normalizeFilterValue("Semua Jenis") ||
         normalizeFilterValue(row.categoryName) === normalizedCategoryFilter;
@@ -781,7 +785,14 @@ export default function StockAdjustmentPage({
 
       return matchesSearch && matchesDateFrom && matchesDateTo && matchesCategory && matchesStatus;
     });
-  }, [categoryFilter, dateRange.endDate, dateRange.startDate, searchTerm, statusFilter, tableRows]);
+  }, [
+    categoryFilter,
+    normalizedDateRange.endDate,
+    normalizedDateRange.startDate,
+    searchTerm,
+    statusFilter,
+    tableRows,
+  ]);
 
   const userOwnedDraftHeaders = useMemo(() => {
     const currentUserId = Number(user?.id ?? 0);
@@ -796,7 +807,13 @@ export default function StockAdjustmentPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateRange.endDate, dateRange.startDate, categoryFilter, statusFilter]);
+  }, [
+    searchTerm,
+    normalizedDateRange.endDate,
+    normalizedDateRange.startDate,
+    categoryFilter,
+    statusFilter,
+  ]);
 
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -835,8 +852,10 @@ export default function StockAdjustmentPage({
       <table class="summary">
         <tr><td class="summary-label">Pencarian</td><td class="summary-value">${escapeSpreadsheetHtml(searchTerm.trim() || "Semua Nama")}</td></tr>
         <tr><td class="summary-label">Rentang Tanggal</td><td class="summary-value">${escapeSpreadsheetHtml(
-          dateRange.startDate && dateRange.endDate
-            ? `${formatDate(dateRange.startDate)} - ${formatDate(dateRange.endDate)}`
+          normalizedDateRange.startDate
+            ? normalizedDateRange.startDate === normalizedDateRange.endDate
+              ? formatDate(normalizedDateRange.startDate)
+              : `${formatDate(normalizedDateRange.startDate)} - ${formatDate(normalizedDateRange.endDate)}`
             : "Semua Tanggal",
         )}</td></tr>
         <tr><td class="summary-label">Jenis Bahan</td><td class="summary-value">${escapeSpreadsheetHtml(categoryFilter)}</td></tr>
@@ -1212,23 +1231,25 @@ export default function StockAdjustmentPage({
 
         <SurfaceCard className="overflow-hidden">
           <div className="border-b border-[#D7E0EE] bg-[#F8FAFC] px-5 py-4">
-            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1.4fr)_170px_170px_190px_210px_auto] xl:items-center">
-              <input
-                onChange={(event) => setSearchTerm(event.target.value)}
-                value={searchTerm}
-                placeholder="Cari Bahan"
-                className="h-12 w-full rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
-              />
+            <div className="grid gap-3 xl:grid-cols-[minmax(180px,1fr)_220px_170px_170px_210px_auto] xl:items-center">
+              <div className="min-w-0">
+                <input
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  value={searchTerm}
+                  placeholder="Cari Bahan"
+                  className="h-12 w-full min-w-0 rounded-[12px] border border-[#D7E0EE] bg-white px-4 text-base text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                />
+              </div>
               <DateRangePicker
                 ariaLabel="Rentang tanggal penyesuaian stok"
-                className="w-full"
+                className="min-w-0 w-full max-w-[220px] xl:max-w-[220px]"
                 endDate={dateRange.endDate}
                 onChange={setDateRange}
                 placeholder="dd/mm/yyyy"
                 startDate={dateRange.startDate}
               />
               <ThemedSelect
-                className="w-full"
+                className="min-w-0 w-full"
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 options={[
@@ -1237,7 +1258,7 @@ export default function StockAdjustmentPage({
                 ]}
               />
               <ThemedSelect
-                className="w-full"
+                className="min-w-0 w-full"
                 value={statusFilter}
                 onChange={setStatusFilter}
                 options={[

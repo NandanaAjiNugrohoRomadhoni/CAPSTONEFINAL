@@ -13,12 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import sdk from "@/lib";
-import {
-  formatDate,
-  formatQuantity,
-  getErrorMessage,
-  toIsoDate,
-} from "@/lib/admin-utils";
+import { formatQuantity, getErrorMessage, toIsoDate } from "@/lib/admin-utils";
 import {
   buildSpreadsheetDocument,
   downloadSpreadsheetHtml,
@@ -34,11 +29,7 @@ import {
   SurfaceCard,
   ThemedSelect,
 } from "@/components/admin/ui";
-
-const ALL_STOCK_REPORT_PERIOD = {
-  period_start: "2000-01-01",
-  period_end: "2099-12-31",
-} as const;
+import { listAllItems } from "@/lib/items";
 
 type ChartRangeMode = "FOUR_MONTHS" | "YEAR";
 
@@ -148,29 +139,32 @@ export default function LaporanEvaluationPage() {
 
       try {
         const [
-          stocksResult,
+          itemsResult,
           tableTransactionsResult,
           tableSpkResult,
           chartTransactionsResult,
           chartSpkResult,
         ] =
           await Promise.allSettled([
-            sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD),
+            listAllItems({ sortBy: "name", sortDir: "ASC" }),
             sdk.reports.getTransactions(tablePeriod),
             sdk.reports.getSpkHistory(tablePeriod),
-            chartRangeMode === "FOUR_MONTHS"
-              ? sdk.reports.getTransactions(chartPeriod)
-              : Promise.resolve(null),
-            chartRangeMode === "FOUR_MONTHS"
-              ? sdk.reports.getSpkHistory(chartPeriod)
-              : Promise.resolve(null),
+            sdk.reports.getTransactions(chartPeriod),
+            sdk.reports.getSpkHistory(chartPeriod),
           ]);
 
         if (cancelled) return;
 
         const nextStockRows =
-          stocksResult.status === "fulfilled"
-            ? ((stocksResult.value.data.rows as StockReportRow[]) ?? [])
+          itemsResult.status === "fulfilled"
+            ? itemsResult.value.map((item) => ({
+                item_id: item.id,
+                item_name: item.name,
+                category_name: item.category?.name ?? "-",
+                qty: Number(item.qty ?? 0),
+                unit_base: item.unit_base,
+                min_stock: item.min_stock,
+              }))
             : [];
         const nextTableTransactions =
           tableTransactionsResult.status === "fulfilled"
@@ -181,17 +175,13 @@ export default function LaporanEvaluationPage() {
             ? ((tableSpkResult.value.data.rows as SpkHistoryReportRow[]) ?? [])
             : [];
         const nextChartTransactions =
-          chartRangeMode === "FOUR_MONTHS"
-            ? chartTransactionsResult.status === "fulfilled" && chartTransactionsResult.value
-              ? ((chartTransactionsResult.value.data.rows as TransactionReportRow[]) ?? [])
-              : []
-            : nextTableTransactions;
+          chartTransactionsResult.status === "fulfilled" && chartTransactionsResult.value
+            ? ((chartTransactionsResult.value.data.rows as TransactionReportRow[]) ?? [])
+            : [];
         const nextChartSpkHistory =
-          chartRangeMode === "FOUR_MONTHS"
-            ? chartSpkResult.status === "fulfilled" && chartSpkResult.value
-              ? ((chartSpkResult.value.data.rows as SpkHistoryReportRow[]) ?? [])
-              : []
-            : nextTableSpkHistory;
+          chartSpkResult.status === "fulfilled" && chartSpkResult.value
+            ? ((chartSpkResult.value.data.rows as SpkHistoryReportRow[]) ?? [])
+            : [];
 
         setStockRows(nextStockRows);
         setTableTransactions(nextTableTransactions);
@@ -200,7 +190,7 @@ export default function LaporanEvaluationPage() {
         setChartSpkHistory(nextChartSpkHistory);
 
         const failureMessages = [
-          stocksResult.status === "rejected" ? "stok" : null,
+          itemsResult.status === "rejected" ? "stok" : null,
           tableTransactionsResult.status === "rejected" ? "transaksi" : null,
           tableSpkResult.status === "rejected" ? "riwayat SPK" : null,
           chartTransactionsResult.status === "rejected" ? "grafik transaksi" : null,
@@ -512,7 +502,10 @@ export default function LaporanEvaluationPage() {
     const filename = buildExportFilename(
       `laporan-evaluasi-spk-${chartRangeMode === "FOUR_MONTHS" ? "4-bulan" : "12-bulan"}`,
     );
-    const printedAt = formatDate(new Date().toISOString());
+    const printedAt = new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
     const reportRows = filteredRows.map((row, index) => {
       const accuracy = calculateEvaluationAccuracy(row.spkQty, row.outgoingQty);
 
@@ -1063,6 +1056,7 @@ function calculateEvaluationAccuracy(recommendationQty: number, realizationQty: 
 function normalizeTransactionType(value?: string | null) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized.includes("masuk") || normalized === "in") return "masuk";
+  if (normalized === "return_in" || normalized.includes("retur") || normalized.includes("return")) return "masuk";
   if (normalized.includes("keluar") || normalized === "out") return "keluar";
   return normalized;
 }
@@ -1107,7 +1101,6 @@ function buildMonthKeys(periodStart: string, periodEnd: string) {
     const label = new Intl.DateTimeFormat("id-ID", {
       month: "short",
       year: periodStart.slice(0, 4) !== periodEnd.slice(0, 4) ? "numeric" : undefined,
-      timeZone: "Asia/Jakarta",
     })
       .format(new Date(`${monthKey}-01T00:00:00`))
       .toUpperCase();
@@ -1141,7 +1134,6 @@ function buildMonthOptions(): SelectOption[] {
     const date = new Date(2000, index, 1);
     const label = new Intl.DateTimeFormat("id-ID", {
       month: "long",
-      timeZone: "Asia/Jakarta",
     }).format(date);
 
     return {
@@ -1163,7 +1155,6 @@ function formatMonthLabel(month: number) {
   const date = new Date(2000, month - 1, 1);
   return new Intl.DateTimeFormat("id-ID", {
     month: "long",
-    timeZone: "Asia/Jakarta",
   }).format(date);
 }
 
@@ -1178,12 +1169,10 @@ function formatReportPeriodLabel(start: string, end: string) {
   const startLabel = new Intl.DateTimeFormat("id-ID", {
     month: "long",
     year: "numeric",
-    timeZone: "Asia/Jakarta",
   }).format(startDate);
   const endLabel = new Intl.DateTimeFormat("id-ID", {
     month: "long",
     year: "numeric",
-    timeZone: "Asia/Jakarta",
   }).format(endDate);
 
   return `${startLabel} - ${endLabel}`;
@@ -1206,5 +1195,11 @@ function formatDateRangeLabel(start: string, end: string) {
     return "-";
   }
 
-  return `${formatDate(startDate.toISOString())} - ${formatDate(endDate.toISOString())}`;
+  const formatter = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+  return `${formatter.format(startDate)} - ${formatter.format(endDate)}`;
 }

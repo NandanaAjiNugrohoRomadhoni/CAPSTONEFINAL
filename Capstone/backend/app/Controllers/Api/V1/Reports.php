@@ -18,29 +18,45 @@ class Reports extends BaseController
 
     public function stocks(): ResponseInterface
     {
+        $user = auth()->user();
+        if ($user === null) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized.']);
+        }
         return $this->handleReportResponse(
-            $this->reportingService->getStockReport($this->request->getGet())
+            $this->reportingService->getStockReport($this->request->getGet(), (int) $user->id, $this->request->getIPAddress())
         );
     }
 
     public function transactions(): ResponseInterface
     {
+        $user = auth()->user();
+        if ($user === null) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized.']);
+        }
         return $this->handleReportResponse(
-            $this->reportingService->getTransactionReport($this->request->getGet())
+            $this->reportingService->getTransactionReport($this->request->getGet(), (int) $user->id, $this->request->getIPAddress())
         );
     }
 
     public function spkHistory(): ResponseInterface
     {
+        $user = auth()->user();
+        if ($user === null) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized.']);
+        }
         return $this->handleReportResponse(
-            $this->reportingService->getSpkHistoryReport($this->request->getGet())
+            $this->reportingService->getSpkHistoryReport($this->request->getGet(), (int) $user->id, $this->request->getIPAddress())
         );
     }
 
     public function evaluation(): ResponseInterface
     {
+        $user = auth()->user();
+        if ($user === null) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized.']);
+        }
         return $this->handleReportResponse(
-            $this->reportingService->getEvaluationReport($this->request->getGet())
+            $this->reportingService->getEvaluationReport($this->request->getGet(), (int) $user->id, $this->request->getIPAddress())
         );
     }
 
@@ -79,8 +95,12 @@ class Reports extends BaseController
      */
     public function monthlyStockExport(): ResponseInterface
     {
+        $user = auth()->user();
+        if ($user === null) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized.']);
+        }
         return $this->handleReportResponse(
-            $this->reportingService->getMonthlyStockExport($this->request->getGet())
+            $this->reportingService->getMonthlyStockExport($this->request->getGet(), (int) $user->id, $this->request->getIPAddress())
         );
     }
 

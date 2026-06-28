@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import sdk from "@/lib";
 import { formatDate, formatQuantity, getCurrentMonthPeriod, getErrorMessage } from "@/lib/admin-utils";
 import { addDaysIsoDate } from "@/lib/spk-recommendations";
-import { isIsoDateInRange } from "@/lib/date-range";
+import { isIsoDateInRange, normalizeIsoDateRange } from "@/lib/date-range";
 import { buildExportFilename } from "@/lib/export-filename";
 import { downloadSpreadsheetHtml } from "@/lib/spreadsheet-export";
 import {
@@ -692,6 +692,12 @@ function buildSpkExportSpreadsheet(
       ? "(Jumlah Pasien Terakhir x 105%) x Komposisi per Paket Menu - Sisa Stok"
       : "Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini";
   const generatedBy = detail.user?.name ?? detail.user?.username ?? "-";
+  const normalizedDateRange = normalizeIsoDateRange(filters.dateRange);
+  const dateRangeLabel = normalizedDateRange.startDate
+    ? normalizedDateRange.startDate === normalizedDateRange.endDate
+      ? formatDate(normalizedDateRange.startDate)
+      : `${formatDate(normalizedDateRange.startDate)} - ${formatDate(normalizedDateRange.endDate)}`
+    : "Semua Tanggal";
   const summaryRows = [
     { label: "Nama Pengaju", value: generatedBy },
     { label: "Jenis SPK", value: typeLabel },
@@ -702,10 +708,7 @@ function buildSpkExportSpreadsheet(
   const filterRows = [
     {
       label: "Rentang Tanggal",
-      value:
-        filters.dateRange.startDate && filters.dateRange.endDate
-          ? `${formatDate(filters.dateRange.startDate)} - ${formatDate(filters.dateRange.endDate)}`
-          : "Semua Tanggal",
+      value: dateRangeLabel,
     },
     { label: "Pencarian", value: filters.search.trim() || "Semua Data" },
     {

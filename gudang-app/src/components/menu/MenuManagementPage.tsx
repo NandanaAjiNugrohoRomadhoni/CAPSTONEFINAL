@@ -200,65 +200,18 @@ async function loadAvailableItems(
     stocks?: StockReportRow[];
   },
 ) {
-  if (mode === "admin") {
-    const itemsResponse = await listAllItems({
-      sortBy: "name",
-      sortDir: "ASC",
-      is_active: true,
-    });
+  const itemsResponse = await listAllItems({
+    sortBy: "name",
+    sortDir: "ASC",
+    is_active: true,
+  });
 
-    return itemsResponse.map((item) => ({
-      id: Number(item.id),
-      name: item.name,
-      unit_base: item.unit_base,
-      unit_convert: item.unit_convert ?? item.unit_base,
-    })) satisfies ItemRecord[];
-  }
-
-  const allCompositions =
-    preloaded?.compositions ??
-    (await listAllPaginatedRows(sdk.dishCompositions.list.bind(sdk.dishCompositions), {
-      sortBy: "id",
-      sortDir: "ASC",
-    }));
-  const stockRows =
-    preloaded?.stocks ??
-    ((await sdk.reports.getStocks(ALL_STOCK_REPORT_PERIOD)).data.rows as StockReportRow[] ?? []);
-
-  const mergedItems = new Map<number, ItemRecord>();
-  for (const composition of allCompositions) {
-    const itemId = Number(composition.item_id);
-    const compositionItem = composition.item as
-      | { name?: string; unit_base?: string; unit_convert?: string }
-      | null
-      | undefined;
-    const itemName = typeof compositionItem?.name === "string" ? compositionItem.name : null;
-    const unitBase = typeof compositionItem?.unit_base === "string" ? compositionItem.unit_base : "";
-
-    if (!Number.isFinite(itemId) || !itemName) continue;
-
-    mergedItems.set(itemId, {
-      id: itemId,
-      name: itemName,
-      unit_base: unitBase,
-      unit_convert: typeof compositionItem?.unit_convert === "string" ? compositionItem.unit_convert : unitBase,
-    });
-  }
-
-  for (const row of stockRows) {
-    const itemId = Number(row.item_id);
-    if (!Number.isFinite(itemId)) continue;
-
-    const existing = mergedItems.get(itemId);
-    mergedItems.set(itemId, {
-      id: itemId,
-      name: existing?.name || row.item_name,
-      unit_base: existing?.unit_base || row.unit_base,
-      unit_convert: existing?.unit_convert || row.unit_base,
-    });
-  }
-
-  return Array.from(mergedItems.values()).sort((left, right) => left.name.localeCompare(right.name));
+  return itemsResponse.map((item) => ({
+    id: Number(item.id),
+    name: item.name,
+    unit_base: item.unit_base,
+    unit_convert: item.unit_convert ?? item.unit_base,
+  })) satisfies ItemRecord[];
 }
 
 function buildCompositionSummary(

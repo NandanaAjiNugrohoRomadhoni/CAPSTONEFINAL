@@ -1,11 +1,19 @@
 "use client";
 
+function parseDateValue(value: string) {
+  const normalized = value.includes(" ") && !value.includes("T") ? value.replace(" ", "T") : value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return new Date(`${normalized}T00:00:00`);
+  }
+
+  return new Date(normalized);
+}
+
 export function formatDate(value?: string | null, locale = "id-ID") {
   if (!value) return "-";
-  const date = new Date(value);
+  const date = parseDateValue(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "Asia/Jakarta",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -14,10 +22,9 @@ export function formatDate(value?: string | null, locale = "id-ID") {
 
 export function formatLongDate(value?: string | null, locale = "id-ID") {
   if (!value) return "-";
-  const date = new Date(value);
+  const date = parseDateValue(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "Asia/Jakarta",
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -27,10 +34,9 @@ export function formatLongDate(value?: string | null, locale = "id-ID") {
 
 export function formatCompactDate(value?: string | null, locale = "id-ID") {
   if (!value) return "-";
-  const date = new Date(value);
+  const date = parseDateValue(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "Asia/Jakarta",
     day: "numeric",
     month: "short",
     year: "numeric",
