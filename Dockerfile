@@ -42,19 +42,8 @@ RUN rm -rf /app/vendor \
     && cd /app \
     && composer install --no-dev --optimize-autoloader --no-interaction
 
-# ── Remove migrations that conflict with vendor packages ──
-# Shield vendor already creates users + auth tables.
-# App copies just cause "table already exists" errors.
-RUN rm -f \
-    /app/app/Database/Migrations/2026-03-31-110526_CreateUsers.php \
-    /app/app/Database/Migrations/2026-04-02-100000_CreateShieldAuthTables.php
-
 # ── Next.js static export → backend/public/ ───────────────
 COPY --from=builder /build/gudang-app/out/ /app/public/
-
-# ── Docker-specific environment (overrides .env) ──────────
-COPY .env.docker /app/.env
-
 # ── Caddy configuration ────────────────────────────────────
 COPY Caddyfile /etc/caddy/Caddyfile
 

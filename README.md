@@ -33,3 +33,7 @@ Use these docs depending on what you need:
 
 - [Backend Documentation Index](./backend/docs/README.md)
 - [Implementation Guides](./backend/docs/guides/README.md)
+
+## Docker
+
+Selengkapnya di [docker.md](./docker.md) — mode lokal/remote, ubah port, jalanin seeder di dalam container.

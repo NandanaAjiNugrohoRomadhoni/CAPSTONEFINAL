@@ -1,49 +1,62 @@
-version: "3.9"
+# ═══════════════════════════════════════════════════════════
+# Docker Compose — Capstone
+# ═══════════════════════════════════════════════════════════
+#
+# DUA MODE:
+#
+#   Mode lokal (DB + Adminer otomatis):
+#     docker compose --profile local up
+#
+#   Mode remote (DB eksternal, tanpa Adminer):
+#     docker compose up
+#
+# Ubah kredensial/port di file .env (satu tempat).
+# ═══════════════════════════════════════════════════════════
 
 services:
-  # ── PHP + Caddy (FrankenPHP) app ─────────────────────────
+  # ── App: PHP + Caddy (FrankenPHP) ───────────────────────
   app:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:${APP_PORT}
     container_name: capstone-app
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "${APP_PORT}:${APP_INTERNAL_PORT}"
     environment:
-      # Entrypoint DB connection (simple names, no dots)
-      DB_HOST: db
-      DB_PORT: "3306"
-      DB_NAME: capstone
-      DB_USER: capstone
-      DB_PASS: capstone_secret
-      # Override any .env values at container start
+      # Buat entrypoint.sh (nama sederhana tanpa titik)
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_INTERNAL_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      # Buat CodeIgniter (dot-notation)
       CI_ENVIRONMENT: production
-      database.default.hostname: db
-      database.default.database: capstone
-      database.default.username: capstone
-      database.default.password: capstone_secret
-    depends_on:
-      db:
-        condition: service_healthy
+      app.baseURL: ${APP_BASE_URL}
+      database.default.hostname: ${DB_HOST}
+      database.default.database: ${DB_NAME}
+      database.default.username: ${DB_USER}
+      database.default.password: ${DB_PASS}
+      database.default.DBDriver: ${DB_DRIVER}
+      database.default.port: ${DB_INTERNAL_PORT}
     volumes:
-      # Mount writable directory so logs persist across restarts
       - app-writable:/app/writable
 
-  # ── Database ──────────────────────────────────────────────
+  # ── Database lokal (profil: local) ──────────────────────
   db:
-    image: docker.io/library/mariadb:11
+    profiles: ["local"]
+    image: ${DB_IMAGE}
     container_name: capstone-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_secret
-      MYSQL_DATABASE: capstone
-      MYSQL_USER: capstone
-      MYSQL_PASSWORD: capstone_secret
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
     ports:
-      - "3306:3306"
+      - "${DB_PORT}:${DB_INTERNAL_PORT}"
     volumes:
       - db-data:/var/lib/mysql:Z
     healthcheck:
@@ -53,15 +66,14 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Adminer (dev only) ────────────────────────────────────
+  # ── Adminer (profil: local) ─────────────────────────────
   adminer:
+    profiles: ["local"]
     image: docker.io/library/adminer:latest
     container_name: capstone-adminer
     restart: unless-stopped
     ports:
-      - "9000:8080"
-    depends_on:
-      - db
+      - "${ADMINER_PORT}:${ADMINER_INTERNAL_PORT}"
 
 volumes:
   db-data:

@@ -8,6 +8,10 @@ class TransactionTypeSeeder extends Seeder
 {
     public function run()
     {
+        if ($this->db->table('transaction_types')->countAll() > 0) {
+            return;
+        }
+
         $this->db
             ->table("transaction_types")
             ->insertBatch([
