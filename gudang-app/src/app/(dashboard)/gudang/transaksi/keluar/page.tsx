@@ -170,7 +170,8 @@ export default function BarangKeluarPage() {
 
         if (cancelled) return;
 
-        const latestTransaction = transactions[0];
+        const todayTransactions = transactions.filter((row) => String(row.transaction_date ?? "").slice(0, 10) === serviceDate);
+        const latestTransaction = todayTransactions[0];
         if (!latestTransaction) {
           setSavedRecommendation(null);
           setValidatedRows([]);
