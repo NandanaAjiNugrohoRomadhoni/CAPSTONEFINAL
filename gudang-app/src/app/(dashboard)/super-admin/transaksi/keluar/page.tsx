@@ -61,8 +61,6 @@ type SearchableItemSelectProps = {
 };
 
 const MEAL_PRIORITY = ["SIANG", "SORE", "PAGI"];
-const RECOMMENDATION_STORAGE_KEY = "barang-keluar-basah-rekomendasi";
-
 export default function BarangKeluarPage() {
   const [activeTab, setActiveTab] = useState<"basah" | "kering">("basah");
   const [items, setItems] = useState<ItemRow[]>([]);
@@ -130,22 +128,98 @@ export default function BarangKeluarPage() {
   }, [serviceDate]);
 
   useEffect(() => {
-    const saved = readSavedRecommendation(serviceDate);
-    if (saved) {
-      setSavedRecommendation(saved);
-      setPatientCount(String(saved.patientCount));
-      setValidatedMeta({ totalItems: saved.totalItems, menuName: saved.menuName });
-      setValidatedRows(saved.rows.map((row) => ({ ...row })));
-      return;
+    let cancelled = false;
+
+    async function loadSavedTransaction() {
+      try {
+        const [patientResponse, transactionTypeResponse] = await Promise.all([
+          sdk.dailyPatients.get(serviceDate).catch(() => null),
+          sdk.transactionTypes.list({ paginate: false, search: "OUT", sortBy: "name", sortDir: "ASC" }),
+        ]);
+
+        if (cancelled) return;
+
+        const loadedPatientCount = Number(patientResponse?.data?.total_patients ?? 0);
+        setPatientCount(String(loadedPatientCount));
+
+        const outTypeId = transactionTypeResponse.data.find((row) => row.name.toUpperCase() === "OUT")?.id;
+        if (!outTypeId) {
+          setSavedRecommendation(null);
+          setValidatedRows([]);
+          setValidatedMeta(null);
+          setRecommendationPreviewOpen(false);
+          setRecommendationRows([]);
+          setRecommendationMeta(null);
+          return;
+        }
+
+        const transactions = await listAllPaginatedRows<Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number]>(
+          sdk.stockTransactions.list.bind(sdk.stockTransactions),
+          {
+            type_id: outTypeId,
+            transaction_date_from: serviceDate,
+            transaction_date_to: serviceDate,
+            sortBy: "created_at",
+            sortDir: "DESC",
+          },
+          100,
+        );
+
+        if (cancelled) return;
+
+        const latestTransaction = transactions[0];
+        if (!latestTransaction) {
+          setSavedRecommendation(null);
+          setValidatedRows([]);
+          setValidatedMeta(null);
+          setRecommendationPreviewOpen(false);
+          setRecommendationRows([]);
+          setRecommendationMeta(null);
+          return;
+        }
+
+        const detailResponse = await sdk.stockTransactions.details(latestTransaction.id);
+        if (cancelled) return;
+
+        const loadedRows = detailResponse.data.map((row) => ({
+          id: row.id,
+          item_id: row.item_id,
+          item_name: row.item_name ?? `Item #${row.item_id}`,
+          unit: row.satuan ?? "-",
+          qty_spk: Number(row.qty ?? 0),
+          qty_actual: String(Number(row.qty ?? 0)),
+          locked: true,
+        }));
+
+        setSavedRecommendation({
+          serviceDate,
+          patientCount: loadedPatientCount,
+          menuName: "Riwayat transaksi tersimpan",
+          totalItems: loadedRows.length,
+          rows: loadedRows,
+          submitted: true,
+          submittedAt: latestTransaction.created_at ?? new Date().toISOString(),
+        });
+        setValidatedRows(loadedRows);
+        setValidatedMeta({ totalItems: loadedRows.length, menuName: "Riwayat transaksi tersimpan" });
+        setRecommendationPreviewOpen(false);
+        setRecommendationRows([]);
+        setRecommendationMeta(null);
+      } catch {
+        setSavedRecommendation(null);
+        setValidatedRows([]);
+        setValidatedMeta(null);
+        setRecommendationPreviewOpen(false);
+        setRecommendationRows([]);
+        setRecommendationMeta(null);
+      }
     }
 
-    setSavedRecommendation(null);
-    setValidatedRows([]);
-    setValidatedMeta(null);
-    setRecommendationPreviewOpen(false);
-    setRecommendationRows([]);
-    setRecommendationMeta(null);
-    setPatientCount("0");
+    void loadSavedTransaction();
+
+    return () => {
+      cancelled = true;
+    };
   }, [serviceDate]);
 
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -244,7 +318,6 @@ export default function BarangKeluarPage() {
         rows: aggregated.map((row) => ({ ...row, locked: false })),
       };
 
-      writeSavedRecommendation(nextRecommendation);
       setSavedRecommendation(nextRecommendation);
       setValidatedMeta({ totalItems: nextRecommendation.totalItems, menuName: nextRecommendation.menuName });
       setValidatedRows([]);
@@ -264,7 +337,7 @@ export default function BarangKeluarPage() {
   }
 
   function loadValidatedBasahFromSavedRecommendation() {
-    const saved = readSavedRecommendation(serviceDate) ?? savedRecommendation;
+    const saved = savedRecommendation;
     if (basahValidationLocked) {
       openAlert(
         setAlertState,
@@ -346,28 +419,32 @@ export default function BarangKeluarPage() {
       refreshStockAdjustmentNotifications();
 
       setConfirmSaveOpen(false);
-      const nextSavedRecommendation = savedRecommendation
-        ? { ...savedRecommendation, submitted: true, submittedAt: new Date().toISOString() }
-        : null;
-      if (nextSavedRecommendation) {
-        writeSavedRecommendation(nextSavedRecommendation);
-      }
+      const detailResponse = await sdk.stockTransactions.details(draftId);
+      const nextSavedRows = detailResponse.data.map((row) => ({
+        id: row.id,
+        item_id: row.item_id,
+        item_name: row.item_name ?? `Item #${row.item_id}`,
+        unit: row.satuan ?? "-",
+        qty_spk: Number(row.qty ?? 0),
+        qty_actual: String(Number(row.qty ?? 0)),
+        locked: true,
+      }));
+      const nextSavedRecommendation: SavedRecommendation = {
+        serviceDate,
+        patientCount: totalPatients,
+        menuName: "Riwayat transaksi tersimpan",
+        totalItems: nextSavedRows.length,
+        rows: nextSavedRows,
+        submitted: true,
+        submittedAt: new Date().toISOString(),
+      };
       setSavedRecommendation(nextSavedRecommendation);
       setSuccessState({
         headline: "Barang keluar bahan basah berhasil disimpan",
         message: "",
       });
-      setValidatedMeta(
-        nextSavedRecommendation
-          ? { totalItems: nextSavedRecommendation.totalItems, menuName: nextSavedRecommendation.menuName }
-          : null,
-      );
-      setValidatedRows((current) =>
-        current.map((row) => ({
-          ...row,
-          locked: true,
-        })),
-      );
+      setValidatedMeta({ totalItems: nextSavedRecommendation.totalItems, menuName: nextSavedRecommendation.menuName });
+      setValidatedRows(nextSavedRows);
     } catch (saveError) {
       setConfirmSaveOpen(false);
       openAlert(
@@ -1263,25 +1340,4 @@ function aggregatePreviewItems(items: PreviewItem[], itemMap: Map<number, ItemRo
   }
 
   return Array.from(aggregated.values());
-}
-
-function getRecommendationStorageKey(serviceDate: string) {
-  return `${RECOMMENDATION_STORAGE_KEY}:${serviceDate}`;
-}
-
-function readSavedRecommendation(serviceDate: string) {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(getRecommendationStorageKey(serviceDate));
-    if (!raw) return null;
-    return JSON.parse(raw) as SavedRecommendation;
-  } catch {
-    return null;
-  }
-}
-
-function writeSavedRecommendation(payload: SavedRecommendation) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(getRecommendationStorageKey(payload.serviceDate), JSON.stringify(payload));
 }

@@ -119,7 +119,6 @@ export function buildKeringRecommendationSpreadsheet(
     <tr class="head">
       <th>No</th>
       <th>Nama Bahan</th>
-      <th>Kategori</th>
       <th>Pemakaian Bulan Lalu</th>
       <th>Stok Saat Ini</th>
       <th>Rekomendasi Beli</th>
@@ -131,7 +130,6 @@ export function buildKeringRecommendationSpreadsheet(
     <tr>
       <td class="rank">${index + 1}</td>
       <td class="text-strong">${escapeHtml(row.itemName)}</td>
-      <td>${escapeHtml(row.categoryName ?? "-")}</td>
       <td class="number">${formatPlainQuantity(row.requiredQty)}</td>
       <td class="number">${formatPlainQuantity(row.currentStock)}</td>
       <td class="number text-strong">${formatPlainQuantity(row.recommendedQty)}</td>

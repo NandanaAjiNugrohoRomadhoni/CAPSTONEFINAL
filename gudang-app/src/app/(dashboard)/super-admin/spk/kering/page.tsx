@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import sdk from "@/lib";
 import { formatQuantity, getErrorMessage, toIsoMonth } from "@/lib/admin-utils";
 import { buildExportFilename } from "@/lib/export-filename";
@@ -42,11 +42,13 @@ function formatTargetMonthLabel(value: string) {
   }).format(date);
 }
 
+function extractKeringRecommendationRows(detail: RecommendationDetail) {
+  const rows = detail.items ?? detail.print_ready?.recommendations ?? [];
+  return aggregateKeringRecommendationRows(rows);
+}
+
 export default function Page() {
   const [rows, setRows] = useState<RecommendationRow[]>([]);
-  const visibleRows = useMemo(() => {
-    return rows.filter((row) => Number(row.system_recommended_qty ?? row.final_recommended_qty ?? 0) > 0);
-  }, [rows]);
   const [detailData, setDetailData] = useState<RecommendationDetail | null>(null);
   const [hasLoadedRecommendation, setHasLoadedRecommendation] = useState(false);
   const [targetMonth] = useState(toIsoMonth(new Date()));
@@ -69,10 +71,12 @@ export default function Page() {
         const detail = await sdk.spk.getKeringPengemas(latestSpk.id);
         if (cancelled) return;
         setDetailData(detail.data);
-        setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
+        setRows(extractKeringRecommendationRows(detail.data));
         setHasLoadedRecommendation(true);
-      } catch {
-        // Riwayat SPK boleh kosong; halaman tetap bisa generate rekomendasi baru.
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getErrorMessage(loadError, "Gagal memuat rekomendasi belanja kering & pengemas."));
+        }
       }
     }
 
@@ -99,7 +103,7 @@ export default function Page() {
         detail = await sdk.spk.getKeringPengemas(conflictSpkId);
       }
       setDetailData(detail.data);
-      setRows(aggregateKeringRecommendationRows(detail.data.items ?? []));
+      setRows(extractKeringRecommendationRows(detail.data));
       setHasLoadedRecommendation(true);
       setConfirmOpen(false);
     } catch (generateError) {
@@ -110,7 +114,7 @@ export default function Page() {
   }
 
   function handleExport() {
-    if (typeof window === "undefined" || visibleRows.length === 0) {
+    if (typeof window === "undefined" || rows.length === 0) {
       setError("Belum ada hasil rekomendasi yang bisa diexport.");
       return;
     }
@@ -127,11 +131,11 @@ export default function Page() {
             }).format(new Date(detailData.calculation_date))
           : "-",
         targetLabel: formatTargetMonthLabel(targetMonth),
-        itemCountLabel: `${visibleRows.length} Produk`,
+        itemCountLabel: `${rows.length} Produk`,
         formulaTitle: "Rumus KERING & PENGEMAS",
         formulaDescription: "Total Pengeluaran Bulan Lalu x 110% - Sisa Stok Saat Ini",
         },
-      visibleRows.map((row) => ({
+      rows.map((row) => ({
         itemName: row.item_name ?? "-",
         categoryName: getItemCategory(row),
         currentStock: Number(row.current_stock_qty ?? 0),
@@ -177,25 +181,23 @@ export default function Page() {
             <thead className="bg-[#EEF4FC] text-[15px] font-bold text-[#94A3B8]">
               <tr>
                 <th className="px-6 py-4">Nama Bahan</th>
-                <th className="px-6 py-4">Jenis Bahan</th>
                 <th className="px-6 py-4">Pemakaian Bulan Lalu</th>
                 <th className="px-6 py-4">Stok Saat Ini</th>
                 <th className="px-6 py-4">Rekomendasi Beli</th>
               </tr>
             </thead>
             <tbody className="text-base text-[#16213E]">
-              {visibleRows.map((row) => (
+              {rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-[#F8FAFC]">
                   <td className="px-6 py-4 font-bold">{row.item_name ?? "-"}</td>
-                  <td className="px-6 py-4 uppercase">{getItemCategory(row)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.required_qty, row.item_unit_base)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.current_stock_qty, row.item_unit_base)}</td>
                   <td className="px-6 py-4">{formatQuantity(row.system_recommended_qty ?? row.final_recommended_qty, row.item_unit_base)}</td>
                 </tr>
               ))}
-              {visibleRows.length === 0 ? (
+              {rows.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={5}>
+                  <td className="px-6 py-10 text-center text-[#94A3B8]" colSpan={4}>
                     {hasLoadedRecommendation
                       ? "Tidak ada data rekomendasi dari backend untuk bulan ini."
                       : "Klik Generate untuk mengambil rekomendasi SPK kering & pengemas."}
