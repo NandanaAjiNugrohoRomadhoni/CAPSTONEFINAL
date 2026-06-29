@@ -15,11 +15,17 @@ class CsvMenuPlanSeeder extends Seeder
 {
     public function run(): void
     {
-        $jsonPath = ROOTPATH . '../../gudang-app/src/data/menu-csv-plan.json';
+        // Try container path first (Docker image), then fallback paths
+        $jsonPath = ROOTPATH . 'database/data/menu-csv-plan.json';
 
         if (!file_exists($jsonPath)) {
-            // Try fallback path if any
+            // Fallback: writable volume
             $jsonPath = ROOTPATH . 'writable/menu-csv-plan.json';
+        }
+
+        if (!file_exists($jsonPath)) {
+            // Fallback: host dev path (../../gudang-app/src/data/)
+            $jsonPath = ROOTPATH . '../../gudang-app/src/data/menu-csv-plan.json';
         }
 
         if (!file_exists($jsonPath)) {

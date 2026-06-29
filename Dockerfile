@@ -42,8 +42,10 @@ RUN rm -rf /app/vendor \
     && cd /app \
     && composer install --no-dev --optimize-autoloader --no-interaction
 
+
 # ── Next.js static export → backend/public/ ───────────────
 COPY --from=builder /build/gudang-app/out/ /app/public/
+COPY gudang-app/src/data/menu-csv-plan.json /app/database/data/menu-csv-plan.json
 # ── Caddy configuration ────────────────────────────────────
 COPY Caddyfile /etc/caddy/Caddyfile
 
