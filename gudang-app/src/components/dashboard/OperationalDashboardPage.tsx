@@ -333,7 +333,7 @@ export default function OperationalDashboardPage({ mode }: Readonly<{ mode: Dash
           outbound: "/gizi/laporan",
         }
       : {
-          patients: "/gudang/laporan",
+          patients: "/gudang/transaksi/keluar",
           menu: "/gudang/stok/penyesuaian",
           stock: "/gudang/stok",
           adjustment: "/gudang/stok/penyesuaian",

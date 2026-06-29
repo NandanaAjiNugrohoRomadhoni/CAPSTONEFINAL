@@ -6,19 +6,25 @@ export default function StatCard({
   subtitle,
   color,
   icon,
+  onClick,
 }: {
   title: string;
   value: string;
   subtitle: string;
   color: string;
   icon: ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <div
-      className={`bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-t-4 ${color}`}
+    <button
+      className={`w-full bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-t-4 text-left transition ${color} ${
+        onClick ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : "cursor-default"
+      }`}
+      onClick={onClick}
+      type="button"
+      disabled={!onClick}
     >
       <div className="flex justify-between items-start">
-        
         <div>
           <p className="text-xs uppercase tracking-wide text-gray-400">
             {title}
@@ -38,6 +44,6 @@ export default function StatCard({
         </div>
 
       </div>
-    </div>
+    </button>
   );
 }
