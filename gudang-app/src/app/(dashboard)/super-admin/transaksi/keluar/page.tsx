@@ -21,6 +21,7 @@ type SearchableItemOption = { id: number; label: string; unit: string };
 type ManualRow = {
   id: number;
   item_id: number | null;
+  item_name?: string;
   qty: string;
   unit: string;
 };
@@ -606,6 +607,7 @@ export default function BarangKeluarPage() {
                         options={basahItemOptions}
                         value={row.item_id || null}
                         placeholder="Pilih Nama Bahan"
+                        displayValue={row.item_name}
                         className="col-span-4"
                         disabled={basahTableLocked || Boolean(row.locked)}
                         onChange={(nextId, unit) =>
@@ -762,10 +764,20 @@ export default function BarangKeluarPage() {
                       options={keringItemOptions}
                       value={row.item_id}
                       placeholder="Pilih Nama Bahan"
+                      displayValue={row.item_name ?? ""}
                       onChange={(nextId, unit) => {
                         setRows((current) =>
                           current.map((item) =>
-                            item.id === row.id ? { ...item, item_id: nextId, unit: unit ?? "-" } : item,
+                            item.id === row.id
+                              ? {
+                                  ...item,
+                                  item_id: nextId,
+                                  item_name: nextId
+                                    ? keringItemOptions.find((option) => option.id === nextId)?.label ?? ""
+                                    : "",
+                                  unit: unit ?? "-",
+                                }
+                              : item,
                           ),
                         );
                       }}
@@ -1282,6 +1294,7 @@ function createManualRow(): ManualRow {
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     item_id: null,
+    item_name: "",
     qty: "0",
     unit: "-",
   };
