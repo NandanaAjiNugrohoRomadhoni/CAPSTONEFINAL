@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
-  Search,
   ChevronDown,
   LogOut,
   UserCircle2,
@@ -371,11 +370,6 @@ export default function Navbar({
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="hidden items-center rounded-lg bg-gray-100 px-3 py-2 md:flex">
-          <Search size={16} className="mr-2 text-gray-400" />
-          <input placeholder="Cari..." className="bg-transparent text-sm outline-none" />
-        </div>
-
         <p className="hidden text-sm text-gray-400 md:block">
           {new Intl.DateTimeFormat("id-ID", {
             timeZone: "Asia/Jakarta",

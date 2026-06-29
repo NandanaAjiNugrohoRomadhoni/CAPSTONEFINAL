@@ -245,6 +245,7 @@ export default function Page() {
           color="border-blue-300"
           outlineClass="border-blue-200"
           icon={<Users className="text-gray-500" />}
+          onClick={() => router.push("/super-admin/transaksi/keluar")}
         />
         <StatCard
           title="Menu Aktif"
@@ -252,6 +253,7 @@ export default function Page() {
           subtitle={loading ? "Memuat menu aktif" : "Menu hari ini"}
           color="border-green-500"
           icon={<Utensils className="text-gray-500" />}
+          onClick={() => router.push("/super-admin/menu/kalender")}
         />
         <StatCard
           title="Stok Kritis"
@@ -259,6 +261,7 @@ export default function Page() {
           subtitle={loading ? "Memuat stok" : "Bahan perlu ditindaklanjuti"}
           color="border-red-500"
           icon={<AlertTriangle className="text-gray-500" />}
+          onClick={() => router.push("/super-admin/stok/basah")}
         />
         <StatCard
           title="SPK Belanja"
@@ -266,6 +269,7 @@ export default function Page() {
           subtitle={loading ? "Memuat SPK" : "Riwayat SPK terbaru"}
           color="border-yellow-500"
           icon={<ShoppingCart className="text-gray-500" />}
+          onClick={() => router.push("/super-admin/spk/riwayat")}
         />
       </div>
 
@@ -465,6 +469,7 @@ function StatCard({
   color,
   outlineClass = "border-gray-100",
   icon,
+  onClick,
 }: {
   title: string;
   value: string;
@@ -472,9 +477,29 @@ function StatCard({
   color: string;
   outlineClass?: string;
   icon: ReactNode;
+  onClick?: () => void;
 }) {
+  const className = `w-full rounded-2xl border ${outlineClass} border-t-4 bg-white p-6 text-left shadow-sm transition ${color} ${
+    onClick ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : "cursor-default"
+  }`;
+
+  if (onClick) {
+    return (
+      <button className={className} onClick={onClick} type="button">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-400">{title}</p>
+            <h2 className="mt-1 text-2xl font-semibold text-gray-900">{value}</h2>
+            <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
+          </div>
+          <div className="rounded-lg bg-gray-100 p-2">{icon}</div>
+        </div>
+      </button>
+    );
+  }
+
   return (
-    <div className={`rounded-2xl border ${outlineClass} border-t-4 bg-white p-6 shadow-sm ${color}`}>
+    <div className={className}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-gray-400">{title}</p>

@@ -825,7 +825,7 @@ export default function GudangTransactionHistoryPage() {
                 ...types
                   .flatMap((type) => {
                     const label = getStockMovementTypeLabel(type.name);
-                    return label ? [{ value: String(type.id), label }] : [];
+                    return label && label !== "Retur Masuk" ? [{ value: String(type.id), label }] : [];
                   }),
               ]}
             />
