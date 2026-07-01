@@ -171,6 +171,10 @@ class UserManagementService
 
         if (isset($data['email'])) {
             $userData['email'] = $data['email'];
+        } else {
+            // Generate unique placeholder to prevent duplicate empty secret
+            // in auth_identities (type_secret unique key).
+            $userData['email'] = bin2hex(random_bytes(10)) . '@generated.local';
         }
 
         $user = new User($userData);

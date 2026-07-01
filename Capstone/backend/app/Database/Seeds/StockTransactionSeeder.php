@@ -47,7 +47,7 @@ class StockTransactionSeeder extends Seeder
             throw new RuntimeException('StockTransactionSeeder requires KERING items to be seeded.');
         }
 
-        $today = new \DateTimeImmutable('now');
+        $today = new \DateTimeImmutable('yesterday');
         $monthStart = $today->modify('first day of this month');
         $daysInMonth = (int) $today->format('j');
         $monthEnd = $today;
