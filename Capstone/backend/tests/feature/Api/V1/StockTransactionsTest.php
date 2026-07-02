@@ -29,10 +29,10 @@ class StockTransactionsTest extends CIUnitTestCase
     use FeatureTestTrait;
     use DatabaseTestTrait;
 
-    protected $migrate     = true;
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -59,7 +59,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
     protected function seedUsers(): void
     {
-        $roleModel    = new RoleModel();
+        $roleModel = new RoleModel();
         $userProvider = new AppUserProvider();
 
         $users = [
@@ -72,12 +72,12 @@ class StockTransactionsTest extends CIUnitTestCase
             $role = $roleModel->findByName($userData['role']);
 
             $user = new User([
-                'role_id'   => $role['id'],
-                'name'      => $userData['name'],
-                'username'  => $userData['username'],
-                'email'     => $userData['email'],
+                'role_id' => $role['id'],
+                'name' => $userData['name'],
+                'username' => $userData['username'],
+                'email' => $userData['email'],
                 'is_active' => true,
-                'active'    => true,
+                'active' => true,
             ]);
             $user->fill(['password' => 'password123']);
             $userProvider->insert($user, true);
@@ -132,36 +132,36 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $categoryModel = new ItemCategoryModel();
         $itemUnitModel = new ItemUnitModel();
-        $db            = Database::connect();
+        $db = Database::connect();
 
-        $basah  = $categoryModel->where('name', 'BASAH')->first();
+        $basah = $categoryModel->where('name', 'BASAH')->first();
         $kering = $categoryModel->where('name', 'KERING')->first();
 
         $gramId = $itemUnitModel->getIdByName('gram');
-        $kgId   = $itemUnitModel->getIdByName('kg');
+        $kgId = $itemUnitModel->getIdByName('kg');
 
         $db->table('items')->insertBatch([
             [
-                'item_category_id'  => $kering['id'],
-                'name'              => 'Beras',
-                'unit_base'         => 'gram',
-                'unit_convert'      => 'kg',
-                'item_unit_base_id'    => $gramId,
+                'item_category_id' => $kering['id'],
+                'name' => 'Beras',
+                'unit_base' => 'gram',
+                'unit_convert' => 'kg',
+                'item_unit_base_id' => $gramId,
                 'item_unit_convert_id' => $kgId,
-                'conversion_base'   => 1000,
-                'is_active'         => true,
-                'qty'               => 5000,
+                'conversion_base' => 1000,
+                'is_active' => true,
+                'qty' => 5000,
             ],
             [
-                'item_category_id'  => $basah['id'],
-                'name'              => 'Ayam',
-                'unit_base'         => 'gram',
-                'unit_convert'      => 'kg',
-                'item_unit_base_id'    => $gramId,
+                'item_category_id' => $basah['id'],
+                'name' => 'Ayam',
+                'unit_base' => 'gram',
+                'unit_convert' => 'kg',
+                'item_unit_base_id' => $gramId,
                 'item_unit_convert_id' => $kgId,
-                'conversion_base'   => 1000,
-                'is_active'         => true,
-                'qty'               => 3000,
+                'conversion_base' => 1000,
+                'is_active' => true,
+                'qty' => 3000,
             ],
         ]);
     }
@@ -224,14 +224,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('dapur');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100],
                 ],
             ]);
@@ -245,20 +245,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $dapurToken = $this->login('dapur');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->get('api/v1/stock-transactions/' . $id);
@@ -273,20 +273,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $dapurToken = $this->login('dapur');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->get('api/v1/stock-transactions/' . $id . '/details');
@@ -300,18 +300,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel     = new ItemModel();
-        $itemBefore    = $itemModel->find(1);
-        $qtyBefore     = (float) $itemBefore['qty'];
+        $itemModel = new ItemModel();
+        $itemBefore = $itemModel->find(1);
+        $qtyBefore = (float) $itemBefore['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100.50],
                 ],
             ]);
@@ -321,12 +321,12 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $json = json_decode($result->getJSON(), true);
         $approvalStatusModel = new ApprovalStatusModel();
-        $approvedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        $approvedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
         $this->assertSame($approvedStatusId, $json['data']['approval_status_id']);
         $this->assertFalse($json['data']['is_revision']);
 
         $itemAfter = $itemModel->find(1);
-        $qtyAfter  = (float) $itemAfter['qty'];
+        $qtyAfter = (float) $itemAfter['qty'];
 
         $this->assertSame($qtyBefore + 100.50, $qtyAfter);
     }
@@ -336,18 +336,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-04-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 200],
                 ],
             ]);
@@ -355,7 +355,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $result->assertStatus(201);
 
         $itemAfter = $itemModel->find(1);
-        $qtyAfter  = (float) $itemAfter['qty'];
+        $qtyAfter = (float) $itemAfter['qty'];
 
         $this->assertSame($qtyBefore - 200, $qtyAfter);
     }
@@ -364,19 +364,19 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $token = $this->login('gudang');
 
-        $typeModel  = new TransactionTypeModel();
+        $typeModel = new TransactionTypeModel();
         $returnType = $typeModel->where('name', 'RETURN_IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(2);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $returnType['id'],
+                'type_id' => $returnType['id'],
                 'transaction_date' => '2026-04-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 50],
                 ],
             ]);
@@ -384,7 +384,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $result->assertStatus(201);
 
         $itemAfter = $itemModel->find(2);
-        $qtyAfter  = (float) $itemAfter['qty'];
+        $qtyAfter = (float) $itemAfter['qty'];
 
         $this->assertSame($qtyBefore + 50, $qtyAfter);
     }
@@ -393,16 +393,16 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $token = $this->login('gudang');
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => TransactionTypeModel::NAME_OPNAME_ADJUSTMENT,
+                'type_name' => TransactionTypeModel::NAME_OPNAME_ADJUSTMENT,
                 'transaction_date' => '2026-04-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 40],
                 ],
             ]);
@@ -410,7 +410,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $result->assertStatus(201);
 
         $itemAfter = $itemModel->find(1);
-        $qtyAfter  = (float) $itemAfter['qty'];
+        $qtyAfter = (float) $itemAfter['qty'];
 
         $this->assertSame($qtyBefore + 40, $qtyAfter);
     }
@@ -422,9 +422,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'FOO_BAR',
+                'type_name' => 'FOO_BAR',
                 'transaction_date' => '2026-04-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -442,8 +442,8 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $approvedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
-        $typeModel           = new TransactionTypeModel();
+        $approvedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        $typeModel = new TransactionTypeModel();
 
         $cases = [
             ['type_name' => 'IN', 'item_id' => 1, 'qty' => 10, 'transaction_date' => '2026-10-01'],
@@ -457,9 +457,9 @@ class StockTransactionsTest extends CIUnitTestCase
             $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
                 ->withBodyFormat('json')
                 ->post('api/v1/stock-transactions', [
-                    'type_id'          => $type['id'],
+                    'type_id' => $type['id'],
                     'transaction_date' => $case['transaction_date'],
-                    'details'          => [
+                    'details' => [
                         ['item_id' => $case['item_id'], 'qty' => $case['qty']],
                     ],
                 ]);
@@ -477,14 +477,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-04-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 99999],
                 ],
             ]);
@@ -498,14 +498,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                     ['item_id' => 1, 'qty' => 20],
                 ],
@@ -520,14 +520,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 9999, 'qty' => 10],
                 ],
             ]);
@@ -544,7 +544,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
                 'transaction_date' => '2026-04-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -558,7 +558,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
@@ -578,12 +578,12 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-08',
             ]);
 
@@ -596,14 +596,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-09',
-                'details'          => [],
+                'details' => [],
             ]);
 
         $result->assertStatus(400);
@@ -615,15 +615,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-10',
-                'user_id'          => 999,
-                'details'          => [
+                'user_id' => 999,
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -637,15 +637,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'            => $inType['id'],
-                'transaction_date'   => '2026-04-11',
+                'type_id' => $inType['id'],
+                'transaction_date' => '2026-04-11',
                 'approval_status_id' => 3,
-                'details'            => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -659,15 +659,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-12',
-                'is_revision'      => true,
-                'details'          => [
+                'is_revision' => true,
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -681,15 +681,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'               => $inType['id'],
-                'transaction_date'      => '2026-04-13',
+                'type_id' => $inType['id'],
+                'transaction_date' => '2026-04-13',
                 'parent_transaction_id' => 1,
-                'details'               => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -703,15 +703,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-14',
-                'approved_by'      => 1,
-                'details'          => [
+                'approved_by' => 1,
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -730,17 +730,17 @@ class StockTransactionsTest extends CIUnitTestCase
         $typeModel = new TransactionTypeModel();
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $auditModel   = new AuditLogModel();
-        $countBefore  = $auditModel->countAllResults();
+        $auditModel = new AuditLogModel();
+        $countBefore = $auditModel->countAllResults();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-15',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 25],
                 ],
             ]);
@@ -761,16 +761,16 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $itemModel = new ItemModel();
-        $before    = (float) $itemModel->find(1)['qty'];
+        $before = (float) $itemModel->find(1)['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-15',
-                'item_id'               => 1,
-                'expected_current_qty'  => $before,
-                'target_qty'            => $before - 25,
-                'reason'                => 'Manual stock correction after recount.',
+                'transaction_date' => '2026-04-15',
+                'item_id' => 1,
+                'expected_current_qty' => $before,
+                'target_qty' => $before - 25,
+                'reason' => 'Manual stock correction after recount.',
             ]);
 
         $result->assertStatus(201);
@@ -779,21 +779,21 @@ class StockTransactionsTest extends CIUnitTestCase
         $json = json_decode($result->getJSON(), true);
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $approvedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        $approvedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
         $this->assertSame($approvedStatusId, $json['data']['approval_status_id']);
         $this->assertFalse($json['data']['is_revision']);
 
         $transactionModel = new StockTransactionModel();
-        $transaction      = $transactionModel->find($json['data']['id']);
+        $transaction = $transactionModel->find($json['data']['id']);
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
         $this->assertSame($outType['id'], (int) $transaction['type_id']);
         $this->assertSame('Manual stock correction after recount.', $transaction['reason']);
         $this->assertNull($transaction['parent_transaction_id']);
 
         $detailModel = new StockTransactionDetailModel();
-        $details     = $detailModel->getDetailsByTransactionId((int) $transaction['id']);
+        $details = $detailModel->getDetailsByTransactionId((int) $transaction['id']);
         $this->assertCount(1, $details);
         $this->assertSame('25.00', number_format((float) $details[0]['qty'], 2, '.', ''));
         $this->assertSame('25.00', number_format((float) $details[0]['input_qty'], 2, '.', ''));
@@ -808,25 +808,25 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $itemModel = new ItemModel();
-        $before    = (float) $itemModel->find(2)['qty'];
+        $before = (float) $itemModel->find(2)['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-16',
-                'item_id'               => 2,
-                'expected_current_qty'  => $before,
-                'target_qty'            => $before + 125.5,
-                'reason'                => 'Manual correction after item receipt recount.',
+                'transaction_date' => '2026-04-16',
+                'item_id' => 2,
+                'expected_current_qty' => $before,
+                'target_qty' => $before + 125.5,
+                'reason' => 'Manual correction after item receipt recount.',
             ]);
 
         $result->assertStatus(201);
 
-        $transactionId      = json_decode($result->getJSON(), true)['data']['id'];
-        $transactionModel   = new StockTransactionModel();
-        $transaction        = $transactionModel->find($transactionId);
-        $typeModel          = new TransactionTypeModel();
-        $inType             = $typeModel->where('name', 'IN')->first();
+        $transactionId = json_decode($result->getJSON(), true)['data']['id'];
+        $transactionModel = new StockTransactionModel();
+        $transaction = $transactionModel->find($transactionId);
+        $typeModel = new TransactionTypeModel();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $this->assertSame($inType['id'], (int) $transaction['type_id']);
         $this->assertSame($before + 125.5, (float) $itemModel->find(2)['qty']);
@@ -841,11 +841,11 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-17',
-                'item_id'               => 1,
-                'expected_current_qty'  => $currentQty,
-                'target_qty'            => $currentQty - 10,
-                'reason'                => '   ',
+                'transaction_date' => '2026-04-17',
+                'item_id' => 1,
+                'expected_current_qty' => $currentQty,
+                'target_qty' => $currentQty - 10,
+                'reason' => '   ',
             ]);
 
         $result->assertStatus(400);
@@ -862,11 +862,11 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-18',
-                'item_id'               => 1,
-                'expected_current_qty'  => $currentQty,
-                'target_qty'            => $currentQty,
-                'reason'                => 'No-op correction should fail.',
+                'transaction_date' => '2026-04-18',
+                'item_id' => 1,
+                'expected_current_qty' => $currentQty,
+                'target_qty' => $currentQty,
+                'reason' => 'No-op correction should fail.',
             ]);
 
         $result->assertStatus(400);
@@ -879,16 +879,16 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $itemModel = new ItemModel();
-        $before    = (float) $itemModel->find(1)['qty'];
+        $before = (float) $itemModel->find(1)['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-19',
-                'item_id'               => 1,
-                'expected_current_qty'  => $before - 1,
-                'target_qty'            => $before - 10,
-                'reason'                => 'Stale correction should be rejected.',
+                'transaction_date' => '2026-04-19',
+                'item_id' => 1,
+                'expected_current_qty' => $before - 1,
+                'target_qty' => $before - 10,
+                'reason' => 'Stale correction should be rejected.',
             ]);
 
         $result->assertStatus(400);
@@ -906,12 +906,12 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-20',
-                'item_id'               => 1,
-                'expected_current_qty'  => $currentQty,
-                'target_qty'            => $currentQty + 5,
-                'reason'                => 'Correction with unsupported field.',
-                'details'               => [
+                'transaction_date' => '2026-04-20',
+                'item_id' => 1,
+                'expected_current_qty' => $currentQty,
+                'target_qty' => $currentQty + 5,
+                'reason' => 'Correction with unsupported field.',
+                'details' => [
                     ['item_id' => 1, 'qty' => 5],
                 ],
             ]);
@@ -927,22 +927,22 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $itemModel = new ItemModel();
-        $before    = (float) $itemModel->find(2)['qty'];
+        $before = (float) $itemModel->find(2)['qty'];
 
         // Pre-create opening snapshot so auto-trigger is a no-op
         (new StockSnapshotService())->takeOpeningSnapshot('2026-04');
 
-        $auditModel  = new AuditLogModel();
+        $auditModel = new AuditLogModel();
         $countBefore = $auditModel->countAllResults();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-21',
-                'item_id'               => 2,
-                'expected_current_qty'  => $before,
-                'target_qty'            => $before - 20,
-                'reason'                => 'Audit log verification.',
+                'transaction_date' => '2026-04-21',
+                'item_id' => 2,
+                'expected_current_qty' => $before,
+                'target_qty' => $before - 20,
+                'reason' => 'Audit log verification.',
             ]);
 
         $result->assertStatus(201);
@@ -964,14 +964,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-16',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1005,20 +1005,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-17',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/stock-transactions/' . $id);
@@ -1040,14 +1040,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-17',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -1100,21 +1100,21 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-18',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                     ['item_id' => 2, 'qty' => 30],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/stock-transactions/' . $id . '/details');
@@ -1137,14 +1137,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-10-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1155,7 +1155,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-10-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -1168,7 +1168,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $listResult->assertStatus(200);
         $listJson = json_decode($listResult->getJSON(), true);
 
-        $parentRow   = null;
+        $parentRow = null;
         $revisionRow = null;
         foreach ($listJson['data'] as $row) {
             if ((int) $row['id'] === (int) $parentId) {
@@ -1236,17 +1236,17 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $categoryModel = new ItemCategoryModel();
-        $category      = $categoryModel->where('name', 'KERING')->first();
+        $category = $categoryModel->where('name', 'KERING')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/items', [
-                'name'             => 'Test Item',
+                'name' => 'Test Item',
                 'item_category_id' => $category['id'],
-                'unit_base'        => 'gram',
-                'unit_convert'     => 'kg',
-                'conversion_base'  => 1000,
-                'qty'              => 500,
+                'unit_base' => 'gram',
+                'unit_convert' => 'kg',
+                'conversion_base' => 1000,
+                'qty' => 500,
             ]);
 
         $result->assertStatus(400);
@@ -1258,15 +1258,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-20',
-                'unknown_field'    => 'some value',
-                'details'          => [
+                'unknown_field' => 'some value',
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1280,14 +1280,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-21',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10, 'extra_field' => 'not allowed'],
                 ],
             ]);
@@ -1301,14 +1301,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-21',
-                'details'          => ['invalid-detail-entry'],
+                'details' => ['invalid-detail-entry'],
             ]);
 
         $result->assertStatus(400);
@@ -1320,14 +1320,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => 'not-a-date',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1341,15 +1341,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-22',
-                'spk_id'           => -5,
-                'details'          => [
+                'spk_id' => -5,
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1367,34 +1367,34 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertNotNull($kering);
 
         $spkId = Database::connect()->table('spk_calculations')->insert([
-            'spk_type'          => 'basah',
+            'spk_type' => 'basah',
             'calculation_scope' => 'combined_window',
-            'scope_key'         => 'task-9-stock-transaction-spk-compat',
-            'version'           => 1,
-            'is_latest'         => true,
-            'calculation_date'  => '2026-04-22',
+            'scope_key' => 'task-9-stock-transaction-spk-compat',
+            'version' => 1,
+            'is_latest' => true,
+            'calculation_date' => '2026-04-22',
             'target_date_start' => '2026-04-22',
-            'target_date_end'   => '2026-04-23',
-            'target_month'      => null,
-            'daily_patient_id'  => null,
-            'user_id'           => 1,
-            'category_id'       => (int) $kering['id'],
+            'target_date_end' => '2026-04-23',
+            'target_month' => null,
+            'daily_patient_id' => null,
+            'user_id' => 1,
+            'category_id' => (int) $kering['id'],
             'estimated_patients' => 100,
-            'is_finish'         => false,
+            'is_finish' => false,
         ], true);
 
         $this->assertNotFalse($spkId);
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-22',
-                'spk_id'           => (int) $spkId,
-                'details'          => [
+                'spk_id' => (int) $spkId,
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1421,14 +1421,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertContains('legacy_source_detail_id', $columns);
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-23',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -1455,11 +1455,11 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/direct-corrections', [
-                'transaction_date'      => '2026-04-23',
-                'item_id'               => 1,
-                'expected_current_qty'  => $currentQty,
-                'target_qty'            => $currentQty - 5,
-                'reason'                => 'RBAC check.',
+                'transaction_date' => '2026-04-23',
+                'item_id' => 1,
+                'expected_current_qty' => $currentQty,
+                'target_qty' => $currentQty - 5,
+                'reason' => 'RBAC check.',
             ]);
 
         $result->assertStatus(403);
@@ -1492,15 +1492,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create three transactions with different dates
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1508,9 +1508,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1518,9 +1518,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1541,20 +1541,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyStart   = (float) $itemBefore['qty'];
+        $qtyStart = (float) $itemBefore['qty'];
 
         // IN +100
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-23',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100],
                 ],
             ])->assertStatus(201);
@@ -1566,9 +1566,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-04-24',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ])->assertStatus(201);
@@ -1580,9 +1580,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 25],
                 ],
             ])->assertStatus(201);
@@ -1596,18 +1596,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-04-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => $qtyBefore + 1],
                 ],
             ]);
@@ -1623,18 +1623,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $db = Database::connect();
 
         $itemModel = new ItemModel();
-        $item      = $itemModel->find(1);
+        $item = $itemModel->find(1);
         $this->assertNotNull($item);
 
         $initialQty = (float) $item['qty'];
 
         $db->table('items')->where('id', 1)->update([
-            'min_stock'   => number_format($initialQty - 100, 2, '.', ''),
-            'updated_at'  => date('Y-m-d H:i:s'),
+            'min_stock' => number_format($initialQty - 100, 2, '.', ''),
+            'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
         $this->assertNotNull($outType);
 
         $notificationCountBefore = $db->table('notifications')->countAllResults();
@@ -1642,14 +1642,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $service = new StockTransactionService();
         $failingAuditService = new class () extends AuditService {
             public function log(
-                ?int $userId,
-                \App\Enums\AuditActionType $actionType,
-                string $tableName,
-                int $recordId,
-                ?string $message = null,
-                ?array $oldValues = null,
-                ?array $newValues = null,
-                ?string $ipAddress = null
+            ?int $userId,
+            \App\Enums\AuditActionType $actionType,
+            string $tableName,
+            int $recordId,
+            ?string $message = null,
+            ?array $oldValues = null,
+            ?array $newValues = null,
+            ?string $ipAddress = null
             ): bool {
                 return false;
             }
@@ -1658,9 +1658,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $service->setAuditServiceForTesting($failingAuditService);
 
         $result = $service->createTransaction([
-            'type_id'          => (int) $outType['id'],
+            'type_id' => (int) $outType['id'],
             'transaction_date' => '2026-07-01',
-            'details'          => [
+            'details' => [
                 ['item_id' => 1, 'qty' => 200],
             ],
         ], 1);
@@ -1676,7 +1676,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
     public function testAddMinStockMigrationDownIsSafeOnSqlite(): void
     {
-        $db      = Database::connect();
+        $db = Database::connect();
         $columns = $db->getFieldNames('items');
         $this->assertContains('min_stock', $columns);
 
@@ -1699,9 +1699,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $unsupportedType['id'],
+                'type_id' => $unsupportedType['id'],
                 'transaction_date' => '2026-04-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1724,7 +1724,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/1/submit-revision', [
                 'transaction_date' => '2026-04-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1740,7 +1740,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/9999/submit-revision', [
                 'transaction_date' => '2026-04-28',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -1755,27 +1755,27 @@ class StockTransactionsTest extends CIUnitTestCase
 
         // Create parent transaction
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-04-29',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json      = json_decode($createResult->getJSON(), true);
-        $parentId  = $json['data']['id'];
+        $json = json_decode($createResult->getJSON(), true);
+        $parentId = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-04-30',
-                'user_id'          => 999,
-                'details'          => [
+                'user_id' => 999,
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -1789,27 +1789,27 @@ class StockTransactionsTest extends CIUnitTestCase
         $gudangToken = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-02',
-                'unknown_field'    => 'value',
-                'details'          => [
+                'unknown_field' => 'value',
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -1823,26 +1823,26 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15, 'extra' => 'field'],
                 ],
             ]);
@@ -1856,26 +1856,26 @@ class StockTransactionsTest extends CIUnitTestCase
         $gudangToken = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-06',
-                'details'          => [],
+                'details' => [],
             ]);
 
         $result->assertStatus(400);
@@ -1887,20 +1887,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent transaction
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -1908,7 +1908,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-08',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -1921,7 +1921,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($parentId, $revisionJson['data']['parent_transaction_id']);
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $pendingStatusId     = $approvalStatusModel->getIdByName('PENDING');
+        $pendingStatusId = $approvalStatusModel->getIdByName('PENDING');
         $this->assertSame($pendingStatusId, $revisionJson['data']['approval_status_id']);
     }
 
@@ -1930,28 +1930,28 @@ class StockTransactionsTest extends CIUnitTestCase
         $gudangToken = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         // Create parent transaction (this will mutate qty)
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-09',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(1);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
         $this->assertSame($qtyBefore + 100, $qtyAfterParent);
 
         // Submit revision (this should NOT mutate qty)
@@ -1959,7 +1959,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-10',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 200],
                 ],
             ]);
@@ -1967,7 +1967,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $result->assertStatus(201);
 
         $itemAfterRevision = $itemModel->find(1);
-        $qtyAfterRevision  = (float) $itemAfterRevision['qty'];
+        $qtyAfterRevision = (float) $itemAfterRevision['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterRevision);
     }
 
@@ -1976,29 +1976,29 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-11',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
-        $auditModel  = new AuditLogModel();
+        $auditModel = new AuditLogModel();
         $countBefore = $auditModel->countAllResults();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-12',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -2023,14 +2023,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-12',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2041,7 +2041,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-13',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -2052,7 +2052,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $revisionId . '/submit-revision', [
                 'transaction_date' => '2026-05-14',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
@@ -2093,21 +2093,21 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create normal transaction
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-13',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         // Try to approve it
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -2123,20 +2123,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-14',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -2144,13 +2144,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-15',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Approve once
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -2172,20 +2172,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-16',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -2193,19 +2193,19 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-17',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Reject it first (we'll need reject endpoint for this, so this test will initially fail)
         // For now, manually update status
         $db = \Config\Database::connect();
         $approvalStatusModel = new ApprovalStatusModel();
-        $rejectedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
+        $rejectedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
         $db->table('stock_transactions')->where('id', $revisionId)->update(['approval_status_id' => $rejectedStatusId]);
 
         // Try to approve rejected revision
@@ -2222,20 +2222,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-18',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -2243,13 +2243,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-19',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Approve
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -2262,7 +2262,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $approveJson = json_decode($result->getJSON(), true);
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $approvedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        $approvedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
         $this->assertSame($approvedStatusId, $approveJson['data']['approval_status_id']);
         $this->assertIsInt($approveJson['data']['approved_by']);
     }
@@ -2272,28 +2272,28 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         // Create parent (will mutate qty +50)
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-20',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(1);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
         $this->assertSame($qtyBefore + 50, $qtyAfterParent);
 
         // Submit revision (+75, does NOT mutate yet)
@@ -2301,16 +2301,16 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-21',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 75],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         $itemAfterRevisionSubmit = $itemModel->find(1);
-        $qtyAfterRevisionSubmit  = (float) $itemAfterRevisionSubmit['qty'];
+        $qtyAfterRevisionSubmit = (float) $itemAfterRevisionSubmit['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterRevisionSubmit);
 
         // Approve revision (should apply delta +25)
@@ -2320,7 +2320,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->assertStatus(200);
 
         $itemAfterApprove = $itemModel->find(1);
-        $qtyAfterApprove  = (float) $itemAfterApprove['qty'];
+        $qtyAfterApprove = (float) $itemAfterApprove['qty'];
         $this->assertSame($qtyAfterParent + 25, $qtyAfterApprove);
     }
 
@@ -2329,28 +2329,28 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         // Create parent OUT (-30)
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-05-22',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 30],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(1);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
         $this->assertSame($qtyBefore - 30, $qtyAfterParent);
 
         // Submit revision (-40, does NOT mutate yet)
@@ -2358,13 +2358,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-23',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 40],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Approve revision (should apply delta -10)
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -2373,7 +2373,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->assertStatus(200);
 
         $itemAfterApprove = $itemModel->find(1);
-        $qtyAfterApprove  = (float) $itemAfterApprove['qty'];
+        $qtyAfterApprove = (float) $itemAfterApprove['qty'];
         $this->assertSame($qtyAfterParent - 10, $qtyAfterApprove);
     }
 
@@ -2381,29 +2381,29 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $adminToken = $this->login('admin');
 
-        $typeModel  = new TransactionTypeModel();
+        $typeModel = new TransactionTypeModel();
         $returnType = $typeModel->where('name', 'RETURN_IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(2);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         // Create parent RETURN_IN (+25)
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $returnType['id'],
+                'type_id' => $returnType['id'],
                 'transaction_date' => '2026-05-24',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 25],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(2);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
         $this->assertSame($qtyBefore + 25, $qtyAfterParent);
 
         // Submit revision (+35)
@@ -2411,13 +2411,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 35],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Approve revision
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -2426,7 +2426,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->assertStatus(200);
 
         $itemAfterApprove = $itemModel->find(2);
-        $qtyAfterApprove  = (float) $itemAfterApprove['qty'];
+        $qtyAfterApprove = (float) $itemAfterApprove['qty'];
         $this->assertSame($qtyAfterParent + 10, $qtyAfterApprove);
     }
 
@@ -2435,7 +2435,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $itemModel = new ItemModel();
         $qtyBefore = (float) $itemModel->find(1)['qty'];
@@ -2443,9 +2443,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2456,7 +2456,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2467,7 +2467,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 15],
                 ],
             ]);
@@ -2481,10 +2481,10 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($qtyBefore + 10, $qtyAfterSecondSubmitAttempt);
         $this->assertSame(3000.0, (float) $itemModel->find(2)['qty']);
 
-        $transactionModel    = new \App\Models\StockTransactionModel();
+        $transactionModel = new \App\Models\StockTransactionModel();
         $revisionOneAfterTry = $transactionModel->find($revisionOneId);
         $approvalStatusModel = new ApprovalStatusModel();
-        $pendingStatusId     = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
         $this->assertSame($pendingStatusId, (int) $revisionOneAfterTry['approval_status_id']);
         $this->assertSame('2026-05-27', $revisionOneAfterTry['transaction_date']);
 
@@ -2507,16 +2507,16 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $itemModel = new ItemModel();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2528,7 +2528,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2544,7 +2544,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -2559,14 +2559,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $gudangToken = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2577,8 +2577,8 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'spk_id'           => 99,
-                'details'          => [
+                'spk_id' => 99,
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                     ['item_id' => 2, 'qty' => 3, 'input_unit' => 'convert'],
                 ],
@@ -2590,8 +2590,8 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'spk_id'           => null,
-                'details'          => [
+                'spk_id' => null,
+                'details' => [
                     ['item_id' => 2, 'qty' => 500, 'input_unit' => 'base'],
                 ],
             ]);
@@ -2601,12 +2601,12 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($revisionId, $revisionTwoJson['data']['id']);
 
         $transactionModel = new StockTransactionModel();
-        $revision         = $transactionModel->find($revisionId);
+        $revision = $transactionModel->find($revisionId);
         $this->assertSame('2026-05-27', $revision['transaction_date']);
         $this->assertNull($revision['spk_id']);
 
         $detailModel = new StockTransactionDetailModel();
-        $details     = $detailModel->getDetailsByTransactionId($revisionId);
+        $details = $detailModel->getDetailsByTransactionId($revisionId);
         $this->assertCount(1, $details);
         $this->assertSame(2, (int) $details[0]['item_id']);
         $this->assertSame(500.0, (float) $details[0]['qty']);
@@ -2619,14 +2619,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2637,7 +2637,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2653,7 +2653,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -2665,7 +2665,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
         $itemModel = new ItemModel();
 
         $qtyBefore = (float) $itemModel->find(1)['qty'];
@@ -2673,9 +2673,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2688,7 +2688,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2706,7 +2706,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -2726,7 +2726,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
         $itemModel = new ItemModel();
 
         $qtyBefore = (float) $itemModel->find(1)['qty'];
@@ -2734,9 +2734,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-25',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2747,7 +2747,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2765,7 +2765,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2785,18 +2785,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $item1Before = (float) $itemModel->find(1)['qty'];
         $item2Before = (float) $itemModel->find(2)['qty'];
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-28',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2812,7 +2812,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-29',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                     ['item_id' => 2, 'qty' => 15],
                 ],
@@ -2837,18 +2837,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel   = new ItemModel();
+        $itemModel = new ItemModel();
         $item1Before = (float) $itemModel->find(1)['qty'];
         $item2Before = (float) $itemModel->find(2)['qty'];
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-30',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                     ['item_id' => 2, 'qty' => 20],
                 ],
@@ -2858,14 +2858,14 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $qtyAfterParentItem1 = (float) $itemModel->find(1)['qty'];
         $qtyAfterParentItem2 = (float) $itemModel->find(2)['qty'];
-        $this->assertSame($item1Before - 10, $qtyAfterParentItem1);
-        $this->assertSame($item2Before - 20, $qtyAfterParentItem2);
+        $this->assertSame($item1Before + 10, $qtyAfterParentItem1);
+        $this->assertSame($item2Before + 20, $qtyAfterParentItem2);
 
         $revisionResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-31',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -2889,7 +2889,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $itemModel = new ItemModel();
         $qtyBefore = (float) $itemModel->find(1)['qty'];
@@ -2897,9 +2897,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2913,7 +2913,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2933,7 +2933,7 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $adminToken = $this->login('admin');
 
-        $typeModel            = new TransactionTypeModel();
+        $typeModel = new TransactionTypeModel();
         $opnameAdjustmentType = $typeModel->where('name', TransactionTypeModel::NAME_OPNAME_ADJUSTMENT)->first();
 
         $itemModel = new ItemModel();
@@ -2942,9 +2942,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $opnameAdjustmentType['id'],
+                'type_id' => $opnameAdjustmentType['id'],
                 'transaction_date' => '2026-06-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 12],
                 ],
             ]);
@@ -2958,7 +2958,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
@@ -2979,16 +2979,16 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $itemModel = new ItemModel();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                     ['item_id' => 2, 'qty' => 10],
                 ],
@@ -3002,7 +3002,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 5],
                 ],
             ]);
@@ -3024,10 +3024,10 @@ class StockTransactionsTest extends CIUnitTestCase
         $this->assertSame($qtyAfterParentItem1, $item1AfterFailedApprove);
         $this->assertSame(5.0, $item2AfterFailedApprove);
 
-        $transactionModel  = new \App\Models\StockTransactionModel();
+        $transactionModel = new \App\Models\StockTransactionModel();
         $revisionAfterFail = $transactionModel->find($revisionId);
         $approvalStatusModel = new ApprovalStatusModel();
-        $pendingStatusId     = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
         $this->assertSame($pendingStatusId, (int) $revisionAfterFail['approval_status_id']);
     }
 
@@ -3036,20 +3036,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-26',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -3057,15 +3057,15 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
-        $auditModel  = new AuditLogModel();
+        $auditModel = new AuditLogModel();
         $countBefore = $auditModel->countAllResults();
 
         // Approve
@@ -3095,14 +3095,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-27',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3113,7 +3113,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-28',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -3121,7 +3121,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $unexpectedStatusId  = $approvalStatusModel->insert(['name' => 'ARCHIVED'], true);
+        $unexpectedStatusId = $approvalStatusModel->insert(['name' => 'ARCHIVED'], true);
 
         $db = \Config\Database::connect();
         $db->table('stock_transactions')->where('id', $revisionId)->update(['approval_status_id' => $unexpectedStatusId]);
@@ -3141,7 +3141,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
         $itemModel = new ItemModel();
 
@@ -3149,18 +3149,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-05-28',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(1);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
 
         // Submit revision requesting more additional OUT stock than is currently available.
         // Parent OUT qty=10, so any revision qty above 5000 would require more than the
@@ -3169,13 +3169,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-05-29',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => $qtyAfterParent + 11],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Try to approve (should fail)
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -3187,14 +3187,14 @@ class StockTransactionsTest extends CIUnitTestCase
 
         // Qty should be unchanged
         $itemAfterFailedApprove = $itemModel->find(1);
-        $qtyAfterFailedApprove  = (float) $itemAfterFailedApprove['qty'];
+        $qtyAfterFailedApprove = (float) $itemAfterFailedApprove['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterFailedApprove);
 
         // Revision should still be PENDING
-        $transactionModel  = new \App\Models\StockTransactionModel();
+        $transactionModel = new \App\Models\StockTransactionModel();
         $revisionAfterFail = $transactionModel->find($revisionId);
         $approvalStatusModel = new ApprovalStatusModel();
-        $pendingStatusId     = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
         $this->assertSame($pendingStatusId, (int) $revisionAfterFail['approval_status_id']);
     }
 
@@ -3227,21 +3227,21 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create normal transaction
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-30',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
         $json = json_decode($createResult->getJSON(), true);
-        $id   = $json['data']['id'];
+        $id = $json['data']['id'];
 
         // Try to reject it
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -3257,20 +3257,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-05-31',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -3278,13 +3278,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Approve it
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -3306,20 +3306,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -3327,13 +3327,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Reject once
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -3355,20 +3355,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -3376,13 +3376,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         // Reject
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
@@ -3395,7 +3395,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $rejectJson = json_decode($result->getJSON(), true);
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $rejectedStatusId    = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
+        $rejectedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_REJECTED);
         $this->assertSame($rejectedStatusId, $rejectJson['data']['approval_status_id']);
         $this->assertIsInt($rejectJson['data']['approved_by']);
 
@@ -3409,14 +3409,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3427,13 +3427,13 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
 
         $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
-        $reason     = 'Please fix the revised quantity before resubmitting.';
+        $reason = 'Please fix the revised quantity before resubmitting.';
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
@@ -3454,14 +3454,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3472,7 +3472,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
@@ -3501,14 +3501,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3519,7 +3519,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-08',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
@@ -3548,28 +3548,28 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
         $itemBefore = $itemModel->find(1);
-        $qtyBefore  = (float) $itemBefore['qty'];
+        $qtyBefore = (float) $itemBefore['qty'];
 
         // Create parent (will mutate qty +30)
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 30],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         $itemAfterParent = $itemModel->find(1);
-        $qtyAfterParent  = (float) $itemAfterParent['qty'];
+        $qtyAfterParent = (float) $itemAfterParent['qty'];
         $this->assertSame($qtyBefore + 30, $qtyAfterParent);
 
         // Submit revision (+50, does NOT mutate yet)
@@ -3577,16 +3577,16 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
         $itemAfterRevisionSubmit = $itemModel->find(1);
-        $qtyAfterRevisionSubmit  = (float) $itemAfterRevisionSubmit['qty'];
+        $qtyAfterRevisionSubmit = (float) $itemAfterRevisionSubmit['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterRevisionSubmit);
 
         // Reject revision (should NOT mutate)
@@ -3596,7 +3596,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->assertStatus(200);
 
         $itemAfterReject = $itemModel->find(1);
-        $qtyAfterReject  = (float) $itemAfterReject['qty'];
+        $qtyAfterReject = (float) $itemAfterReject['qty'];
         $this->assertSame($qtyAfterParent, $qtyAfterReject);
     }
 
@@ -3605,20 +3605,20 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Create parent
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-08',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
 
-        $json     = json_decode($createResult->getJSON(), true);
+        $json = json_decode($createResult->getJSON(), true);
         $parentId = $json['data']['id'];
 
         // Submit revision
@@ -3626,15 +3626,15 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-09',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
 
         $revisionJson = json_decode($revisionResult->getJSON(), true);
-        $revisionId   = $revisionJson['data']['id'];
+        $revisionId = $revisionJson['data']['id'];
 
-        $auditModel  = new AuditLogModel();
+        $auditModel = new AuditLogModel();
         $countBefore = $auditModel->countAllResults();
 
         // Reject
@@ -3664,14 +3664,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-06-10',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3682,7 +3682,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions/' . $parentId . '/submit-revision', [
                 'transaction_date' => '2026-06-11',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 15],
                 ],
             ]);
@@ -3690,7 +3690,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $revisionId = json_decode($revisionResult->getJSON(), true)['data']['id'];
 
         $approvalStatusModel = new ApprovalStatusModel();
-        $unexpectedStatusId  = $approvalStatusModel->insert(['name' => 'ARCHIVED'], true);
+        $unexpectedStatusId = $approvalStatusModel->insert(['name' => 'ARCHIVED'], true);
 
         $db = \Config\Database::connect();
         $db->table('stock_transactions')->where('id', $revisionId)->update(['approval_status_id' => $unexpectedStatusId]);
@@ -3712,14 +3712,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new \App\Models\TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-07-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100],
                 ],
             ]);
@@ -3732,7 +3732,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         // Verify the transaction was created with the correct type
         $transactionModel = new \App\Models\StockTransactionModel();
-        $transaction      = $transactionModel->find($json['data']['id']);
+        $transaction = $transactionModel->find($json['data']['id']);
         $this->assertSame($inType['id'], $transaction['type_id']);
     }
 
@@ -3741,14 +3741,14 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new \App\Models\TransactionTypeModel();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => '  OUT  ',
+                'type_name' => '  OUT  ',
                 'transaction_date' => '2026-07-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 50],
                 ],
             ]);
@@ -3761,7 +3761,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         // Verify the transaction was created with the correct type
         $transactionModel = new \App\Models\StockTransactionModel();
-        $transaction      = $transactionModel->find($json['data']['id']);
+        $transaction = $transactionModel->find($json['data']['id']);
         $this->assertSame($outType['id'], $transaction['type_id']);
     }
 
@@ -3769,15 +3769,15 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $token = $this->login('gudang');
 
-        $typeModel  = new \App\Models\TransactionTypeModel();
+        $typeModel = new \App\Models\TransactionTypeModel();
         $returnType = $typeModel->where('name', 'RETURN_IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'return_in',
+                'type_name' => 'return_in',
                 'transaction_date' => '2026-07-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 20],
                 ],
             ]);
@@ -3790,7 +3790,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         // Verify the transaction was created with the correct type
         $transactionModel = new \App\Models\StockTransactionModel();
-        $transaction      = $transactionModel->find($json['data']['id']);
+        $transaction = $transactionModel->find($json['data']['id']);
         $this->assertSame($returnType['id'], $transaction['type_id']);
     }
 
@@ -3799,15 +3799,15 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new \App\Models\TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
-                'type_name'        => 'IN',
+                'type_id' => $inType['id'],
+                'type_name' => 'IN',
                 'transaction_date' => '2026-07-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3827,9 +3827,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'INVALID_TYPE',
+                'type_name' => 'INVALID_TYPE',
                 'transaction_date' => '2026-07-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 10],
                 ],
             ]);
@@ -3856,9 +3856,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-01',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 500],
                 ],
             ]);
@@ -3868,7 +3868,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $json = json_decode($result->getJSON(), true);
         $transactionId = $json['data']['id'];
 
-        $db     = Database::connect();
+        $db = Database::connect();
         $detail = $db->table('stock_transaction_details')
             ->where('transaction_id', $transactionId)
             ->get()->getRowArray();
@@ -3892,9 +3892,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-02',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 2, 'input_unit' => 'convert'],
                 ],
             ]);
@@ -3904,7 +3904,7 @@ class StockTransactionsTest extends CIUnitTestCase
         $json = json_decode($result->getJSON(), true);
         $transactionId = $json['data']['id'];
 
-        $db     = Database::connect();
+        $db = Database::connect();
         $detail = $db->table('stock_transaction_details')
             ->where('transaction_id', $transactionId)
             ->get()->getRowArray();
@@ -3925,9 +3925,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $create = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-03',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 3, 'input_unit' => 'convert'],
                 ],
             ]);
@@ -3940,7 +3940,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $result->assertStatus(200);
 
-        $json    = json_decode($result->getJSON(), true);
+        $json = json_decode($result->getJSON(), true);
         $details = $json['data'] ?? [];
         $this->assertNotEmpty($details);
 
@@ -3973,9 +3973,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $create = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 1000],
                 ],
             ]);
@@ -3988,7 +3988,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post("api/v1/stock-transactions/{$parentId}/submit-revision", [
                 'transaction_date' => '2026-08-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 1, 'input_unit' => 'convert'],
                 ],
             ]);
@@ -3997,7 +3997,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $revisionId = json_decode($result->getJSON(), true)['data']['id'];
 
-        $db     = Database::connect();
+        $db = Database::connect();
         $detail = $db->table('stock_transaction_details')
             ->where('transaction_id', $revisionId)
             ->get()->getRowArray();
@@ -4015,9 +4015,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $create = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-04',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 1000],
                 ],
             ]);
@@ -4029,7 +4029,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post("api/v1/stock-transactions/{$parentId}/submit-revision", [
                 'transaction_date' => '2026-08-05',
-                'details'          => [
+                'details' => [
                     ['item_id' => 2, 'qty' => 750],
                 ],
             ]);
@@ -4038,7 +4038,7 @@ class StockTransactionsTest extends CIUnitTestCase
 
         $revisionId = json_decode($result->getJSON(), true)['data']['id'];
 
-        $db     = Database::connect();
+        $db = Database::connect();
         $detail = $db->table('stock_transaction_details')
             ->where('transaction_id', $revisionId)
             ->get()->getRowArray();
@@ -4054,9 +4054,9 @@ class StockTransactionsTest extends CIUnitTestCase
      */
     public function testApproveRevisionUsesNormalizedQtyForStockMutation(): void
     {
-        $token      = $this->login('gudang');
+        $token = $this->login('gudang');
         $adminToken = $this->login('admin');
-        $itemModel  = new ItemModel();
+        $itemModel = new ItemModel();
 
         // Beras starts at 5000 g
         $before = (float) $itemModel->find(1)['qty'];
@@ -4065,9 +4065,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $create = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-06',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 100],
                 ],
             ]);
@@ -4080,7 +4080,7 @@ class StockTransactionsTest extends CIUnitTestCase
             ->withBodyFormat('json')
             ->post("api/v1/stock-transactions/{$parentId}/submit-revision", [
                 'transaction_date' => '2026-08-07',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 4, 'input_unit' => 'convert'],
                 ],
             ]);
@@ -4112,9 +4112,9 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'        => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-08-08',
-                'details'          => [
+                'details' => [
                     ['item_id' => 1, 'qty' => 5, 'input_unit' => 'kilos'],
                 ],
             ]);
@@ -4135,24 +4135,24 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
-        $outType   = $typeModel->where('name', 'OUT')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
+        $outType = $typeModel->where('name', 'OUT')->first();
 
         // Create an IN and an OUT transaction
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-09-01',
-                'details'          => [['item_id' => 1, 'qty' => 10]],
+                'details' => [['item_id' => 1, 'qty' => 10]],
             ])->assertStatus(201);
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $outType['id'],
+                'type_id' => $outType['id'],
                 'transaction_date' => '2026-09-02',
-                'details'          => [['item_id' => 1, 'qty' => 5]],
+                'details' => [['item_id' => 1, 'qty' => 5]],
             ])->assertStatus(201);
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
@@ -4172,16 +4172,16 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('gudang');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         // Three transactions: before, within, after the range
         foreach (['2026-09-10', '2026-09-15', '2026-09-20'] as $date) {
             $this->withHeaders(['Authorization' => 'Bearer ' . $token])
                 ->withBodyFormat('json')
                 ->post('api/v1/stock-transactions', [
-                    'type_id'          => $inType['id'],
+                    'type_id' => $inType['id'],
                     'transaction_date' => $date,
-                    'details'          => [['item_id' => 1, 'qty' => 5]],
+                    'details' => [['item_id' => 1, 'qty' => 5]],
                 ])->assertStatus(201);
         }
 
@@ -4201,24 +4201,24 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-09-25',
-                'spk_id'           => 12345,
-                'details'          => [['item_id' => 1, 'qty' => 10]],
+                'spk_id' => 12345,
+                'details' => [['item_id' => 1, 'qty' => 10]],
             ])->assertStatus(201);
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-09-26',
-                'spk_id'           => 99999,
-                'details'          => [['item_id' => 1, 'qty' => 10]],
+                'spk_id' => 99999,
+                'details' => [['item_id' => 1, 'qty' => 10]],
             ])->assertStatus(201);
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
@@ -4236,24 +4236,24 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login('admin');
 
         $typeModel = new TransactionTypeModel();
-        $inType    = $typeModel->where('name', 'IN')->first();
+        $inType = $typeModel->where('name', 'IN')->first();
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-09-27',
-                'spk_id'           => 12345,
-                'details'          => [['item_id' => 1, 'qty' => 10]],
+                'spk_id' => 12345,
+                'details' => [['item_id' => 1, 'qty' => 10]],
             ])->assertStatus(201);
 
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_id'          => $inType['id'],
+                'type_id' => $inType['id'],
                 'transaction_date' => '2026-09-28',
-                'spk_id'           => 99999,
-                'details'          => [['item_id' => 1, 'qty' => 10]],
+                'spk_id' => 99999,
+                'details' => [['item_id' => 1, 'qty' => 10]],
             ])->assertStatus(201);
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
@@ -4343,18 +4343,18 @@ class StockTransactionsTest extends CIUnitTestCase
         $token = $this->login($username);
 
         $itemModel = new ItemModel();
-        $items     = $itemModel->findAll();
-        $item      = $items[0];
+        $items = $itemModel->findAll();
+        $item = $items[0];
 
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'  => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => '2026-04-30',
-                'details'    => [
+                'details' => [
                     [
-                        'item_id'  => $item['id'],
-                        'qty'      => 10,
+                        'item_id' => $item['id'],
+                        'qty' => 10,
                     ],
                 ],
             ]);
@@ -4367,7 +4367,7 @@ class StockTransactionsTest extends CIUnitTestCase
     {
         $token = $this->login('admin');
         $db = Database::connect();
-        
+
         // Clean any existing snapshots for current month
         $currentMonth = date('Y-m') . '-01';
         $db->table('monthly_stock_snapshots')->where('period_month', $currentMonth)->delete();
@@ -4379,12 +4379,12 @@ class StockTransactionsTest extends CIUnitTestCase
         $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/stock-transactions', [
-                'type_name'  => 'IN',
+                'type_name' => 'IN',
                 'transaction_date' => date('Y-m-d'),
-                'details'    => [
+                'details' => [
                     [
-                        'item_id'  => $item['id'],
-                        'qty'      => 10,
+                        'item_id' => $item['id'],
+                        'qty' => 10,
                     ],
                 ],
             ]);
@@ -4419,12 +4419,12 @@ class StockTransactionsTest extends CIUnitTestCase
             $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
                 ->withBodyFormat('json')
                 ->post('api/v1/stock-transactions', [
-                    'type_name'  => 'IN',
+                    'type_name' => 'IN',
                     'transaction_date' => date('Y-m-d'),
-                    'details'    => [
+                    'details' => [
                         [
-                            'item_id'  => $item['id'],
-                            'qty'      => 10,
+                            'item_id' => $item['id'],
+                            'qty' => 10,
                         ],
                     ],
                 ]);
@@ -4434,6 +4434,291 @@ class StockTransactionsTest extends CIUnitTestCase
             // Restore table name
             $db->query("ALTER TABLE {$tempTableName} RENAME TO {$tableName}");
         }
+    }
+
+    public function testOutBasahDraftCreatedAsPendingWithoutMutatingStock(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        $itemModel = new ItemModel();
+        $itemBefore = $itemModel->find(2);
+        $qtyBefore = (float) $itemBefore['qty'];
+
+        $result = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-10',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 100],
+                ],
+            ]);
+
+        $result->assertStatus(201);
+        $result->assertJSONFragment(['message' => 'OUT Basah draft created successfully.']);
+
+        $json = json_decode($result->getJSON(), true);
+        $approvalStatusModel = new ApprovalStatusModel();
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $this->assertSame($pendingStatusId, $json['data']['approval_status_id']);
+        $this->assertFalse($json['data']['is_revision']);
+
+        $itemAfter = $itemModel->find(2);
+        $qtyAfter = (float) $itemAfter['qty'];
+        $this->assertSame($qtyBefore, $qtyAfter);
+    }
+
+    public function testOutBasahAllowedWhenKeringExistsSameDate(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // KERING OUT — should be APPROVED directly
+        $result1 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-11',
+                'details' => [
+                    ['item_id' => 1, 'qty' => 100],
+                ],
+            ]);
+
+        $result1->assertStatus(201);
+        $json1 = json_decode($result1->getJSON(), true);
+        $approvalStatusModel = new ApprovalStatusModel();
+        $approvedStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_APPROVED);
+        $this->assertSame($approvedStatusId, $json1['data']['approval_status_id']);
+
+        // BASAH OUT same date — should be PENDING draft
+        $result2 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-11',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 100],
+                ],
+            ]);
+
+        $result2->assertStatus(201);
+        $json2 = json_decode($result2->getJSON(), true);
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $this->assertSame($pendingStatusId, $json2['data']['approval_status_id']);
+    }
+
+    public function testDuplicateOutKeringSameDateReturnsConflict(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // First KERING OUT should be created directly as APPROVED
+        $result1 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-16',
+                'details' => [
+                    ['item_id' => 1, 'qty' => 40],
+                ],
+            ]);
+
+        $result1->assertStatus(201);
+
+        // Second KERING OUT same date should be rejected by day guard
+        $result2 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-16',
+                'details' => [
+                    ['item_id' => 1, 'qty' => 20],
+                ],
+            ]);
+
+        $result2->assertStatus(409);
+        $result2->assertJSONFragment([
+            'message' => 'Validation failed.',
+            'errors' => [
+                'transaction' => 'OUT Kering/Pengemas transaction already exists for this date.',
+            ],
+        ]);
+    }
+
+    public function testDuplicateOutBasahSameDateReturnsConflict(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // Create first BASAH draft
+        $result1 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-12',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 50],
+                ],
+            ]);
+
+        $result1->assertStatus(201);
+
+        // Create second BASAH draft same date — should be 409
+        $result2 = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-12',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 30],
+                ],
+            ]);
+
+        $result2->assertStatus(409);
+        $result2->assertJSONFragment([
+            'message' => 'Validation failed.',
+            'errors' => [
+                'transaction' => 'OUT Basah draft already exists for this date.',
+            ],
+        ]);
+    }
+
+    public function testUpdateDraftRejectsKeringItem(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // Create BASAH draft
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-13',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 100],
+                ],
+            ]);
+
+        $createResult->assertStatus(201);
+        $json = json_decode($createResult->getJSON(), true);
+        $id = $json['data']['id'];
+
+        // Update with KERING item — should be 400
+        $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->put('api/v1/stock-transactions/' . $id, [
+                'details' => [
+                    ['item_id' => 1, 'qty' => 50],
+                ],
+            ]);
+
+        $updateResult->assertStatus(400);
+        $updateResult->assertJSONFragment([
+            'message' => 'Validation failed.',
+            'errors' => [
+                'details.0.item_id' => 'OUT Basah draft can only contain BASAH items.',
+            ],
+        ]);
+    }
+
+    public function testUpdateDraftAcceptsBasahItem(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // Create BASAH draft
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-14',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 100],
+                ],
+            ]);
+
+        $createResult->assertStatus(201);
+        $json = json_decode($createResult->getJSON(), true);
+        $id = $json['data']['id'];
+
+        // Update with different BASAH qty
+        $updateResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->put('api/v1/stock-transactions/' . $id, [
+                'details' => [
+                    ['item_id' => 2, 'qty' => 75],
+                ],
+            ]);
+
+        $updateResult->assertStatus(200);
+        $updateResult->assertJSONFragment(['message' => 'OUT Basah draft updated successfully.']);
+
+        // Verify persisted qty
+        $detailModel = new StockTransactionDetailModel();
+        $details = $detailModel->getDetailsByTransactionId($id);
+        $this->assertCount(1, $details);
+        $this->assertSame('75.00', number_format((float) $details[0]['qty'], 2, '.', ''));
+    }
+
+    public function testSubmitDraftRejectsCorruptedNonBasahDetail(): void
+    {
+        $token = $this->login('admin');
+
+        $typeModel = new TransactionTypeModel();
+        $outType = $typeModel->where('name', 'OUT')->first();
+
+        // Create BASAH draft
+        $createResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions', [
+                'type_id' => $outType['id'],
+                'transaction_date' => '2026-07-15',
+                'details' => [
+                    ['item_id' => 2, 'qty' => 100],
+                ],
+            ]);
+
+        $createResult->assertStatus(201);
+        $json = json_decode($createResult->getJSON(), true);
+        $id = $json['data']['id'];
+
+        // Corrupt the detail row directly in DB — change item_id to KERING item 1
+        $db = Database::connect();
+        $db->table('stock_transaction_details')
+            ->where('transaction_id', $id)
+            ->update(['item_id' => 1]);
+
+        // Submit — should be 400
+        $submitResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/stock-transactions/' . $id . '/submit');
+
+        $submitResult->assertStatus(400);
+        $submitResult->assertJSONFragment([
+            'message' => 'Validation failed.',
+            'errors' => [
+                'details.0.item_id' => 'OUT Basah draft can only contain BASAH items.',
+            ],
+        ]);
+
+        $transactionModel = new StockTransactionModel();
+        $transaction = $transactionModel->findById($id);
+        $approvalStatusModel = new ApprovalStatusModel();
+        $pendingStatusId = $approvalStatusModel->getIdByName(ApprovalStatusModel::NAME_PENDING);
+        $this->assertSame($pendingStatusId, (int) $transaction['approval_status_id']);
     }
 }
 

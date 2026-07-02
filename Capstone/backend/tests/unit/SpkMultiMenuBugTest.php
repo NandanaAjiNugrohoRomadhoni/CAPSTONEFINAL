@@ -15,10 +15,10 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
-    protected $migrate     = true;
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -28,22 +28,23 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
 
     public function testSpkBasahMultiMenuMultiplication(): void
     {
-        $db      = Database::connect();
-        $itemId  = $this->createBasahItem('Basah Item', 'gram', 0.0);
-        $dishId  = $this->createDishWithComposition('Test Dish', $itemId, 100.0);
+        $db = Database::connect();
+        $itemId = $this->createBasahItem('Basah Item', 'gram', 0.0);
+        $dishId = $this->createDishWithComposition('Test Dish', $itemId, 100.0);
         $menuIds = $this->createMenusForDishes([$dishId, $dishId]);
-        $date    = $this->seedScheduleAndPatients($menuIds, 100);
+        $date = $this->seedScheduleAndPatients($menuIds, 100);
+        $firstTargetDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
         $service = new SpkBasahGenerationService();
-        $result  = $service->generate(['service_date' => $date], 1);
+        $result = $service->generate(['service_date' => $date], 1);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             $this->fail('Generation failed: ' . json_encode($result['errors']));
         }
 
         $recommendations = (new \App\Models\SpkRecommendationModel())
             ->where('item_id', $itemId)
-            ->where('target_date', $date)
+            ->where('target_date', $firstTargetDate)
             ->findAll();
 
         $this->assertCount(1, $recommendations);
@@ -56,70 +57,73 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
 
     public function testSpkBasahRoundingBug(): void
     {
-        $itemId  = $this->createBasahItem('Small Qty Item', 'kg', 0.0);
-        $dishId  = $this->createDishWithComposition('Salted Dish', $itemId, 0.001);
+        $itemId = $this->createBasahItem('Small Qty Item', 'kg', 0.0);
+        $dishId = $this->createDishWithComposition('Salted Dish', $itemId, 0.001);
         $menuIds = $this->createMenusForDishes([$dishId]);
-        $date    = $this->seedScheduleAndPatients($menuIds, 10);
+        $date = $this->seedScheduleAndPatients($menuIds, 10);
+        $firstTargetDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
         $service = new SpkBasahGenerationService();
-        $result  = $service->generate(['service_date' => $date], 1);
+        $result = $service->generate(['service_date' => $date], 1);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             $this->fail('Generation failed: ' . json_encode($result['errors']));
         }
 
         $recommendations = (new \App\Models\SpkRecommendationModel())
             ->where('item_id', $itemId)
-            ->where('target_date', $date)
+            ->where('target_date', $firstTargetDate)
             ->findAll();
 
         $this->assertCount(1, $recommendations);
-        $this->assertSame(0.0105, (float) $recommendations[0]['required_qty']);
-        $this->assertSame(0.0105, (float) $recommendations[0]['recommended_qty']);
+        $this->assertSame(1.0, (float) $recommendations[0]['required_qty']);
+        $this->assertSame(1.0, (float) $recommendations[0]['recommended_qty']);
     }
 
     public function testSpkBasahDecimalStockSubtraction(): void
     {
-        $itemId  = $this->createBasahItem('Small Stock Item', 'kg', 0.005);
-        $dishId  = $this->createDishWithComposition('Stocked Dish', $itemId, 0.001);
+        $itemId = $this->createBasahItem('Small Stock Item', 'kg', 0.005);
+        $dishId = $this->createDishWithComposition('Stocked Dish', $itemId, 0.001);
         $menuIds = $this->createMenusForDishes([$dishId]);
-        $date    = $this->seedScheduleAndPatients($menuIds, 10);
+        $date = $this->seedScheduleAndPatients($menuIds, 10);
+        $firstTargetDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
         $service = new SpkBasahGenerationService();
-        $result  = $service->generate(['service_date' => $date], 1);
+        $result = $service->generate(['service_date' => $date], 1);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             $this->fail('Generation failed: ' . json_encode($result['errors']));
         }
 
         $recommendations = (new \App\Models\SpkRecommendationModel())
             ->where('item_id', $itemId)
-            ->where('target_date', $date)
+            ->where('target_date', $firstTargetDate)
             ->findAll();
 
         $this->assertCount(1, $recommendations);
-        $this->assertSame(0.0105, (float) $recommendations[0]['required_qty']);
-        $this->assertSame(0.0055, (float) $recommendations[0]['recommended_qty']);
+        $this->assertSame(1.0, (float) $recommendations[0]['required_qty']);
+        $this->assertSame(0.995, (float) $recommendations[0]['recommended_qty']);
     }
 
     public function testSpkBasahDifferentDishesSameDateStillSum(): void
     {
-        $itemId      = $this->createBasahItem('Shared Basah Item', 'gram', 0.0);
+        $itemId = $this->createBasahItem('Shared Basah Item', 'gram', 0.0);
         $firstDishId = $this->createDishWithComposition('First Dish', $itemId, 100.0);
         $secondDishId = $this->createDishWithComposition('Second Dish', $itemId, 25.0);
-        $menuIds     = $this->createMenusForDishes([$firstDishId, $secondDishId]);
-        $date        = $this->seedScheduleAndPatients($menuIds, 100);
+        $menuIds = $this->createMenusForDishes([$firstDishId, $secondDishId]);
+        $date = $this->seedScheduleAndPatients($menuIds, 100);
+        $firstTargetDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
         $service = new SpkBasahGenerationService();
-        $result  = $service->generate(['service_date' => $date], 1);
+        $result = $service->generate(['service_date' => $date], 1);
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             $this->fail('Generation failed: ' . json_encode($result['errors']));
         }
 
         $recommendations = (new \App\Models\SpkRecommendationModel())
             ->where('item_id', $itemId)
-            ->where('target_date', $date)
+            ->where('target_date', $firstTargetDate)
             ->findAll();
 
         $this->assertCount(1, $recommendations);
@@ -223,11 +227,17 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
     private function seedScheduleAndPatients(array $menuIds, int $patients): string
     {
         $db = Database::connect();
-        $serviceDate = date('Y-m-d');
+        $serviceDate = '2026-03-10';
         $targetDates = [
-            $serviceDate,
             date('Y-m-d', strtotime($serviceDate . ' +1 day')),
+            date('Y-m-d', strtotime($serviceDate . ' +2 day')),
         ];
+
+        $db->table('daily_patients')->where('service_date', $serviceDate)->delete();
+        $db->table('daily_patients')->insert([
+            'service_date' => $serviceDate,
+            'total_patients' => $patients,
+        ]);
 
         foreach ($targetDates as $targetDate) {
             $day = (int) date('j', strtotime($targetDate));
@@ -238,12 +248,6 @@ class SpkMultiMenuBugTest extends CIUnitTestCase
                     'menu_id' => $menuId,
                 ]);
             }
-
-            $db->table('daily_patients')->where('service_date', $targetDate)->delete();
-            $db->table('daily_patients')->insert([
-                'service_date' => $targetDate,
-                'total_patients' => $patients,
-            ]);
         }
 
         return $serviceDate;

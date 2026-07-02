@@ -34,7 +34,7 @@ export class StockTransactionsResource {
    *
    * @endpoint GET /api/v1/stock-transactions
    * @access   admin | gudang
-   * @param query - Supports `page`, `perPage`, `q`/`search` on `spk_id` (`q` wins), `sortBy`, `sortDir`, `type_id`, `status_id`, `transaction_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
+   * @param query - Supports `page`, `perPage`, `q`/`search` on `spk_id` (`q` wins), `sortBy`, `sortDir`, `type_id`, `status_id`, `category_id`, `transaction_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
    * @returns {Promise<ApiListResponse<StockTransaction>>}
    * @throws {ValidationApiError} if query validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)
@@ -251,6 +251,7 @@ function buildStockTransactionsQuery(query: ListStockTransactionsQuery): Record<
   if (query.sortDir !== undefined) result.sortDir = query.sortDir;
   if (query.type_id !== undefined) result.type_id = query.type_id;
   if (query.status_id !== undefined) result.status_id = query.status_id;
+  if (query.category_id !== undefined) result.category_id = query.category_id;
   if (query.transaction_date_from !== undefined) result.transaction_date_from = query.transaction_date_from;
   if (query.transaction_date_to !== undefined) result.transaction_date_to = query.transaction_date_to;
   if (query.created_at_from !== undefined) result.created_at_from = query.created_at_from;

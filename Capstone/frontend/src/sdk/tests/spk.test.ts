@@ -18,8 +18,8 @@ describe("SpkResource", () => {
             data: {
               id: 10,
               version: 1,
-              scope_key: "basah:2026-03-01:2026-03-02:1",
-              target_dates: ["2026-03-01", "2026-03-02"],
+              scope_key: "basah|combined_window|2026-03-10|1",
+              target_dates: ["2026-03-11", "2026-03-12"],
               estimated_patients: 105
             }
           }),
@@ -36,12 +36,12 @@ describe("SpkResource", () => {
               {
                 id: 10,
                 version: 1,
-                scope_key: "basah:2026-03-01:2026-03-02:1",
+                scope_key: "basah|combined_window|2026-03-10|1",
                 is_latest: true,
                 calculation_scope: "combined_window",
-                calculation_date: "2026-03-01",
-                target_date_start: "2026-03-01",
-                target_date_end: "2026-03-02",
+                calculation_date: "2026-03-10",
+                target_date_start: "2026-03-11",
+                target_date_end: "2026-03-12",
                 target_month: null,
                 estimated_patients: 105,
                 is_finish: false,
@@ -64,13 +64,13 @@ describe("SpkResource", () => {
             data: {
               id: 10,
               version: 1,
-              scope_key: "basah:2026-03-01:2026-03-02:1",
+              scope_key: "basah|combined_window|2026-03-10|1",
               is_latest: true,
               spk_type: "basah",
               calculation_scope: "combined_window",
-              calculation_date: "2026-03-01",
-              target_date_start: "2026-03-01",
-              target_date_end: "2026-03-02",
+              calculation_date: "2026-03-10",
+              target_date_start: "2026-03-11",
+              target_date_end: "2026-03-12",
               target_month: null,
               estimated_patients: 105,
               is_finish: false,
@@ -85,7 +85,7 @@ describe("SpkResource", () => {
                   item_name: "Ayam Basah",
                   item_unit_base: "gram",
                   item_unit_convert: "kg",
-                  target_date: "2026-03-01",
+                  target_date: "2026-03-11",
                   current_stock_qty: 100,
                   required_qty: 210,
                   system_recommended_qty: 110,
@@ -102,10 +102,10 @@ describe("SpkResource", () => {
                 spk_id: 10,
                 spk_type: "basah",
                 version: 1,
-                calculation_date: "2026-03-01",
-                target_date_start: "2026-03-01",
-                target_date_end: "2026-03-02",
-                target_dates: ["2026-03-01", "2026-03-02"],
+                calculation_date: "2026-03-10",
+                target_date_start: "2026-03-11",
+                target_date_end: "2026-03-12",
+                target_dates: ["2026-03-11", "2026-03-12"],
                 estimated_patients: 105,
                 category_name: "BASAH",
                 generated_by: "Dapur User",
@@ -116,7 +116,7 @@ describe("SpkResource", () => {
                     item_name: "Ayam Basah",
                     item_unit_base: "gram",
                     item_unit_convert: "kg",
-                    target_date: "2026-03-01",
+                    target_date: "2026-03-11",
                     current_stock_qty: 100,
                     required_qty: 210,
                     system_recommended_qty: 110,
@@ -142,7 +142,7 @@ describe("SpkResource", () => {
     const sdk = new CapstoneSdk({ fetchImplementation: fetchMock });
 
     await sdk.spk.generateBasah({
-      service_date: "2026-03-01",
+      service_date: "2026-03-10",
       regenerate: false
     });
     await sdk.spk.listBasah();
@@ -156,7 +156,7 @@ describe("SpkResource", () => {
     expect(generateInit?.method).toBe("POST");
     expect(generateInit?.body).toBe(
       JSON.stringify({
-        service_date: "2026-03-01",
+        service_date: "2026-03-10",
         regenerate: false
       })
     );
@@ -175,7 +175,7 @@ describe("SpkResource", () => {
             data: {
               id: 21,
               version: 2,
-              scope_key: "kering_pengemas:2026-04:2",
+              scope_key: "kering_pengemas|monthly|2026-04|2",
               target_month: "2026-04"
             }
           }),
@@ -192,7 +192,7 @@ describe("SpkResource", () => {
               {
                 id: 21,
                 version: 2,
-                scope_key: "kering_pengemas:2026-04:2",
+                scope_key: "kering_pengemas|monthly|2026-04|2",
                 is_latest: true,
                 calculation_scope: "monthly",
                 calculation_date: "2026-04-01",
@@ -220,7 +220,7 @@ describe("SpkResource", () => {
             data: {
               id: 21,
               version: 2,
-              scope_key: "kering_pengemas:2026-04:2",
+              scope_key: "kering_pengemas|monthly|2026-04|2",
               is_latest: true,
               spk_type: "kering_pengemas",
               calculation_scope: "monthly",
@@ -320,12 +320,12 @@ describe("SpkResource", () => {
         {
           id: 1,
           version: 1,
-          scope_key: "basah:2026-03-01:2026-03-02:1",
+          scope_key: "basah|combined_window|2026-03-10|1",
           is_latest: true,
           calculation_scope: "combined_window",
-          calculation_date: "2026-03-01",
-          target_date_start: "2026-03-01",
-          target_date_end: "2026-03-02",
+          calculation_date: "2026-03-10",
+          target_date_start: "2026-03-11",
+          target_date_end: "2026-03-12",
           target_month: null,
           estimated_patients: 105,
           is_finish: false,
@@ -342,7 +342,7 @@ describe("SpkResource", () => {
         {
           id: 2,
           version: 1,
-          scope_key: "kering_pengemas:2026-04:2",
+          scope_key: "kering_pengemas|monthly|2026-04|2",
           is_latest: true,
           calculation_scope: "monthly",
           calculation_date: "2026-04-01",
@@ -363,18 +363,18 @@ describe("SpkResource", () => {
       data: {
         id: 1,
         version: 1,
-        scope_key: "basah:2026-03-01:2026-03-02:1",
+        scope_key: "basah|combined_window|2026-03-10|1",
         is_latest: true,
         spk_type: "basah",
         calculation_scope: "combined_window",
-        calculation_date: "2026-03-01",
-        target_date_start: "2026-03-01",
-        target_date_end: "2026-03-02",
+        calculation_date: "2026-03-10",
+        target_date_start: "2026-03-11",
+        target_date_end: "2026-03-12",
         target_month: null,
         estimated_patients: 105,
         is_finish: false,
-        created_at: "2026-03-01 06:00:00",
-        updated_at: "2026-03-01 06:00:00",
+        created_at: "2026-03-10 06:00:00",
+        updated_at: "2026-03-10 06:00:00",
         user: { id: 2, name: "Dapur User", username: "dapur" },
         category: { id: 1, name: "BASAH" },
         items: [
@@ -384,7 +384,7 @@ describe("SpkResource", () => {
             item_name: "Ayam Basah",
             item_unit_base: "gram",
             item_unit_convert: "kg",
-            target_date: "2026-03-01",
+            target_date: "2026-03-11",
             current_stock_qty: 100,
             required_qty: 210,
             system_recommended_qty: 110,
@@ -401,10 +401,10 @@ describe("SpkResource", () => {
           spk_id: 1,
           spk_type: "basah",
           version: 1,
-          calculation_date: "2026-03-01",
-          target_date_start: "2026-03-01",
-          target_date_end: "2026-03-02",
-          target_dates: ["2026-03-01", "2026-03-02"],
+          calculation_date: "2026-03-10",
+          target_date_start: "2026-03-11",
+          target_date_end: "2026-03-12",
+          target_dates: ["2026-03-11", "2026-03-12"],
           estimated_patients: 105,
           category_name: "BASAH",
           generated_by: "Dapur User",
@@ -417,7 +417,7 @@ describe("SpkResource", () => {
       data: {
         id: 2,
         version: 1,
-        scope_key: "kering_pengemas:2026-04:2",
+        scope_key: "kering_pengemas|monthly|2026-04|2",
         is_latest: true,
         spk_type: "kering_pengemas",
         calculation_scope: "monthly",
@@ -470,10 +470,10 @@ describe("SpkResource", () => {
     expect(basahList.meta.total).toBe(1);
     expect(keringList.meta.total).toBe(1);
 
-    expect(basahDetail.data.print_ready.target_dates).toEqual(["2026-03-01", "2026-03-02"]);
+    expect(basahDetail.data.print_ready.target_dates).toEqual(["2026-03-11", "2026-03-12"]);
     expect(keringDetail.data.print_ready.target_month).toBe("2026-04");
 
-    expect(basahDetail.data.items[0]?.target_date).toBe("2026-03-01");
+    expect(basahDetail.data.items[0]?.target_date).toBe("2026-03-11");
     expect(keringDetail.data.items[0]?.target_date).toBeNull();
   });
 

@@ -49,8 +49,8 @@ export interface SpkBaseRecommendationItem {
 }
 
 /**
- * Basah detail rows are day-scoped because generation uses a same-month
- * combined window (`service_date` + optional next-day).
+ * Basah detail rows are day-scoped because generation resolves one or two
+ * target dates from `service_date` based on runtime schedule rules.
  */
 export interface SpkBasahRecommendationItem extends SpkBaseRecommendationItem {
   target_date: string;
@@ -148,6 +148,10 @@ export interface SpkKeringPengemasDetail {
 }
 
 export interface GenerateSpkBasahRequest {
+  /**
+   * Service date used as generation anchor.
+   * Runtime policy: even dates are allowed, plus special dates day 31 and leap-year February 29.
+   */
   service_date: string;
   regenerate?: boolean;
 }
@@ -217,7 +221,7 @@ export interface SpkMenuCalendarEntry {
   menu_name: string;
 }
 
-export interface SpkMenuCalendarDateResponse extends ApiDataResponse<SpkMenuCalendarEntry> {}
+export interface SpkMenuCalendarDateResponse extends ApiDataResponse<SpkMenuCalendarEntry> { }
 
 export interface SpkMenuCalendarMonthResponse extends ApiDataResponse<SpkMenuCalendarEntry[]> {
   meta: {

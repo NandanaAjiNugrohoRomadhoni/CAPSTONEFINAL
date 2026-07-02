@@ -29,7 +29,7 @@ import type {
  * Wraps SPK basah and kering/pengemas generation, history, override, posting, and helper endpoints.
  */
 export class SpkResource {
-  public constructor(private readonly client: ApiClient) {}
+  public constructor(private readonly client: ApiClient) { }
 
   /**
    * Resolves the SPK basah menu-calendar projection.
@@ -77,7 +77,10 @@ export class SpkResource {
    *
    * @endpoint POST /api/v1/spk/basah/generate
    * @access   admin | dapur | gudang
-   * @param payload - Basah generation input. Recommendations follow `((daily_patients × 1.05) × composition_qty) - current_stock`, clamped to 0.
+    * @param payload - Basah generation input.
+    * Runtime generation-date policy allows even service dates, plus special dates day 31 and leap-year February 29.
+    * Target dates are resolved by backend schedule rules (regularly H+1/H+2, with single-day exceptions at month/leap boundaries).
+    * Recommendations follow `((daily_patients × 1.05) × composition_qty) - current_stock`, clamped to 0.
    * @returns {Promise<SpkBasahGenerateResponse>}
    * @throws {ValidationApiError} if validation fails (400)
    * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)

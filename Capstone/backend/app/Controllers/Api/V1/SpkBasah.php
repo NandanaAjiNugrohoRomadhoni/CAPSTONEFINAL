@@ -30,13 +30,13 @@ class SpkBasah extends BaseController
 
     public function __construct()
     {
-        $this->menuScheduleService        = new MenuScheduleManagementService();
-        $this->spkBasahGenerationService  = new SpkBasahGenerationService();
+        $this->menuScheduleService = new MenuScheduleManagementService();
+        $this->spkBasahGenerationService = new SpkBasahGenerationService();
         $this->operationalStockPreviewService = new OperationalStockPreviewService();
-        $this->spkOverrideService         = new SpkOverrideService();
-        $this->spkCalculationModel        = new SpkCalculationModel();
-        $this->spkRecommendationModel     = new SpkRecommendationModel();
-        $this->spkStockPostingService     = new SpkStockPostingService();
+        $this->spkOverrideService = new SpkOverrideService();
+        $this->spkCalculationModel = new SpkCalculationModel();
+        $this->spkRecommendationModel = new SpkRecommendationModel();
+        $this->spkStockPostingService = new SpkStockPostingService();
     }
 
     /**
@@ -60,12 +60,12 @@ class SpkBasah extends BaseController
             $this->request->getJSON(true) ?? []
         );
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -98,12 +98,12 @@ class SpkBasah extends BaseController
     {
         $result = $this->menuScheduleService->resolveCalendar($this->request->getGet());
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode(400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -126,7 +126,7 @@ class SpkBasah extends BaseController
      *     operationId="generateSpkBasah",
      *     tags={"SPK Basah"},
      *     summary="Generate SPK basah",
-     *     description="Generates a new versioned SPK basah history row and recommendation set for the requested service_date. Accessible to admin, dapur, and gudang users. Runtime requires a valid service_date in Y-m-d format and an existing daily-patient row for that date, then applies a 5 percent patient buffer (ceiling) and targets the requested day plus the next day when both remain in the same calendar month. Generation creates SPK calculation and recommendation history only; it does not create stock transactions or finalize stock movement.",
+     *     description="Generates a new versioned SPK basah history row and recommendation set for the requested service_date. Accessible to admin, dapur, and gudang users. Runtime requires a valid service_date in Y-m-d format, an existing daily-patient row for that date, and a generation date that follows the basah schedule policy: even days are allowed, plus special dates 31 and leap-year February 29. Target dates are resolved as follows: regular allowed dates generate H+1 and H+2, day 30 in a 31-day month generates only day 31, and day 28 in leap-year February generates only day 29. Generation creates SPK calculation and recommendation history only; it does not create stock transactions or finalize stock movement.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateRequest")),
      *     @OA\Response(response=201, description="SPK basah generated successfully. Response contains versioning and target-date metadata, not stock-posting artifacts.", @OA\JsonContent(ref="#/components/schemas/SpkBasahGenerateResponse")),
@@ -152,12 +152,12 @@ class SpkBasah extends BaseController
             (int) $user->id
         );
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode($result['status'] ?? 400)
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                     ...((isset($result['conflict']) && is_array($result['conflict'])) ? ['conflict' => $result['conflict']] : []),
                 ]);
         }
@@ -166,7 +166,7 @@ class SpkBasah extends BaseController
             ->setStatusCode(201)
             ->setJSON([
                 'message' => 'SPK basah generated successfully.',
-                'data'    => $result['data'],
+                'data' => $result['data'],
             ]);
     }
 
@@ -199,25 +199,25 @@ class SpkBasah extends BaseController
             ->setJSON([
                 'data' => array_map(static function (array $row): array {
                     return [
-                        'id'                => (int) $row['id'],
-                        'version'           => (int) $row['version'],
-                        'scope_key'         => (string) $row['scope_key'],
-                        'is_latest'         => (bool) $row['is_latest'],
+                        'id' => (int) $row['id'],
+                        'version' => (int) $row['version'],
+                        'scope_key' => (string) $row['scope_key'],
+                        'is_latest' => (bool) $row['is_latest'],
                         'calculation_scope' => (string) $row['calculation_scope'],
-                        'calculation_date'  => $row['calculation_date'],
+                        'calculation_date' => $row['calculation_date'],
                         'target_date_start' => $row['target_date_start'],
-                        'target_date_end'   => $row['target_date_end'],
-                        'target_month'      => $row['target_month'],
+                        'target_date_end' => $row['target_date_end'],
+                        'target_month' => $row['target_month'],
                         'estimated_patients' => (int) $row['estimated_patients'],
-                        'is_finish'         => (bool) $row['is_finish'],
-                        'created_at'        => $row['created_at'],
-                        'user'              => [
-                            'id'       => isset($row['user_id']) ? (int) $row['user_id'] : null,
-                            'name'     => $row['user_name'] ?? null,
+                        'is_finish' => (bool) $row['is_finish'],
+                        'created_at' => $row['created_at'],
+                        'user' => [
+                            'id' => isset($row['user_id']) ? (int) $row['user_id'] : null,
+                            'name' => $row['user_name'] ?? null,
                             'username' => $row['user_username'] ?? null,
                         ],
-                        'category'          => [
-                            'id'   => isset($row['category_id']) ? (int) $row['category_id'] : null,
+                        'category' => [
+                            'id' => isset($row['category_id']) ? (int) $row['category_id'] : null,
                             'name' => $row['category_name'] ?? null,
                         ],
                     ];
@@ -271,19 +271,19 @@ class SpkBasah extends BaseController
 
         $normalizedDetails = array_map(static function (array $row): array {
             return [
-                'id'                     => (int) $row['id'],
-                'item_id'                => (int) $row['item_id'],
-                'item_name'              => $row['item_name'] ?? null,
-                'item_unit_base'         => $row['item_unit_base'] ?? null,
-                'item_unit_convert'      => $row['item_unit_convert'] ?? null,
-                'target_date'            => $row['target_date'],
-                'current_stock_qty'      => (float) $row['current_stock_qty'],
-                'required_qty'           => (float) $row['required_qty'],
+                'id' => (int) $row['id'],
+                'item_id' => (int) $row['item_id'],
+                'item_name' => $row['item_name'] ?? null,
+                'item_unit_base' => $row['item_unit_base'] ?? null,
+                'item_unit_convert' => $row['item_unit_convert'] ?? null,
+                'target_date' => $row['target_date'],
+                'current_stock_qty' => (float) $row['current_stock_qty'],
+                'required_qty' => (float) $row['required_qty'],
                 'system_recommended_qty' => (float) $row['system_recommended_qty'],
-                'final_recommended_qty'  => (float) $row['recommended_qty'],
-                'override'               => [
+                'final_recommended_qty' => (float) $row['recommended_qty'],
+                'override' => [
                     'is_overridden' => (bool) $row['is_overridden'],
-                    'reason'        => $row['override_reason'],
+                    'reason' => $row['override_reason'],
                     'overridden_by' => isset($row['overridden_by']) ? (int) $row['overridden_by'] : null,
                     'overridden_at' => $row['overridden_at'],
                 ],
@@ -301,42 +301,42 @@ class SpkBasah extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'data' => [
-                    'id'                => (int) $header['id'],
-                    'version'           => (int) $header['version'],
-                    'scope_key'         => (string) $header['scope_key'],
-                    'is_latest'         => (bool) $header['is_latest'],
-                    'spk_type'          => (string) $header['spk_type'],
+                    'id' => (int) $header['id'],
+                    'version' => (int) $header['version'],
+                    'scope_key' => (string) $header['scope_key'],
+                    'is_latest' => (bool) $header['is_latest'],
+                    'spk_type' => (string) $header['spk_type'],
                     'calculation_scope' => (string) $header['calculation_scope'],
-                    'calculation_date'  => $header['calculation_date'],
+                    'calculation_date' => $header['calculation_date'],
                     'target_date_start' => $header['target_date_start'],
-                    'target_date_end'   => $header['target_date_end'],
-                    'target_month'      => $header['target_month'],
+                    'target_date_end' => $header['target_date_end'],
+                    'target_month' => $header['target_month'],
                     'estimated_patients' => (int) $header['estimated_patients'],
-                    'is_finish'         => (bool) $header['is_finish'],
-                    'created_at'        => $header['created_at'],
-                    'updated_at'        => $header['updated_at'],
-                    'user'              => [
-                        'id'       => (int) $header['user_id'],
-                        'name'     => $header['user_name'] ?? null,
+                    'is_finish' => (bool) $header['is_finish'],
+                    'created_at' => $header['created_at'],
+                    'updated_at' => $header['updated_at'],
+                    'user' => [
+                        'id' => (int) $header['user_id'],
+                        'name' => $header['user_name'] ?? null,
                         'username' => $header['user_username'] ?? null,
                     ],
-                    'category'          => [
-                        'id'   => (int) $header['category_id'],
+                    'category' => [
+                        'id' => (int) $header['category_id'],
                         'name' => $header['category_name'] ?? null,
                     ],
-                    'items'             => $normalizedDetails,
-                    'print_ready'       => [
-                        'spk_id'              => (int) $header['id'],
-                        'spk_type'            => (string) $header['spk_type'],
-                        'version'             => (int) $header['version'],
-                        'calculation_date'    => $header['calculation_date'],
-                        'target_date_start'   => $header['target_date_start'],
-                        'target_date_end'     => $header['target_date_end'],
-                        'target_dates'        => array_keys($targetDates),
-                        'estimated_patients'  => (int) $header['estimated_patients'],
-                        'category_name'       => $header['category_name'] ?? null,
-                        'generated_by'        => $header['user_name'] ?? $header['user_username'] ?? null,
-                        'recommendations'     => $normalizedDetails,
+                    'items' => $normalizedDetails,
+                    'print_ready' => [
+                        'spk_id' => (int) $header['id'],
+                        'spk_type' => (string) $header['spk_type'],
+                        'version' => (int) $header['version'],
+                        'calculation_date' => $header['calculation_date'],
+                        'target_date_start' => $header['target_date_start'],
+                        'target_date_end' => $header['target_date_end'],
+                        'target_dates' => array_keys($targetDates),
+                        'estimated_patients' => (int) $header['estimated_patients'],
+                        'category_name' => $header['category_name'] ?? null,
+                        'generated_by' => $header['user_name'] ?? $header['user_username'] ?? null,
+                        'recommendations' => $normalizedDetails,
                     ],
                 ],
             ]);
@@ -376,12 +376,12 @@ class SpkBasah extends BaseController
             $this->request->getIPAddress()
         );
 
-        if (! $result['success']) {
+        if (!$result['success']) {
             return $this->response
                 ->setStatusCode((int) ($result['status_code'] ?? 400))
                 ->setJSON([
                     'message' => $result['message'],
-                    'errors'  => $result['errors'] ?? [],
+                    'errors' => $result['errors'] ?? [],
                 ]);
         }
 
@@ -389,7 +389,7 @@ class SpkBasah extends BaseController
             ->setStatusCode(200)
             ->setJSON([
                 'message' => 'SPK posted to stock transaction successfully.',
-                'data'    => $result['data'],
+                'data' => $result['data'],
             ]);
     }
 

@@ -202,6 +202,15 @@ class SpkPersistenceService
         }
 
         if ($scope === SpkCalculationModel::SCOPE_COMBINED_WINDOW) {
+            if ($spkType === SpkCalculationModel::TYPE_BASAH) {
+                return implode('|', [
+                    $spkType,
+                    $scope,
+                    (string) $headerData['calculation_date'],
+                    (string) $headerData['category_id'],
+                ]);
+            }
+
             return implode('|', [
                 $spkType,
                 $scope,

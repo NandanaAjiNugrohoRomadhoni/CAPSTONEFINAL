@@ -16,10 +16,10 @@ class SpkRoundingFixTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
-    protected $migrate     = true;
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -31,7 +31,7 @@ class SpkRoundingFixTest extends CIUnitTestCase
     {
         $db = Database::connect();
         $keringId = $this->getCategoryId('KERING');
-        
+
         $db->table('items')->insert([
             'item_category_id' => $keringId,
             'name' => 'Test Item',
@@ -62,13 +62,13 @@ class SpkRoundingFixTest extends CIUnitTestCase
 
         $service = new SpkKeringPengemasGenerationService();
         $result = $service->generate(['target_month' => date('Y-m')], 1);
-        
+
         $recommendationModel = new \App\Models\SpkRecommendationModel();
         $recommendations = $recommendationModel->where('item_id', $itemId)->findAll();
-        
+
         $this->assertCount(1, $recommendations);
         $rec = $recommendations[0];
-        
+
         $this->assertEquals(20.0, (float) $rec['system_recommended_qty']);
     }
 
@@ -76,7 +76,7 @@ class SpkRoundingFixTest extends CIUnitTestCase
     {
         $db = Database::connect();
         $basahId = $this->getCategoryId('BASAH');
-        
+
         $db->table('items')->insert([
             'item_category_id' => $basahId,
             'name' => 'Basah Item',
@@ -92,7 +92,7 @@ class SpkRoundingFixTest extends CIUnitTestCase
 
         $db->table('dishes')->insert(['name' => 'Test Dish']);
         $dishId = $db->insertID();
-        
+
         $db->table('dish_compositions')->insert([
             'dish_id' => $dishId,
             'item_id' => $itemId,
@@ -101,19 +101,19 @@ class SpkRoundingFixTest extends CIUnitTestCase
 
         $db->table('menus')->insert(['id' => 1, 'name' => 'Test Menu']);
         $menuId = 1;
-        
+
         $db->table('meal_times')->insert(['id' => 1, 'name' => 'Pagi']);
-        
+
         $db->table('menu_dishes')->insert([
             'menu_id' => $menuId,
             'dish_id' => $dishId,
             'meal_time_id' => 1,
         ]);
 
-        $serviceDate = date('Y-m-d');
+        $serviceDate = '2026-03-10';
         $db->table('menu_schedules')->insertBatch([
-            ['day_of_month' => (int) date('j', strtotime($serviceDate)), 'menu_id' => $menuId],
             ['day_of_month' => (int) date('j', strtotime($serviceDate . ' +1 day')), 'menu_id' => $menuId],
+            ['day_of_month' => (int) date('j', strtotime($serviceDate . ' +2 day')), 'menu_id' => $menuId],
         ]);
 
         $db->table('daily_patients')->insert([
@@ -126,14 +126,14 @@ class SpkRoundingFixTest extends CIUnitTestCase
         if (!$result['success']) {
             $this->fail(json_encode($result['errors']));
         }
-        
+
         $recommendationModel = new \App\Models\SpkRecommendationModel();
         $recommendations = $recommendationModel->where('item_id', $itemId)->findAll();
-        
+
         $this->assertCount(2, $recommendations);
         $rec = $recommendations[0];
-        
-        $this->assertEquals(105.0, (float) $rec['system_recommended_qty']);
+
+        $this->assertEquals(200.0, (float) $rec['system_recommended_qty']);
     }
 
     private function seedBaseline(): void

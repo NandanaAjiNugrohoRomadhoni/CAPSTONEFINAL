@@ -4,7 +4,7 @@ Manages the movement and history of inventory items.
 
 ## Endpoints
 
-- `GET /api/v1/stock-transactions`: List transactions. Supports pagination (`page`, `perPage`), filtering (`type_id`, `status_id`, `spk_id`, `transaction_date_from`/`_to`, `created_at_from`/`_to`, `updated_at_from`/`_to`), search (`q` or `search` fuzzy-match on `spk_id`), and sorting (`sortBy`, `sortDir`).
+  - `GET /api/v1/stock-transactions`: List transactions. Supports pagination (`page`, `perPage`), filtering (`type_id`, `status_id`, `category_id`, `spk_id`, `transaction_date_from`/`_to`, `created_at_from`/`_to`, `updated_at_from`/`_to`), search (`q` or `search` fuzzy-match on `spk_id`), and sorting (`sortBy`, `sortDir`).
 - `POST /api/v1/stock-transactions`: Create a new stock transaction. Allowed fields: `type_id` / `type_name`, `transaction_date`, `spk_id` (optional), `details[]` with `item_id`, `qty`, `input_unit`.
 - `GET /api/v1/stock-transactions/{id}`: Show transaction summary.
 - `GET /api/v1/stock-transactions/{id}/details`: List specific items in the transaction.

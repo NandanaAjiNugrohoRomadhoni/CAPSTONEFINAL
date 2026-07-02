@@ -57,23 +57,24 @@ export interface StockTransactionDetailInput {
 /** Type-level XOR for transaction type lookup: send `type_id` OR `type_name`, not both. */
 type TransactionTypeIdentifier = XOR<{ type_id: number }, { type_name: TransactionTypeName | string }>;
 
-/** Query params for `GET /api/v1/stock-transactions`. */
-export interface ListStockTransactionsQuery {
-  page?: number;
-  perPage?: number;
-  q?: string;
-  search?: string;
-  sortBy?: "id" | "transaction_date" | "type_id" | "approval_status_id" | "created_at" | "updated_at";
-  sortDir?: "ASC" | "DESC";
-  type_id?: number;
-  status_id?: number;
-  transaction_date_from?: string;
-  transaction_date_to?: string;
-  created_at_from?: string;
-  created_at_to?: string;
-  updated_at_from?: string;
-  updated_at_to?: string;
-}
+  /** Query params for `GET /api/v1/stock-transactions`. */
+  export interface ListStockTransactionsQuery {
+    page?: number;
+    perPage?: number;
+    q?: string;
+    search?: string;
+    sortBy?: "id" | "transaction_date" | "type_id" | "approval_status_id" | "created_at" | "updated_at";
+    sortDir?: "ASC" | "DESC";
+    type_id?: number;
+    status_id?: number;
+    category_id?: number;
+    transaction_date_from?: string;
+    transaction_date_to?: string;
+    created_at_from?: string;
+    created_at_to?: string;
+    updated_at_from?: string;
+    updated_at_to?: string;
+  }
 
 /** Request payload for `POST /api/v1/stock-transactions`. `user_id` is derived from the Bearer token, not sent by the client. */
 export type CreateStockTransactionRequest = TransactionTypeIdentifier & {

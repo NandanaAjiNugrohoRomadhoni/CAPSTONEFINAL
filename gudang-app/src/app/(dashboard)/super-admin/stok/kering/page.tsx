@@ -233,6 +233,7 @@ export default function Page() {
       name: selectedItem.name,
       categoryName: selectedItem.category?.name ?? "",
       minimumStock: String(selectedItem.min_stock ?? 0),
+      conversionBase: String(selectedItem.conversion_base ?? 1),
       unitName: selectedItem.unit_base ?? "",
       unitConvertName: selectedItem.unit_convert ?? "",
     };
@@ -244,9 +245,20 @@ export default function Page() {
     const trimmedUnitName = formValue.unitName.trim();
     const trimmedUnitConvertName = formValue.unitConvertName?.trim() || getUnitConvertName(trimmedUnitName);
     const minimumStock = Number(formValue.minimumStock);
+    const conversionBase = Number(formValue.conversionBase);
 
-    if (!trimmedName || !trimmedCategory || !trimmedUnitName || !Number.isFinite(minimumStock) || minimumStock < 0) {
-      setModalError("Mohon lengkapi nama bahan, jenis bahan, satuan item, dan minimal stock dengan benar.");
+    if (
+      !trimmedName ||
+      !trimmedCategory ||
+      !trimmedUnitName ||
+      !Number.isFinite(minimumStock) ||
+      minimumStock < 0 ||
+      !Number.isFinite(conversionBase) ||
+      conversionBase <= 0
+    ) {
+      setModalError(
+        "Mohon lengkapi nama bahan, jenis bahan, satuan item, nominal konversi, dan minimal stock dengan benar.",
+      );
       return;
     }
 
@@ -257,7 +269,8 @@ export default function Page() {
       trimmedCategory === (selectedItem.category?.name ?? "").trim() &&
       trimmedUnitName === (selectedItem.unit_base ?? "").trim() &&
       trimmedUnitConvertName === (selectedItem.unit_convert ?? "").trim() &&
-      minimumStock === (selectedItem.min_stock ?? 0)
+      minimumStock === (selectedItem.min_stock ?? 0) &&
+      conversionBase === (selectedItem.conversion_base ?? 1)
     ) {
       setSuccessState({
         title: "Informasi",
@@ -272,7 +285,7 @@ export default function Page() {
       name: trimmedName,
       item_category_name: trimmedCategory,
       min_stock: minimumStock,
-      conversion_base: selectedItem ? selectedItem.conversion_base : 1,
+      conversion_base: conversionBase,
       unit_base: trimmedUnitName,
       unit_convert: trimmedUnitConvertName,
       is_active: true,

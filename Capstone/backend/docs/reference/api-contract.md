@@ -2164,6 +2164,16 @@ SPK basah calculation rules:
  - `system_recommended_qty = max(required_qty - current_stock_qty, 0)`.
  - Multiple menus assigned to the same date deduplicate shared dishes by `dish_id`; different dishes on the same date still sum.
  - SPK basah applies ceil to final required quantity, so 66.6666 becomes 67.
+ - SPK basah generation date policy:
+   - allowed on even `service_date` day-of-month,
+   - allowed on day 31,
+   - allowed on day 29 for February leap year.
+ - Target date mapping policy:
+   - regular allowed dates -> `[H+1, H+2]`,
+   - day 30 in a 31-day month -> `[31]`,
+   - day 31 -> `[next-month-01, next-month-02]`,
+   - day 28 in leap-year February -> `[29]`,
+   - day 29 in leap-year February -> `[next-month-01, next-month-02]`.
 
 #### 5.9.3 SPK Kering/Pengemas Route Family
 

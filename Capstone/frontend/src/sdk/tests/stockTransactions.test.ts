@@ -117,6 +117,7 @@ describe("StockTransactionsResource", () => {
       sortDir: "ASC",
       type_id: 1,
       status_id: 2,
+      category_id: 3,
       transaction_date_from: "2026-04-01",
       transaction_date_to: "2026-04-30",
       created_at_from: "2026-04-01",
@@ -125,7 +126,7 @@ describe("StockTransactionsResource", () => {
 
     const [url] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe(
-      "http://127.0.0.1:8080/api/v1/stock-transactions?q=12345&sortBy=updated_at&sortDir=ASC&type_id=1&status_id=2&transaction_date_from=2026-04-01&transaction_date_to=2026-04-30&created_at_from=2026-04-01&updated_at_to=2026-04-30"
+      "http://127.0.0.1:8080/api/v1/stock-transactions?q=12345&sortBy=updated_at&sortDir=ASC&type_id=1&status_id=2&category_id=3&transaction_date_from=2026-04-01&transaction_date_to=2026-04-30&created_at_from=2026-04-01&updated_at_to=2026-04-30"
     );
   });
 

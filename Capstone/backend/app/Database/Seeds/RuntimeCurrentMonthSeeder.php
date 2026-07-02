@@ -32,3 +32,4 @@ class RuntimeCurrentMonthSeeder extends Seeder
         $this->call('CsvMenuPlanSeeder');
 
 }
+}

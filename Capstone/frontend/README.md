@@ -621,25 +621,25 @@ Supported fields:
 - `updated_at_from`
 - `updated_at_to`
 
-### `stockTransactions.list(query)`
+  ### `stockTransactions.list(query)`
 
-Supported fields:
+  Supported fields:
 
-- `page`
-- `perPage`
-- `q`
-- `search`
-- `sortBy`
-- `sortDir`
-- `type_id`
-- `status_id`
-- `transaction_date_from`
-- `transaction_date_to`
-- `created_at_from`
-- `created_at_to`
-- `updated_at_from`
-- `updated_at_to`
-
+  - `page`
+  - `perPage`
+  - `q`
+  - `search`
+  - `sortBy`
+  - `sortDir`
+  - `type_id`
+  - `status_id`
+  - `category_id`
+  - `transaction_date_from`
+  - `transaction_date_to`
+  - `created_at_from`
+  - `created_at_to`
+  - `updated_at_from`
+  - `updated_at_to`
 ## Practical examples
 
 ### Full auth flow

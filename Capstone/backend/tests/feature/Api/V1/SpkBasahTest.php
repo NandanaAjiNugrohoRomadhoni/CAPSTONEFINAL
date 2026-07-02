@@ -17,11 +17,11 @@ class SpkBasahTest extends CIUnitTestCase
     use FeatureTestTrait;
     use DatabaseTestTrait;
 
-    protected $DBGroup     = 'tests';
-    protected $migrate     = true;
+    protected $DBGroup = 'tests';
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -32,31 +32,31 @@ class SpkBasahTest extends CIUnitTestCase
         $this->seedOperationalBaseline();
     }
 
-    public function testGenerateIncludesRequestedDateAndNextDateWhenStillSameMonth(): void
+    public function testGenerateIncludesNextTwoDatesFromEvenRequestedDate(): void
     {
         $token = $this->login('dapur');
         $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $response->assertStatus(201);
         $response->assertJSONFragment(['message' => 'SPK basah generated successfully.']);
 
         $json = json_decode($response->getJSON(), true);
-        $this->assertSame(['2026-03-01', '2026-03-02'], $json['data']['target_dates']);
+        $this->assertSame(['2026-03-11', '2026-03-12'], $json['data']['target_dates']);
         $this->assertSame(100, $json['data']['estimated_patients']);
 
         $db = Database::connect();
         $spk = $db->table('spk_calculations')->where('id', (int) $json['data']['id'])->get()->getRowArray();
         $this->assertNotNull($spk);
-        $this->assertSame('2026-03-01', $spk['target_date_start']);
-        $this->assertSame('2026-03-02', $spk['target_date_end']);
+        $this->assertSame('2026-03-11', $spk['target_date_start']);
+        $this->assertSame('2026-03-12', $spk['target_date_end']);
         $this->assertSame('basah', $spk['spk_type']);
 
         $details = $db->table('spk_recommendations')
@@ -66,8 +66,8 @@ class SpkBasahTest extends CIUnitTestCase
             ->getResultArray();
 
         $this->assertCount(2, $details);
-        $this->assertSame('2026-03-01', $details[0]['target_date']);
-        $this->assertSame('2026-03-02', $details[1]['target_date']);
+        $this->assertSame('2026-03-11', $details[0]['target_date']);
+        $this->assertSame('2026-03-12', $details[1]['target_date']);
         $this->assertSame('210.00', number_format((float) $details[0]['required_qty'], 2, '.', ''));
         $this->assertSame('210.00', number_format((float) $details[1]['required_qty'], 2, '.', ''));
         $this->assertSame('100.00', number_format((float) $details[0]['current_stock_qty'], 2, '.', ''));
@@ -79,12 +79,12 @@ class SpkBasahTest extends CIUnitTestCase
     {
         $token = $this->login('gudang');
 
-        $this->createDailyPatient($this->login('gudang'), '2026-03-01', 100);
+        $this->createDailyPatient($this->login('gudang'), '2026-03-10', 100);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $response->assertStatus(201);
@@ -96,19 +96,19 @@ class SpkBasahTest extends CIUnitTestCase
         $token = $this->login('dapur');
         $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
         $first->assertStatus(201);
 
         $conflict = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
         $conflict->assertStatus(409);
         $conflictJson = json_decode($conflict->getJSON(), true);
@@ -118,15 +118,43 @@ class SpkBasahTest extends CIUnitTestCase
         $regenerated = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
-                'regenerate'   => true,
+                'service_date' => '2026-03-10',
+                'regenerate' => true,
             ]);
         $regenerated->assertStatus(201);
         $regeneratedJson = json_decode($regenerated->getJSON(), true);
         $this->assertSame(2, $regeneratedJson['data']['version']);
     }
 
-    public function testGenerateOnMonthEndIncludesOnlyRequestedDate(): void
+    public function testGenerateOnDayThirtyOfThirtyOneDayMonthIncludesOnlyThirtyOne(): void
+    {
+        $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
+
+        $this->createDailyPatient($writeToken, '2026-03-30', 80);
+
+        $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-30',
+            ]);
+
+        $response->assertStatus(201);
+        $json = json_decode($response->getJSON(), true);
+
+        $this->assertSame(['2026-03-31'], $json['data']['target_dates']);
+
+        $db = Database::connect();
+        $details = $db->table('spk_recommendations')
+            ->where('spk_id', (int) $json['data']['id'])
+            ->get()
+            ->getResultArray();
+
+        $this->assertCount(1, $details);
+        $this->assertSame('2026-03-31', $details[0]['target_date']);
+    }
+
+    public function testGenerateOnMonthEndIncludesNextMonthFirstTwoDates(): void
     {
         $token = $this->login('dapur');
         $writeToken = $this->login('gudang');
@@ -142,7 +170,7 @@ class SpkBasahTest extends CIUnitTestCase
         $response->assertStatus(201);
 
         $json = json_decode($response->getJSON(), true);
-        $this->assertSame(['2026-03-31'], $json['data']['target_dates']);
+        $this->assertSame(['2026-04-01', '2026-04-02'], $json['data']['target_dates']);
         $this->assertSame(80, $json['data']['estimated_patients']);
 
         $db = Database::connect();
@@ -151,8 +179,26 @@ class SpkBasahTest extends CIUnitTestCase
             ->get()
             ->getResultArray();
 
-        $this->assertCount(1, $details);
-        $this->assertSame('2026-03-31', $details[0]['target_date']);
+        $this->assertCount(2, $details);
+        $this->assertSame('2026-04-01', $details[0]['target_date']);
+        $this->assertSame('2026-04-02', $details[1]['target_date']);
+    }
+
+    public function testGenerateRejectsOddNonSpecialServiceDate(): void
+    {
+        $token = $this->login('dapur');
+
+        $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+            ->withBodyFormat('json')
+            ->post('api/v1/spk/basah/generate', [
+                'service_date' => '2026-03-11',
+            ]);
+
+        $response->assertStatus(400);
+        $response->assertJSONFragment(['message' => 'Validation failed.']);
+
+        $json = json_decode($response->getJSON(), true);
+        $this->assertArrayHasKey('service_date', $json['errors']);
     }
 
     public function testDeactivatedDishNoLongerContributesToSpkBasahGeneration(): void
@@ -161,12 +207,12 @@ class SpkBasahTest extends CIUnitTestCase
         $adminToken = $this->login('admin');
         $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
 
         $baseline = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $baseline->assertStatus(201);
@@ -195,8 +241,8 @@ class SpkBasahTest extends CIUnitTestCase
         $regenerated = $this->withHeaders(['Authorization' => 'Bearer ' . $dapurToken])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
-                'regenerate'   => true,
+                'service_date' => '2026-03-10',
+                'regenerate' => true,
             ]);
 
         $regenerated->assertStatus(400);
@@ -220,7 +266,7 @@ class SpkBasahTest extends CIUnitTestCase
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $response->assertStatus(400);
@@ -238,7 +284,7 @@ class SpkBasahTest extends CIUnitTestCase
         $db = Database::connect();
         $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
         $db->table('dish_compositions')->where('dish_id', 1)->delete();
 
         $beforeHeaderCount = $db->table('spk_calculations')->countAllResults();
@@ -247,7 +293,7 @@ class SpkBasahTest extends CIUnitTestCase
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $response->assertStatus(400);
@@ -265,13 +311,13 @@ class SpkBasahTest extends CIUnitTestCase
         $db = Database::connect();
         $writeToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
         $beforeCount = $db->table('stock_transactions')->countAllResults();
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
 
         $response->assertStatus(201);
@@ -282,7 +328,7 @@ class SpkBasahTest extends CIUnitTestCase
     public function testMenuCalendarProjectionMatchesCanonicalResolverShape(): void
     {
         $token = $this->login('admin');
-        $date  = '2026-03-12';
+        $date = '2026-03-12';
 
         $canonicalResult = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->get('api/v1/menu-calendar?date=' . $date);
@@ -359,12 +405,12 @@ class SpkBasahTest extends CIUnitTestCase
         $spkInsert = $db->table('spk_calculations')->insert([
             'spk_type' => 'basah',
             'calculation_scope' => 'combined_window',
-            'scope_key' => 'basah|combined_window|2026-03-01|2026-03-02|' . $basahCategoryId,
+            'scope_key' => 'basah|combined_window|2026-03-10|' . $basahCategoryId,
             'version' => 1,
             'is_latest' => true,
-            'calculation_date' => '2026-03-01',
-            'target_date_start' => '2026-03-01',
-            'target_date_end' => '2026-03-02',
+            'calculation_date' => '2026-03-10',
+            'target_date_start' => '2026-03-11',
+            'target_date_end' => '2026-03-12',
             'target_month' => null,
             'daily_patient_id' => null,
             'user_id' => 2,
@@ -378,7 +424,7 @@ class SpkBasahTest extends CIUnitTestCase
         $recommendationInsert = $db->table('spk_recommendations')->insert([
             'spk_id' => $spkId,
             'item_id' => 1,
-            'target_date' => '2026-03-01',
+            'target_date' => '2026-03-11',
             'current_stock_qty' => 100,
             'required_qty' => 210,
             'system_recommended_qty' => 110,
@@ -422,12 +468,12 @@ class SpkBasahTest extends CIUnitTestCase
         $spkInsert = $db->table('spk_calculations')->insert([
             'spk_type' => 'basah',
             'calculation_scope' => 'combined_window',
-            'scope_key' => 'basah|combined_window|2026-03-01|2026-03-02|' . $basahCategoryId,
+            'scope_key' => 'basah|combined_window|2026-03-10|' . $basahCategoryId,
             'version' => 1,
             'is_latest' => true,
-            'calculation_date' => '2026-03-01',
-            'target_date_start' => '2026-03-01',
-            'target_date_end' => '2026-03-02',
+            'calculation_date' => '2026-03-10',
+            'target_date_start' => '2026-03-11',
+            'target_date_end' => '2026-03-12',
             'target_month' => null,
             'estimated_patients' => 105,
             'user_id' => 1,
@@ -443,7 +489,7 @@ class SpkBasahTest extends CIUnitTestCase
         $db->table('spk_recommendations')->insert([
             'spk_id' => $spkId,
             'item_id' => (int) $item['id'],
-            'target_date' => '2026-03-01',
+            'target_date' => '2026-03-11',
             'current_stock_qty' => 100,
             'required_qty' => 210,
             'system_recommended_qty' => 110,
@@ -468,7 +514,7 @@ class SpkBasahTest extends CIUnitTestCase
         $spkInsert = $db->table('spk_calculations')->insert([
             'spk_type' => 'basah',
             'calculation_scope' => 'combined_window',
-            'scope_key' => 'basah|combined_window|2026-03-03|2026-03-04|' . $basahCategoryId,
+            'scope_key' => 'basah|combined_window|2026-03-03|' . $basahCategoryId,
             'version' => 1,
             'is_latest' => true,
             'calculation_date' => '2026-03-03',
@@ -504,7 +550,7 @@ class SpkBasahTest extends CIUnitTestCase
 
     protected function seedUsers(): void
     {
-        $roleModel    = new RoleModel();
+        $roleModel = new RoleModel();
         $userProvider = new AppUserProvider();
 
         foreach ([
@@ -515,12 +561,12 @@ class SpkBasahTest extends CIUnitTestCase
             $role = $roleModel->findByName($userData['role']);
 
             $user = new User([
-                'role_id'   => $role['id'],
-                'name'      => $userData['name'],
-                'username'  => $userData['username'],
-                'email'     => $userData['email'],
+                'role_id' => $role['id'],
+                'name' => $userData['name'],
+                'username' => $userData['username'],
+                'email' => $userData['email'],
                 'is_active' => true,
-                'active'    => true,
+                'active' => true,
             ]);
             $user->fill(['password' => 'password123']);
             $userProvider->insert($user, true);
@@ -576,36 +622,37 @@ class SpkBasahTest extends CIUnitTestCase
             ['name' => 'kg'],
         ]);
         $gramUnit = (int) $db->table('item_units')->where('name', 'gram')->get()->getRowArray()['id'];
-        $kgUnit   = (int) $db->table('item_units')->where('name', 'kg')->get()->getRowArray()['id'];
+        $kgUnit = (int) $db->table('item_units')->where('name', 'kg')->get()->getRowArray()['id'];
 
         $itemBuilder = $db->table('items');
         $itemBuilder->insert([
-            'item_category_id'      => $basahCategoryId,
-            'name'                  => 'Ayam Basah',
-            'unit_base'             => 'gram',
-            'unit_convert'          => 'kg',
-            'item_unit_base_id'     => $gramUnit,
-            'item_unit_convert_id'  => $kgUnit,
-            'conversion_base'       => 1000,
-            'is_active'             => true,
-            'qty'                   => 100,
+            'item_category_id' => $basahCategoryId,
+            'name' => 'Ayam Basah',
+            'unit_base' => 'gram',
+            'unit_convert' => 'kg',
+            'item_unit_base_id' => $gramUnit,
+            'item_unit_convert_id' => $kgUnit,
+            'conversion_base' => 1000,
+            'is_active' => true,
+            'qty' => 100,
         ]);
         $itemId = (int) $db->insertID();
 
         $db->table('dishes')->insert([
-            'id'   => 1,
+            'id' => 1,
             'name' => 'Sup Ayam',
         ]);
 
         $db->table('dish_compositions')->insert([
-            'dish_id'          => 1,
-            'item_id'          => $itemId,
-            'qty_per_patient'  => 2.00,
+            'dish_id' => 1,
+            'item_id' => $itemId,
+            'qty_per_patient' => 2.00,
         ]);
 
         $db->table('menu_dishes')->insertBatch([
             ['menu_id' => 1, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 2, 'meal_time_id' => 2, 'dish_id' => 1],
+            ['menu_id' => 3, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 11, 'meal_time_id' => 2, 'dish_id' => 1],
         ]);
     }
@@ -630,7 +677,7 @@ class SpkBasahTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
-                'service_date'   => $serviceDate,
+                'service_date' => $serviceDate,
                 'total_patients' => $totalPatients,
             ])
             ->assertStatus(201);

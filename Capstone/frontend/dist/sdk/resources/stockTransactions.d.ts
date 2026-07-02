@@ -17,7 +17,7 @@ export declare class StockTransactionsResource {
      *
      * @endpoint GET /api/v1/stock-transactions
      * @access   admin | gudang
-     * @param query - Supports `page`, `perPage`, `q`/`search` on `spk_id` (`q` wins), `sortBy`, `sortDir`, `type_id`, `status_id`, `transaction_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
+     * @param query - Supports `page`, `perPage`, `q`/`search` on `spk_id` (`q` wins), `sortBy`, `sortDir`, `type_id`, `status_id`, `category_id`, `transaction_date_from/to`, `created_at_from/to`, and `updated_at_from/to`. Unknown params return 400.
      * @returns {Promise<ApiListResponse<StockTransaction>>}
      * @throws {ValidationApiError} if query validation fails (400)
      * @throws {AuthenticationApiError} if no valid Bearer token is provided (401)

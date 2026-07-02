@@ -9,6 +9,7 @@ use App\Models\ItemModel;
 use App\Models\StockTransactionDetailModel;
 use App\Models\StockTransactionModel;
 use App\Models\TransactionTypeModel;
+use App\Models\ItemCategoryModel;
 use App\Services\NotificationService;
 use CodeIgniter\Database\BaseConnection;
 use App\Services\StockSnapshotService;
@@ -323,8 +324,15 @@ class StockTransactionService
         }
         // Determine if OUT is BASAH-only for draft behavior
         if ($type['name'] === TransactionTypeModel::NAME_OUT) {
-            $itemCategoryModel = new \App\Models\ItemCategoryModel();
-            $basahCategoryId = $itemCategoryModel->getIdByName(\App\Models\ItemCategoryModel::NAME_BASAH);
+            $itemCategoryModel = new ItemCategoryModel();
+            $basahCategoryId = $itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+            if ($basahCategoryId === null) {
+                return [
+                    'success' => false,
+                    'message' => 'System error: BASAH item category not found.',
+                    'errors' => [],
+                ];
+            }
 
             $hasBasah = false;
             $hasNonBasah = false;
@@ -349,6 +357,13 @@ class StockTransactionService
             if ($hasBasah) {
                 // BASAH OUT — draft path: PENDING status, no stock mutation
                 // Active day guard: one non-REJECTED OUT per transaction_date
+                $this->db->transStart();
+
+                $this->db->query(
+                    'SELECT id FROM ' . $this->stockTransactionsTable() . ' WHERE transaction_date = ? AND type_id = ? AND is_revision = 0 AND deleted_at IS NULL' . $this->forUpdateClause(),
+                    [$data['transaction_date'], (int) $data['type_id']]
+                );
+
                 $existingActive = $this->detailModel->builder()
                     ->select('st.id, st.approval_status_id')
                     ->join('stock_transactions st', 'st.id = stock_transaction_details.transaction_id')
@@ -364,6 +379,8 @@ class StockTransactionService
                     ->getRowArray();
 
                 if ($existingActive !== null) {
+                    $this->db->transRollback();
+
                     $state = ((int) $existingActive['approval_status_id'] === $pendingStatusId) ? 'PENDING' : 'APPROVED';
                     return [
                         'success' => false,
@@ -381,8 +398,6 @@ class StockTransactionService
 
                 // Auto-trigger opening stock snapshot (idempotent)
                 (new \App\Services\StockSnapshotService())->ensureOpeningSnapshot(substr((string) $data['transaction_date'], 0, 7));
-
-                $this->db->transStart();
 
                 $transactionData = [
                     'type_id' => (int) $data['type_id'],
@@ -692,6 +707,25 @@ class StockTransactionService
             }
         }
 
+        // Enforce BASAH-only items for draft OUT transactions
+        $itemCategoryModel = new ItemCategoryModel();
+        $basahCategoryId = $itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+        if ($basahCategoryId === null) {
+            return ['success' => false, 'message' => 'System error: BASAH item category not found.', 'errors' => []];
+        }
+
+        foreach ($data['details'] as $index => $detail) {
+            $item = $this->itemModel->find((int) $detail['item_id']);
+            if ($item !== null && (int) $item['item_category_id'] !== $basahCategoryId) {
+                return [
+                    'success' => false,
+                    'status_code' => 400,
+                    'message' => 'Validation failed.',
+                    'errors' => ["details.{$index}.item_id" => 'OUT Basah draft can only contain BASAH items.'],
+                ];
+            }
+        }
+
         $this->db->transStart();
 
         // Lock the transaction row
@@ -799,10 +833,11 @@ class StockTransactionService
             return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Only OUT transactions can be submitted.']];
         }
 
-        // Load details
-        $details = $this->detailModel->getDetailsByTransactionId($id);
-        if ($details === []) {
-            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['details' => 'Draft has no detail rows.']];
+        // Resolve BASAH category for draft validation
+        $itemCategoryModel = new ItemCategoryModel();
+        $basahCategoryId = $itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+        if ($basahCategoryId === null) {
+            return ['success' => false, 'message' => 'System error: BASAH item category not found.', 'errors' => []];
         }
 
         $this->db->transStart();
@@ -821,6 +856,25 @@ class StockTransactionService
         if ((int) $locked['approval_status_id'] !== $pendingStatusId) {
             $this->db->transRollback();
             return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['id' => 'Draft has already been submitted.']];
+        }
+
+        // Load and validate details under row lock to avoid TOCTOU issues.
+        $details = $this->detailModel->getDetailsByTransactionId($id);
+        if ($details === []) {
+            $this->db->transRollback();
+            return ['success' => false, 'status_code' => 400, 'message' => 'Validation failed.', 'errors' => ['details' => 'Draft has no detail rows.']];
+        }
+
+        foreach ($details as $index => $detail) {
+            if (!isset($detail['item_category_id']) || (int) $detail['item_category_id'] !== $basahCategoryId) {
+                $this->db->transRollback();
+                return [
+                    'success' => false,
+                    'status_code' => 400,
+                    'message' => 'Validation failed.',
+                    'errors' => ["details.{$index}.item_id" => 'OUT Basah draft can only contain BASAH items.'],
+                ];
+            }
         }
 
         // Check stock sufficiency and decrement atomically

@@ -18,6 +18,7 @@ export type StockItemFormValue = {
   name: string;
   categoryName: string;
   minimumStock: string;
+  conversionBase: string;
   unitName: string;
   unitConvertName?: string;
 };
@@ -72,6 +73,7 @@ export default function StockItemModal({
     name: initialValue?.name ?? "",
     categoryName: initialValue?.categoryName ?? categories[0]?.name ?? "",
     minimumStock: initialValue?.minimumStock ?? "",
+    conversionBase: initialValue?.conversionBase ?? "1",
     unitName: initialValue?.unitName ?? itemUnits[0]?.name ?? "",
     unitConvertName: initialValue?.unitConvertName ?? getDefaultUnitConvert(initialValue?.unitName ?? itemUnits[0]?.name ?? ""),
   }));
@@ -83,6 +85,7 @@ export default function StockItemModal({
       name: initialValue?.name ?? "",
       categoryName: initialValue?.categoryName ?? categories[0]?.name ?? "",
       minimumStock: initialValue?.minimumStock ?? "",
+      conversionBase: initialValue?.conversionBase ?? "1",
       unitName: initialValue?.unitName ?? itemUnits[0]?.name ?? "",
       unitConvertName:
         initialValue?.unitConvertName ??
@@ -199,35 +202,58 @@ export default function StockItemModal({
                 </label>
 
                 {mode === "create" || mode === "edit" ? (
-                  <label className="block space-y-2">
+                  <div className="space-y-2">
                     <span className="text-sm font-medium text-slate-700">
                       Satuan Kecil <span className="text-red-500">*</span>
                     </span>
-                    <select
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
-                      onChange={(event) => {
-                        const nextUnitName = event.target.value;
-                        setForm((current) => ({
-                          ...current,
-                          unitName: nextUnitName,
-                          unitConvertName: unitConvertTouched
-                            ? current.unitConvertName
-                            : getDefaultUnitConvert(nextUnitName),
-                        }));
-                      }}
-                      required
-                      value={form.unitName}
-                    >
-                      <option value="" disabled>
-                        Pilih satuan kecil
-                      </option>
-                      {availableItemUnits.map((unit) => (
-                        <option key={unit.id} value={unit.name}>
-                          {unit.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+
+                    <div className="grid gap-3 md:grid-cols-[1.5fr_1fr] md:items-end">
+                      <label className="block space-y-2">
+                        <span className="block whitespace-nowrap text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                          Nominal konversi dari satuan besar
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
+                          min="1"
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, conversionBase: event.target.value }))
+                          }
+                          placeholder="Masukkan nominal konversi"
+                          required
+                          step="1"
+                          type="number"
+                          value={form.conversionBase}
+                        />
+                      </label>
+
+                      <label className="block md:pb-[1px]">
+                        <select
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-700 outline-none transition focus:border-[#2155CD] focus:ring-2 focus:ring-[#2155CD]/10"
+                          onChange={(event) => {
+                            const nextUnitName = event.target.value;
+                            setForm((current) => ({
+                              ...current,
+                              unitName: nextUnitName,
+                              unitConvertName: unitConvertTouched
+                                ? current.unitConvertName
+                                : getDefaultUnitConvert(nextUnitName),
+                            }));
+                          }}
+                          required
+                          value={form.unitName}
+                        >
+                          <option value="" disabled>
+                            Satuan kecil
+                          </option>
+                          {availableItemUnits.map((unit) => (
+                            <option key={unit.id} value={unit.name}>
+                              {unit.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
                 ) : null}
 
                 {mode === "create" || mode === "edit" ? (

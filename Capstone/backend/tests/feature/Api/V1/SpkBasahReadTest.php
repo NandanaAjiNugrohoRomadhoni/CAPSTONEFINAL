@@ -15,11 +15,11 @@ class SpkBasahReadTest extends CIUnitTestCase
     use FeatureTestTrait;
     use DatabaseTestTrait;
 
-    protected $DBGroup     = 'tests';
-    protected $migrate     = true;
+    protected $DBGroup = 'tests';
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -36,13 +36,13 @@ class SpkBasahReadTest extends CIUnitTestCase
         $writeToken = $this->login('gudang');
         $readToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
         $this->createDailyPatient($writeToken, '2026-03-31', 120);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
         $first->assertStatus(201);
 
@@ -69,7 +69,7 @@ class SpkBasahReadTest extends CIUnitTestCase
         $secondRow = $json['data'][1];
 
         $this->assertSame('2026-03-31', $firstRow['calculation_date']);
-        $this->assertSame('2026-03-01', $secondRow['calculation_date']);
+        $this->assertSame('2026-03-10', $secondRow['calculation_date']);
         $this->assertSame('combined_window', $firstRow['calculation_scope']);
         $this->assertArrayHasKey('user', $firstRow);
         $this->assertSame('dapur', $firstRow['user']['username']);
@@ -84,12 +84,12 @@ class SpkBasahReadTest extends CIUnitTestCase
         $readToken = $this->login('gudang');
         $db = Database::connect();
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
 
         $generated = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
         $generated->assertStatus(201);
         $payload = json_decode($generated->getJSON(), true);
@@ -106,7 +106,7 @@ class SpkBasahReadTest extends CIUnitTestCase
             ->where('id', (int) $targetRecommendation['id'])
             ->update([
                 'recommended_qty' => 123.45,
-                'is_overridden'   => 1,
+                'is_overridden' => 1,
                 'override_reason' => 'Manual buffer',
             ]);
 
@@ -150,12 +150,12 @@ class SpkBasahReadTest extends CIUnitTestCase
         $writeToken = $this->login('gudang');
         $readToken = $this->login('gudang');
 
-        $this->createDailyPatient($writeToken, '2026-03-01', 100);
+        $this->createDailyPatient($writeToken, '2026-03-10', 100);
 
         $first = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
+                'service_date' => '2026-03-10',
             ]);
         $first->assertStatus(201);
         $firstJson = json_decode($first->getJSON(), true);
@@ -163,8 +163,8 @@ class SpkBasahReadTest extends CIUnitTestCase
         $second = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-01',
-                'regenerate'   => true,
+                'service_date' => '2026-03-10',
+                'regenerate' => true,
             ]);
         $second->assertStatus(201);
         $secondJson = json_decode($second->getJSON(), true);
@@ -217,7 +217,7 @@ class SpkBasahReadTest extends CIUnitTestCase
 
     protected function seedUsers(): void
     {
-        $roleModel    = new RoleModel();
+        $roleModel = new RoleModel();
         $userProvider = new AppUserProvider();
 
         foreach ([
@@ -228,12 +228,12 @@ class SpkBasahReadTest extends CIUnitTestCase
             $role = $roleModel->findByName($userData['role']);
 
             $user = new User([
-                'role_id'   => $role['id'],
-                'name'      => $userData['name'],
-                'username'  => $userData['username'],
-                'email'     => $userData['email'],
+                'role_id' => $role['id'],
+                'name' => $userData['name'],
+                'username' => $userData['username'],
+                'email' => $userData['email'],
                 'is_active' => true,
-                'active'    => true,
+                'active' => true,
             ]);
             $user->fill(['password' => 'password123']);
             $userProvider->insert($user, true);
@@ -277,36 +277,37 @@ class SpkBasahReadTest extends CIUnitTestCase
             ['name' => 'kg'],
         ]);
         $gramUnit = (int) $db->table('item_units')->where('name', 'gram')->get()->getRowArray()['id'];
-        $kgUnit   = (int) $db->table('item_units')->where('name', 'kg')->get()->getRowArray()['id'];
+        $kgUnit = (int) $db->table('item_units')->where('name', 'kg')->get()->getRowArray()['id'];
 
         $itemBuilder = $db->table('items');
         $itemBuilder->insert([
-            'item_category_id'      => $basahCategoryId,
-            'name'                  => 'Ayam Basah',
-            'unit_base'             => 'gram',
-            'unit_convert'          => 'kg',
-            'item_unit_base_id'     => $gramUnit,
-            'item_unit_convert_id'  => $kgUnit,
-            'conversion_base'       => 1000,
-            'is_active'             => true,
-            'qty'                   => 100,
+            'item_category_id' => $basahCategoryId,
+            'name' => 'Ayam Basah',
+            'unit_base' => 'gram',
+            'unit_convert' => 'kg',
+            'item_unit_base_id' => $gramUnit,
+            'item_unit_convert_id' => $kgUnit,
+            'conversion_base' => 1000,
+            'is_active' => true,
+            'qty' => 100,
         ]);
         $itemId = (int) $db->insertID();
 
         $db->table('dishes')->insert([
-            'id'   => 1,
+            'id' => 1,
             'name' => 'Sup Ayam',
         ]);
 
         $db->table('dish_compositions')->insert([
-            'dish_id'          => 1,
-            'item_id'          => $itemId,
-            'qty_per_patient'  => 2.00,
+            'dish_id' => 1,
+            'item_id' => $itemId,
+            'qty_per_patient' => 2.00,
         ]);
 
         $db->table('menu_dishes')->insertBatch([
             ['menu_id' => 1, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 2, 'meal_time_id' => 2, 'dish_id' => 1],
+            ['menu_id' => 3, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 11, 'meal_time_id' => 2, 'dish_id' => 1],
         ]);
     }
@@ -331,7 +332,7 @@ class SpkBasahReadTest extends CIUnitTestCase
         $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
-                'service_date'   => $serviceDate,
+                'service_date' => $serviceDate,
                 'total_patients' => $totalPatients,
             ])
             ->assertStatus(201);

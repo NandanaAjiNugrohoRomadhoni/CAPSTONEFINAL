@@ -9,6 +9,7 @@ use App\Models\SpkCalculationModel;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
+use InvalidArgumentException;
 
 class SpkBasahGenerationService
 {
@@ -21,18 +22,18 @@ class SpkBasahGenerationService
 
     public function __construct()
     {
-        $this->dailyPatientModel      = new DailyPatientModel();
-        $this->itemCategoryModel      = new ItemCategoryModel();
-        $this->itemModel              = new ItemModel();
-        $this->menuScheduleService    = new MenuScheduleManagementService();
-        $this->spkPersistenceService  = new SpkPersistenceService();
-        $this->db                     = Database::connect();
+        $this->dailyPatientModel = new DailyPatientModel();
+        $this->itemCategoryModel = new ItemCategoryModel();
+        $this->itemModel = new ItemModel();
+        $this->menuScheduleService = new MenuScheduleManagementService();
+        $this->spkPersistenceService = new SpkPersistenceService();
+        $this->db = Database::connect();
     }
 
     public function generate(array $data, int $userId): array
     {
         $validationResult = $this->validateGeneratePayload($data);
-        if (! $validationResult['success']) {
+        if (!$validationResult['success']) {
             return $validationResult;
         }
 
@@ -43,30 +44,40 @@ class SpkBasahGenerationService
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'Daily patient input for the requested service_date is required before generating SPK basah.',
                 ],
             ];
         }
 
         $requestedDate = new DateTimeImmutable($serviceDate);
-        $targetDates   = $this->resolveBasahTargetDates($requestedDate);
+        try {
+            $targetDates = $this->resolveBasahTargetDates($requestedDate);
+        } catch (InvalidArgumentException $exception) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => [
+                    'service_date' => $exception->getMessage(),
+                ],
+            ];
+        }
 
         $estimatedPatients = (int) $dailyPatient['total_patients'];
-        $basahCategoryId   = $this->itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
+        $basahCategoryId = $this->itemCategoryModel->getIdByName(ItemCategoryModel::NAME_BASAH);
 
         if ($basahCategoryId === null) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'category' => 'BASAH item category is not configured.',
                 ],
             ];
         }
 
         $requirementsBuild = $this->buildPerDateRequirements($targetDates, $estimatedPatients, $basahCategoryId);
-        if (! $requirementsBuild['success']) {
+        if (!$requirementsBuild['success']) {
             return $requirementsBuild;
         }
 
@@ -77,30 +88,30 @@ class SpkBasahGenerationService
         );
 
         $persisted = $this->spkPersistenceService->createVersionedSpk([
-            'spk_type'           => SpkCalculationModel::TYPE_BASAH,
-            'calculation_scope'  => SpkCalculationModel::SCOPE_COMBINED_WINDOW,
-            'calculation_date'   => $serviceDate,
-            'target_date_start'  => $targetDates[0],
-            'target_date_end'    => $targetDates[count($targetDates) - 1],
-            'daily_patient_id'   => (int) $dailyPatient['id'],
-            'user_id'            => $userId,
-            'category_id'        => $basahCategoryId,
+            'spk_type' => SpkCalculationModel::TYPE_BASAH,
+            'calculation_scope' => SpkCalculationModel::SCOPE_COMBINED_WINDOW,
+            'calculation_date' => $serviceDate,
+            'target_date_start' => $targetDates[0],
+            'target_date_end' => $targetDates[count($targetDates) - 1],
+            'daily_patient_id' => (int) $dailyPatient['id'],
+            'user_id' => $userId,
+            'category_id' => $basahCategoryId,
             'estimated_patients' => $estimatedPatients,
-            'is_finish'          => false,
-            'regenerate'         => (bool) ($data['regenerate'] ?? false),
+            'is_finish' => false,
+            'regenerate' => (bool) ($data['regenerate'] ?? false),
         ], $recommendations);
 
-        if (! $persisted['success']) {
+        if (!$persisted['success']) {
             return $persisted;
         }
 
         return [
             'success' => true,
-            'data'    => [
-                'id'                => (int) $persisted['data']['id'],
-                'version'           => (int) $persisted['data']['version'],
-                'scope_key'         => (string) $persisted['data']['scope_key'],
-                'target_dates'      => $targetDates,
+            'data' => [
+                'id' => (int) $persisted['data']['id'],
+                'version' => (int) $persisted['data']['version'],
+                'scope_key' => (string) $persisted['data']['scope_key'],
+                'target_dates' => $targetDates,
                 'estimated_patients' => $estimatedPatients,
             ],
         ];
@@ -108,11 +119,11 @@ class SpkBasahGenerationService
 
     private function validateGeneratePayload(array $data): array
     {
-        if (array_key_exists('regenerate', $data) && ! is_bool($data['regenerate'])) {
+        if (array_key_exists('regenerate', $data) && !is_bool($data['regenerate'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'regenerate' => 'The regenerate field must be boolean.',
                 ],
             ];
@@ -123,30 +134,41 @@ class SpkBasahGenerationService
         ];
 
         $validation = service('validation');
-        $payload    = [
+        $payload = [
             'service_date' => (string) ($data['service_date'] ?? ''),
         ];
 
-        if (! $validation->setRules($rules)->run($payload)) {
+        if (!$validation->setRules($rules)->run($payload)) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validation->getErrors(),
+                'errors' => $validation->getErrors(),
             ];
         }
 
-        if (! $this->isValidDate($payload['service_date'])) {
+        if (!$this->isValidDate($payload['service_date'])) {
             return [
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => [
+                'errors' => [
                     'service_date' => 'The service_date field must be a valid date in Y-m-d format.',
                 ],
             ];
         }
 
+        $serviceDate = new DateTimeImmutable($payload['service_date']);
+        if (!$this->isAllowedBasahGenerationDate($serviceDate)) {
+            return [
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => [
+                    'service_date' => 'SPK basah generation is allowed on even days, or on special dates (31 and leap-year February 29).',
+                ],
+            ];
+        }
+
         return [
-            'success'      => true,
+            'success' => true,
             'service_date' => $payload['service_date'],
         ];
     }
@@ -156,30 +178,54 @@ class SpkBasahGenerationService
      */
     private function resolveBasahTargetDates(DateTimeImmutable $requestedDate): array
     {
-        $dates = [$requestedDate->format('Y-m-d')];
-        $next  = $requestedDate->modify('+1 day');
+        $day = (int) $requestedDate->format('j');
+        $month = (int) $requestedDate->format('n');
+        $year = (int) $requestedDate->format('Y');
+        $daysInMonth = (int) $requestedDate->format('t');
+        $isLeapFebruary = $month === 2 && checkdate(2, 29, $year);
 
-        if ($requestedDate->format('Y-m') === $next->format('Y-m')) {
-            $dates[] = $next->format('Y-m-d');
+        // 31-day month boundary: day 30 only prepares day 31.
+        if ($day === 30 && $daysInMonth === 31) {
+            return [$requestedDate->modify('+1 day')->format('Y-m-d')];
         }
 
-        return $dates;
+        // Leap-year February boundary: day 28 only prepares day 29.
+        if ($day === 28 && $isLeapFebruary) {
+            return [$requestedDate->modify('+1 day')->format('Y-m-d')];
+        }
+
+        if ($day % 2 === 0 || $day === 31 || ($month === 2 && $day === 29)) {
+            return [
+                $requestedDate->modify('+1 day')->format('Y-m-d'),
+                $requestedDate->modify('+2 day')->format('Y-m-d'),
+            ];
+        }
+
+        throw new InvalidArgumentException('The selected service_date is not a valid SPK basah generation date.');
+    }
+
+    private function isAllowedBasahGenerationDate(DateTimeImmutable $requestedDate): bool
+    {
+        $day = (int) $requestedDate->format('j');
+        $month = (int) $requestedDate->format('n');
+
+        return $day % 2 === 0 || $day === 31 || ($month === 2 && $day === 29);
     }
 
     private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array
     {
-        $requiredByDate     = [];
+        $requiredByDate = [];
         $currentStockByItem = [];
         // Compute the buffered patient count once — it is constant for the entire SPK generation.
         $patientCountWithBuffer = $estimatedPatients + (int) ceil($estimatedPatients * 0.05);
 
         foreach ($targetDates as $targetDate) {
             $menuProjection = $this->menuScheduleService->resolveCalendar(['date' => $targetDate]);
-            if (! $menuProjection['success']) {
+            if (!$menuProjection['success']) {
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'menu_schedule' => sprintf('Menu schedule could not be resolved for target date %s.', $targetDate),
                     ],
                 ];
@@ -190,7 +236,7 @@ class SpkBasahGenerationService
                 return [
                     'success' => false,
                     'message' => 'Validation failed.',
-                    'errors'  => [
+                    'errors' => [
                         'menu_mapping' => sprintf('No menu mapping found for target date %s.', $targetDate),
                     ],
                 ];
@@ -200,7 +246,7 @@ class SpkBasahGenerationService
             // - the same menu assigned twice contributes its ingredients twice, and
             // - two different menus sharing a dish each contribute that dish's ingredients separately.
             foreach ($assignments as $assignment) {
-                $menuId     = (int) $assignment['menu_id'];
+                $menuId = (int) $assignment['menu_id'];
                 $menuDishes = $this->db
                     ->table('menu_dishes')
                     ->select('id, dish_id')
@@ -212,14 +258,14 @@ class SpkBasahGenerationService
                     return [
                         'success' => false,
                         'message' => 'Validation failed.',
-                        'errors'  => [
+                        'errors' => [
                             'menu_mapping' => sprintf('Menu %d has no dish mapping for target date %s.', $menuId, $targetDate),
                         ],
                     ];
                 }
 
                 foreach ($menuDishes as $menuDish) {
-                    $dishId       = (int) $menuDish['dish_id'];
+                    $dishId = (int) $menuDish['dish_id'];
                     $compositions = $this->db
                         ->table('dish_compositions')
                         ->select('item_id, qty_per_patient')
@@ -231,7 +277,7 @@ class SpkBasahGenerationService
                         return [
                             'success' => false,
                             'message' => 'Validation failed.',
-                            'errors'  => [
+                            'errors' => [
                                 'recipe_mapping' => sprintf('Dish %d has no item composition for target date %s.', $dishId, $targetDate),
                             ],
                         ];
@@ -239,13 +285,13 @@ class SpkBasahGenerationService
 
                     foreach ($compositions as $composition) {
                         $itemId = (int) $composition['item_id'];
-                        $item   = $this->itemModel->find($itemId);
+                        $item = $this->itemModel->find($itemId);
 
                         if ($item === null) {
                             return [
                                 'success' => false,
                                 'message' => 'Validation failed.',
-                                'errors'  => [
+                                'errors' => [
                                     'recipe_mapping' => sprintf('Dish %d references unavailable item %d.', $dishId, $itemId),
                                 ],
                             ];
@@ -256,13 +302,13 @@ class SpkBasahGenerationService
                         }
 
                         $requiredQty = ceil(((float) $composition['qty_per_patient']) * $patientCountWithBuffer);
-                        if (! isset($requiredByDate[$targetDate])) {
+                        if (!isset($requiredByDate[$targetDate])) {
                             $requiredByDate[$targetDate] = [];
                         }
 
                         $requiredByDate[$targetDate][$itemId] = ($requiredByDate[$targetDate][$itemId] ?? 0.0) + $requiredQty;
 
-                        if (! isset($currentStockByItem[$itemId])) {
+                        if (!isset($currentStockByItem[$itemId])) {
                             $currentStockByItem[$itemId] = (float) ($item['qty'] ?? 0);
                         }
                     }
@@ -271,8 +317,8 @@ class SpkBasahGenerationService
         }
 
         return [
-            'success'               => true,
-            'required_by_date'      => $requiredByDate,
+            'success' => true,
+            'required_by_date' => $requiredByDate,
             'current_stock_by_item' => $currentStockByItem,
         ];
     }
@@ -291,7 +337,7 @@ class SpkBasahGenerationService
         $rows = [];
 
         foreach ($itemIds as $itemId) {
-            $initialStock   = (float) $currentStockByItem[$itemId];
+            $initialStock = (float) $currentStockByItem[$itemId];
             $remainingStock = $initialStock;
 
             foreach ($targetDates as $targetDate) {
@@ -303,17 +349,17 @@ class SpkBasahGenerationService
                 // Carry forward required qty already buffered per patient count.
                 $requiredQty = round($rawRequiredQty, 4);
 
-                $stockBeforeDay    = $remainingStock;
+                $stockBeforeDay = $remainingStock;
                 $systemRecommended = max(0.0, $requiredQty - $stockBeforeDay);
-                $remainingStock    = max(0.0, $remainingStock - $requiredQty);
+                $remainingStock = max(0.0, $remainingStock - $requiredQty);
 
                 $rows[] = [
-                    'item_id'                => (int) $itemId,
-                    'target_date'            => $targetDate,
-                    'current_stock_qty'      => $stockBeforeDay,
-                    'required_qty'           => $requiredQty,
+                    'item_id' => (int) $itemId,
+                    'target_date' => $targetDate,
+                    'current_stock_qty' => $stockBeforeDay,
+                    'required_qty' => $requiredQty,
                     'system_recommended_qty' => $systemRecommended,
-                    'recommended_qty'        => $systemRecommended,
+                    'recommended_qty' => $systemRecommended,
                 ];
             }
         }
@@ -323,7 +369,7 @@ class SpkBasahGenerationService
 
     private function isValidDate(string $value): bool
     {
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return false;
         }
 

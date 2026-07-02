@@ -80,6 +80,7 @@ class StockTransactionModel extends Model
         ?string $updatedAtFrom,
         ?string $updatedAtTo,
         ?int $spkId = null,
+        ?int $categoryId = null,
     ): array {
         $validSort = in_array($sortBy, self::SORTABLE_COLUMNS, true) ? $sortBy : 'transaction_date';
         $direction = strtoupper($sortDir) === 'ASC' ? 'ASC' : 'DESC';
@@ -92,6 +93,18 @@ class StockTransactionModel extends Model
         }
         if ($spkId !== null) {
             $builder->where('stock_transactions.spk_id', $spkId);
+        }
+
+        if ($categoryId !== null) {
+            $st  = $this->db->prefixTable('stock_transactions');
+            $std = $this->db->prefixTable('stock_transaction_details');
+            $i   = $this->db->prefixTable('items');
+            $builder->where(
+                "EXISTS (SELECT 1 FROM {$std} "
+                . "INNER JOIN {$i} ON {$i}.id = {$std}.item_id "
+                . "WHERE {$std}.transaction_id = {$st}.id "
+                . "AND {$i}.item_category_id = " . (int) $categoryId . ")"
+            );
         }
 
 

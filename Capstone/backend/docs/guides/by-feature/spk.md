@@ -20,7 +20,8 @@ Automates stock recommendations based on meal schedules and patient counts.
 - **Calculation Logic**: Uses Dish Compositions × Estimated Patients to determine required quantities. Since deactivating a dish removes its menu slot assignments, deactivated dishes are naturally excluded from SPK calculations.
 - **Overrides**: Users can manually adjust the system-calculated recommendation before posting.
 - **Duplicate Guardrail**: Generate endpoints now reject duplicate active scopes unless the caller explicitly sends `regenerate=true`, in which case a new history version is created.
-- **Posting**: Once posted, the SPK creates an `OUT` transaction. A posted SPK cannot be edited.
+- **Posting**: Once posted, the SPK creates an `IN` transaction snapshot and marks the SPK as finalized. A posted SPK cannot be edited.
+- **Basah Service-Date Policy**: Basah generation is allowed on even dates, plus special dates day 31 and leap-year February 29, with target-date mapping adjusted for month-end/leap boundaries.
 
 ## Related Documentation
 - [SPK Basah Workflow](../by-workflow/spk-basah-workflow.md)

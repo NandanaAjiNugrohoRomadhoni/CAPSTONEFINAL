@@ -15,11 +15,11 @@ class SpkOverrideTest extends CIUnitTestCase
     use FeatureTestTrait;
     use DatabaseTestTrait;
 
-    protected $DBGroup     = 'tests';
-    protected $migrate     = true;
+    protected $DBGroup = 'tests';
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -35,7 +35,7 @@ class SpkOverrideTest extends CIUnitTestCase
         $token = $this->login('dapur');
         $db = Database::connect();
 
-        $spk = $this->createBasahSpk($token, '2026-03-01', 100);
+        $spk = $this->createBasahSpk($token, '2026-03-10', 100);
         $spkId = (int) $spk['data']['id'];
 
         $recommendation = $db->table('spk_recommendations')
@@ -82,7 +82,7 @@ class SpkOverrideTest extends CIUnitTestCase
 
         $latestAudit = $db->table('audit_logs')->orderBy('id', 'DESC')->get()->getRowArray();
         $this->assertNotNull($latestAudit);
-        $this->assertSame('spk_recommendation_override', $latestAudit['action_type']);
+        $this->assertSame('override', $latestAudit['action_type']);
         $this->assertSame('spk_recommendations', $latestAudit['table_name']);
         $this->assertSame($recommendationId, (int) $latestAudit['record_id']);
     }
@@ -121,7 +121,7 @@ class SpkOverrideTest extends CIUnitTestCase
         $token = $this->login('gudang');
         $db = Database::connect();
 
-        $spk = $this->createBasahSpk($this->login('dapur'), '2026-03-01', 100);
+        $spk = $this->createBasahSpk($this->login('dapur'), '2026-03-10', 100);
         $spkId = (int) $spk['data']['id'];
 
         $recommendation = $db->table('spk_recommendations')
@@ -181,7 +181,7 @@ class SpkOverrideTest extends CIUnitTestCase
         $token = $this->login('dapur');
         $db = Database::connect();
 
-        $spk = $this->createBasahSpk($token, '2026-03-01', 100);
+        $spk = $this->createBasahSpk($token, '2026-03-10', 100);
         $spkId = (int) $spk['data']['id'];
         $recommendation = $db->table('spk_recommendations')->where('spk_id', $spkId)->get()->getRowArray();
         $this->assertNotNull($recommendation);
@@ -243,7 +243,7 @@ class SpkOverrideTest extends CIUnitTestCase
         $token = $this->login('dapur');
         $db = Database::connect();
 
-        $spkA = $this->createBasahSpk($token, '2026-03-01', 100);
+        $spkA = $this->createBasahSpk($token, '2026-03-10', 100);
         $spkB = $this->createBasahSpk($token, '2026-03-31', 110);
 
         $spkAId = (int) $spkA['data']['id'];
@@ -409,6 +409,7 @@ class SpkOverrideTest extends CIUnitTestCase
         $db->table('menu_dishes')->insertBatch([
             ['menu_id' => 1, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 2, 'meal_time_id' => 2, 'dish_id' => 1],
+            ['menu_id' => 3, 'meal_time_id' => 2, 'dish_id' => 1],
             ['menu_id' => 11, 'meal_time_id' => 2, 'dish_id' => 1],
         ]);
 

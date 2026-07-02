@@ -18,6 +18,11 @@ type PreviewItem = Awaited<
   ReturnType<typeof sdk.spk.operationalStockPreview>
 >["data"]["items"][number];
 type SearchableItemOption = { id: number; label: string; unit: string };
+type SavedBasahTransaction = {
+  transactionId: number;
+  submittedAt: string;
+  rows: BasahValidatedRow[];
+};
 
 type ManualRow = {
   id: number;
@@ -144,102 +149,6 @@ export default function BarangKeluarPage() {
     return () => window.clearTimeout(timeout);
   }, [serviceDate]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSavedTransaction() {
-      try {
-        const [patientResponse, transactionTypeResponse] = await Promise.all([
-          sdk.dailyPatients.get(serviceDate).catch(() => null),
-          sdk.transactionTypes.list({ paginate: false, search: "OUT", sortBy: "name", sortDir: "ASC" }),
-        ]);
-
-        if (cancelled) return;
-
-        const loadedPatientCount = Number(patientResponse?.data?.total_patients ?? 0);
-        setPatientCount(String(loadedPatientCount));
-
-        const outTypeId = transactionTypeResponse.data.find((row) => row.name.toUpperCase() === "OUT")?.id;
-        if (!outTypeId) {
-          setSavedRecommendation(null);
-          setValidatedRows([]);
-          setValidatedMeta(null);
-          setRecommendationPreviewOpen(false);
-          setRecommendationRows([]);
-          setRecommendationMeta(null);
-          return;
-        }
-
-        const transactions = await listAllPaginatedRows<Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number]>(
-          sdk.stockTransactions.list.bind(sdk.stockTransactions),
-          {
-            type_id: outTypeId,
-            transaction_date_from: serviceDate,
-            transaction_date_to: serviceDate,
-            sortBy: "created_at",
-            sortDir: "DESC",
-          },
-          100,
-        );
-
-        if (cancelled) return;
-
-        const todayTransactions = transactions.filter((row) => String(row.transaction_date ?? "").slice(0, 10) === serviceDate);
-        const latestTransaction = todayTransactions[0];
-        if (!latestTransaction) {
-          setSavedRecommendation(null);
-          setValidatedRows([]);
-          setValidatedMeta(null);
-          setRecommendationPreviewOpen(false);
-          setRecommendationRows([]);
-          setRecommendationMeta(null);
-          return;
-        }
-
-        const detailResponse = await sdk.stockTransactions.details(latestTransaction.id);
-        if (cancelled) return;
-
-        const loadedRows = detailResponse.data.map((row) => ({
-          id: row.id,
-          item_id: row.item_id,
-          item_name: row.item_name ?? `Item #${row.item_id}`,
-          unit: row.satuan ?? "-",
-          qty_spk: Number(row.qty ?? 0),
-          qty_actual: String(Number(row.qty ?? 0)),
-          locked: true,
-        }));
-
-        setSavedRecommendation({
-          serviceDate,
-          patientCount: loadedPatientCount,
-          menuName: "Riwayat transaksi tersimpan",
-          totalItems: loadedRows.length,
-          rows: loadedRows,
-          submitted: true,
-          submittedAt: latestTransaction.created_at ?? new Date().toISOString(),
-        });
-        setValidatedRows(loadedRows);
-        setValidatedMeta({ totalItems: loadedRows.length, menuName: "Riwayat transaksi tersimpan" });
-        setRecommendationPreviewOpen(false);
-        setRecommendationRows([]);
-        setRecommendationMeta(null);
-      } catch {
-        setSavedRecommendation(null);
-        setValidatedRows([]);
-        setValidatedMeta(null);
-        setRecommendationPreviewOpen(false);
-        setRecommendationRows([]);
-        setRecommendationMeta(null);
-      }
-    }
-
-    void loadSavedTransaction();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [serviceDate]);
-
   const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
 
   const basahItems = useMemo(
@@ -269,6 +178,77 @@ export default function BarangKeluarPage() {
       })),
     [keringItems],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSavedTransaction() {
+      try {
+        const [patientResponse, transactionTypeResponse] = await Promise.all([
+          sdk.dailyPatients.get(serviceDate).catch(() => null),
+          sdk.transactionTypes.list({ paginate: false, search: "OUT", sortBy: "name", sortDir: "ASC" }),
+        ]);
+
+        if (cancelled) return;
+
+        const loadedPatientCount = Number(patientResponse?.data?.total_patients ?? 0);
+        setPatientCount(String(loadedPatientCount));
+
+        const outTypeId = transactionTypeResponse.data.find((row) => row.name.toUpperCase() === "OUT")?.id;
+        if (!outTypeId) {
+          setSavedRecommendation(null);
+          setValidatedRows([]);
+          setValidatedMeta(null);
+          setRecommendationPreviewOpen(false);
+          setRecommendationRows([]);
+          setRecommendationMeta(null);
+          return;
+        }
+
+        const savedBasahTransaction = await getLatestBasahTransaction(
+          serviceDate,
+          outTypeId,
+        );
+        if (!savedBasahTransaction) {
+          setSavedRecommendation(null);
+          setValidatedRows([]);
+          setValidatedMeta(null);
+          setRecommendationPreviewOpen(false);
+          setRecommendationRows([]);
+          setRecommendationMeta(null);
+          return;
+        }
+
+        setSavedRecommendation({
+          serviceDate,
+          patientCount: loadedPatientCount,
+          menuName: "Riwayat transaksi tersimpan",
+          totalItems: savedBasahTransaction.rows.length,
+          rows: savedBasahTransaction.rows,
+          submitted: true,
+          submittedAt: savedBasahTransaction.submittedAt,
+        });
+        setValidatedRows(savedBasahTransaction.rows);
+        setValidatedMeta({ totalItems: savedBasahTransaction.rows.length, menuName: "Riwayat transaksi tersimpan" });
+        setRecommendationPreviewOpen(false);
+        setRecommendationRows([]);
+        setRecommendationMeta(null);
+      } catch {
+        setSavedRecommendation(null);
+        setValidatedRows([]);
+        setValidatedMeta(null);
+        setRecommendationPreviewOpen(false);
+        setRecommendationRows([]);
+        setRecommendationMeta(null);
+      }
+    }
+
+    void loadSavedTransaction();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceDate]);
 
   async function prepareRecommendationPreview() {
     const totalPatients = Number(patientCount);
@@ -395,6 +375,30 @@ export default function BarangKeluarPage() {
     setSaving(true);
 
     try {
+      const existingBasah = await getLatestBasahTransaction(serviceDate, await resolveOutTypeId());
+
+      if (existingBasah) {
+        setConfirmSaveOpen(false);
+        setSavedRecommendation({
+          serviceDate,
+          patientCount: Number(patientCount),
+          menuName: "Riwayat transaksi tersimpan",
+          totalItems: existingBasah.rows.length,
+          rows: existingBasah.rows,
+          submitted: true,
+          submittedAt: existingBasah.submittedAt,
+        });
+        setValidatedRows(existingBasah.rows);
+        setValidatedMeta({ totalItems: existingBasah.rows.length, menuName: "Riwayat transaksi tersimpan" });
+        openAlert(
+          setAlertState,
+          "Data Sudah Ada",
+          "Bahan basah untuk hari ini sudah tersimpan",
+          "Simpan barang keluar bahan basah untuk tanggal ini hanya bisa dilakukan satu kali.",
+        );
+        return;
+      }
+
       const totalPatients = Number(patientCount);
       if (totalPatients <= 0) {
         throw new Error("Jumlah pasien harus lebih dari 0.");
@@ -540,6 +544,61 @@ export default function BarangKeluarPage() {
       setPatientCount("0");
       setValidatedMeta(null);
     }
+  }
+
+  async function resolveOutTypeId() {
+    const transactionTypeResponse = await sdk.transactionTypes.list({ paginate: false, search: "OUT", sortBy: "name", sortDir: "ASC" });
+    const outTypeId = transactionTypeResponse.data.find((row) => row.name.toUpperCase() === "OUT")?.id;
+    if (!outTypeId) {
+      throw new Error("Tipe transaksi OUT tidak ditemukan.");
+    }
+    return outTypeId;
+  }
+
+  async function getLatestBasahTransaction(
+    serviceDateValue: string,
+    outTypeId: number,
+  ): Promise<SavedBasahTransaction | null> {
+    const transactions = await listAllPaginatedRows<Awaited<ReturnType<typeof sdk.stockTransactions.list>>["data"][number]>(
+      sdk.stockTransactions.list.bind(sdk.stockTransactions),
+      {
+        type_id: outTypeId,
+        transaction_date_from: serviceDateValue,
+        transaction_date_to: serviceDateValue,
+        sortBy: "created_at",
+        sortDir: "DESC",
+      },
+      100,
+    );
+
+    for (const transaction of transactions) {
+      if (String(transaction.transaction_date ?? "").slice(0, 10) !== serviceDateValue) {
+        continue;
+      }
+
+      const detailResponse = await sdk.stockTransactions.details(transaction.id);
+      const basahRows = detailResponse.data
+        .filter((row) => includesCategoryKeyword(row.item_category_name ?? "", ["basah"]))
+        .map((row) => ({
+          id: row.id,
+          item_id: row.item_id,
+          item_name: row.item_name ?? `Item #${row.item_id}`,
+          unit: row.satuan ?? "-",
+          qty_spk: Number(row.qty ?? 0),
+          qty_actual: String(Number(row.qty ?? 0)),
+          locked: true,
+        }));
+
+      if (basahRows.length > 0) {
+        return {
+          transactionId: transaction.id,
+          submittedAt: transaction.created_at ?? new Date().toISOString(),
+          rows: basahRows,
+        };
+      }
+    }
+
+    return null;
   }
 
   return (

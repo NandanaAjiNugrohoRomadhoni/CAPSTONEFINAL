@@ -16,11 +16,11 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
     use FeatureTestTrait;
     use DatabaseTestTrait;
 
-    protected $DBGroup     = 'tests';
-    protected $migrate     = true;
+    protected $DBGroup = 'tests';
+    protected $migrate = true;
     protected $migrateOnce = false;
-    protected $refresh     = true;
-    protected $namespace   = 'App';
+    protected $refresh = true;
+    protected $namespace = 'App';
 
     protected function setUp(): void
     {
@@ -43,20 +43,18 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
         $db = Database::connect();
         $dapurToken = $this->login('dapur');
         $gudangToken = $this->login('gudang');
-        $date = '2026-03-15';
+        $date = '2026-03-14';
 
         // 1. Seed 100 patients for a specific date.
         $this->withHeaders(['Authorization' => 'Bearer ' . $gudangToken])
             ->withBodyFormat('json')
             ->post('api/v1/daily-patients', [
-                'service_date'   => $date,
+                'service_date' => $date,
                 'total_patients' => 100,
             ])
             ->assertStatus(201);
 
-        // 2. Assign 2 menus to that date in the schedule.
-        // We use day 15 because the date is 2026-03-15.
-        // And day 16 because BASAH SPK calculates for H+1 as well.
+        // 2. Assign menus for generated target dates (H+1 and H+2).
         $db->table('menu_schedules')->insertBatch([
             ['day_of_month' => 15, 'menu_id' => 1],
             ['day_of_month' => 15, 'menu_id' => 2],
@@ -84,13 +82,13 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
 
         $recommendation = $db->table('spk_recommendations')
             ->where('spk_id', $spkId)
-            ->where('target_date', $date)
+            ->where('target_date', '2026-03-15')
             ->where('item_id', 1)
             ->get()
             ->getRowArray();
 
         $this->assertNotNull($recommendation, 'Recommendation for item 1 on target date should exist');
-        
+
         // Use number_format to avoid float precision issues in comparison
         $actualQty = number_format((float) $recommendation['required_qty'], 2, '.', '');
         $this->assertSame('525.00', $actualQty, 'Required quantity should be additive (105 patients * (2.0 + 3.0) qty)');
@@ -108,7 +106,7 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
 
     protected function seedUsers(): void
     {
-        $roleModel    = new RoleModel();
+        $roleModel = new RoleModel();
         $userProvider = new AppUserProvider();
 
         foreach ([
@@ -119,12 +117,12 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
             $role = $roleModel->findByName($userData['role']);
 
             $user = new User([
-                'role_id'   => $role['id'],
-                'name'      => $userData['name'],
-                'username'  => $userData['username'],
-                'email'     => $userData['email'],
+                'role_id' => $role['id'],
+                'name' => $userData['name'],
+                'username' => $userData['username'],
+                'email' => $userData['email'],
                 'is_active' => true,
-                'active'    => true,
+                'active' => true,
             ]);
             $user->fill(['password' => 'password123']);
             $userProvider->insert($user, true);
@@ -145,16 +143,16 @@ class AdditiveMultiMenuTest extends CIUnitTestCase
         ]);
 
         $db->table('items')->insert([
-            'id'                    => 1,
-            'item_category_id'      => 1,
-            'name'                  => 'Ayam Basah',
-            'unit_base'             => 'gram',
-            'unit_convert'          => 'kg',
-            'item_unit_base_id'     => 1,
-            'item_unit_convert_id'  => 2,
-            'conversion_base'       => 1000,
-            'is_active'             => true,
-            'qty'                   => 0,
+            'id' => 1,
+            'item_category_id' => 1,
+            'name' => 'Ayam Basah',
+            'unit_base' => 'gram',
+            'unit_convert' => 'kg',
+            'item_unit_base_id' => 1,
+            'item_unit_convert_id' => 2,
+            'conversion_base' => 1000,
+            'is_active' => true,
+            'qty' => 0,
         ]);
 
         $db->table('dishes')->insertBatch([

@@ -11,7 +11,7 @@ class MenuFoundationsTest extends CIUnitTestCase
 {
     public function testMenuPackagesAreStableFromOneToEleven(): void
     {
-        $catalog  = new MenuPackageCatalog();
+        $catalog = new MenuPackageCatalog();
         $packages = $catalog->packageMap();
 
         $this->assertCount(11, $packages);
@@ -41,12 +41,12 @@ class MenuFoundationsTest extends CIUnitTestCase
         $resolver = new MenuCalendarContract();
 
         $this->assertSame(1, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-01')));
-        $this->assertSame(11, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-11')));
-        $this->assertSame(10, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-21')));
+        $this->assertSame(1, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-11')));
+        $this->assertSame(1, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-21')));
 
         $this->assertSame(10, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-10')));
-        $this->assertSame(9, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-20')));
-        $this->assertSame(8, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-30')));
+        $this->assertSame(10, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-20')));
+        $this->assertSame(10, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-30')));
 
         $this->assertSame(11, $resolver->resolvePackageId(new DateTimeImmutable('2026-03-31')));
         $this->assertSame(9, $resolver->resolvePackageId(new DateTimeImmutable('2024-02-29')));
