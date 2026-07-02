@@ -199,7 +199,7 @@ async function loadAvailableItems() {
     id: Number(item.id),
     name: item.name,
     unit_base: item.unit_base,
-    unit_convert: item.unit_convert ?? item.unit_base,
+    unit_convert: item.unit_base,
   })) satisfies ItemRecord[];
 }
 
@@ -315,16 +315,16 @@ export default function AdminMenuManagementPage() {
           item_id: itemId,
           qty_per_patient: composition.qty_per_patient,
           unit_convert:
-            relatedItem?.unit_convert ??
-            compositionItem?.unit_convert ??
             relatedItem?.unit_base ??
             compositionItem?.unit_base ??
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
             undefined,
           unit:
-            relatedItem?.unit_convert ??
-            compositionItem?.unit_convert ??
             relatedItem?.unit_base ??
             compositionItem?.unit_base ??
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
             undefined,
         });
         compositionMap.set(dishId, group);
@@ -369,7 +369,7 @@ export default function AdminMenuManagementPage() {
       items.map((item) => ({
         id: item.id,
         label: item.name,
-        unit: item.unit_convert,
+        unit: item.unit_base,
       })),
     [items],
   );
@@ -426,16 +426,16 @@ export default function AdminMenuManagementPage() {
           // Backend item payload can include unit_convert even when the generated type omits it.
           // Use a narrow local cast so the UI can prefer the smallest unit without changing API shape.
           unit_convert:
-            relatedItem?.unit_convert ??
-            compositionItem?.unit_convert ??
             relatedItem?.unit_base ??
             compositionItem?.unit_base ??
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
             undefined,
           unit:
-            relatedItem?.unit_convert ??
-            compositionItem?.unit_convert ??
             relatedItem?.unit_base ??
             compositionItem?.unit_base ??
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
             undefined,
         };
       });

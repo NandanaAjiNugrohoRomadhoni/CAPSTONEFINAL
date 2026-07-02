@@ -38,6 +38,20 @@ type SearchableItemSelectProps = {
   onChange: (itemId: number | null, unit?: string) => void;
 };
 
+function formatCurrentStock(item: ItemRow | undefined) {
+  if (!item) return "-";
+
+  const qty = Number(item.qty ?? 0);
+  if (!Number.isFinite(qty)) return "-";
+
+  const unit = item.item_unit_base?.name ?? item.unit_base ?? "-";
+  const formattedQty = new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 2,
+  }).format(qty);
+
+  return `${formattedQty} ${unit}`.trim();
+}
+
 
 export default function BarangMasukPage() {
   const [activeTab, setActiveTab] = useState<"basah" | "kering">("basah");
@@ -355,9 +369,10 @@ export default function BarangMasukPage() {
               <div className="bg-[#F1F5F9] px-4 py-3 text-xs font-semibold text-gray-500">
                 DAFTAR BARANG MASUK
               </div>
-              <div className="grid grid-cols-11 border-t px-4 py-2 text-xs text-gray-400">
+              <div className="grid grid-cols-12 border-t px-4 py-2 text-xs text-gray-400">
                 <div className="col-span-1">ID</div>
-                <div className="col-span-4">Nama Bahan</div>
+                <div className="col-span-3">Nama Bahan</div>
+                <div className="col-span-2">Stok Saat Ini</div>
                 <div className="col-span-2">Qty SPK</div>
                 <div className="col-span-2">Qty Faktual</div>
                 <div className="col-span-1">Satuan</div>
@@ -365,14 +380,16 @@ export default function BarangMasukPage() {
               </div>
 
               {rows.map((row) => {
+                const selectedItem = row.item_id ? itemMap.get(row.item_id) : undefined;
+
                 return (
-                  <div key={row.id} className="grid grid-cols-11 items-center gap-3 border-t px-4 py-3">
+                  <div key={row.id} className="grid grid-cols-12 items-center gap-3 border-t px-4 py-3">
                     <div className="col-span-1 text-sm font-medium text-gray-500">
                       {row.item_id ? `IT-${String(row.item_id).padStart(3, "0")}` : "-"}
                     </div>
 
                     <CommonSearchableItemSelect
-                      className="col-span-4"
+                      className="col-span-3"
                       options={filteredItemOptions}
                       value={row.item_id}
                       placeholder="Pilih Nama Bahan"
@@ -392,6 +409,7 @@ export default function BarangMasukPage() {
                         )
                       }}
                     />
+                    <div className="col-span-2 text-sm text-gray-600">{formatCurrentStock(selectedItem)}</div>
                     <div className="col-span-2 text-sm text-gray-600">{row.qty_spk >= 0 ? row.qty_spk : "-"}</div>
 
                     <div className="col-span-2 flex items-center gap-2">

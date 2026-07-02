@@ -62,6 +62,20 @@ type SearchableItemSelectProps = {
   onChange: (itemId: number | null, unit?: string) => void;
 };
 
+function formatCurrentStock(item: ItemRow | undefined) {
+  if (!item) return "-";
+
+  const qty = Number(item.qty ?? 0);
+  if (!Number.isFinite(qty)) return "-";
+
+  const unit = item.item_unit_base?.name ?? item.unit_base ?? "-";
+  const formattedQty = new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 2,
+  }).format(qty);
+
+  return `${formattedQty} ${unit}`.trim();
+}
+
 const MEAL_PRIORITY = ["SIANG", "SORE", "PAGI"];
 
 export default function BarangKeluarPage() {
@@ -533,11 +547,8 @@ export default function BarangKeluarPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-[22px] font-semibold text-gray-900">Barang Keluar</h1>
-          <p className="text-sm text-gray-400">
-            Bahan basah dihitung berdasarkan jumlah pasien hari ini, sedangkan bahan kering & pengemas diinput secara manual.
-          </p>
+          <p className="text-sm text-gray-400">Bahan basah dihitung berdasarkan jumlah pasien hari ini.</p>
         </div>
-
         <div className="flex gap-10 border-b border-gray-200">
           <button
             onClick={() => setActiveTab("basah")}
@@ -600,8 +611,9 @@ export default function BarangKeluarPage() {
               <div className="overflow-visible rounded-2xl border border-gray-200">
                 <div className="bg-[#F1F5F9] px-4 py-3 text-xs font-semibold text-gray-500">DAFTAR BAHAN BASAH</div>
                 <div className="grid grid-cols-12 border-t px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  <div className="col-span-2">ID</div>
-                  <div className="col-span-4">Nama Bahan</div>
+                  <div className="col-span-1">ID</div>
+                  <div className="col-span-3">Nama Bahan</div>
+                  <div className="col-span-2">Stok Saat Ini</div>
                   <div className="col-span-2">Qty SPK</div>
                   <div className="col-span-2">Qty Faktual</div>
                   <div className="col-span-1">Satuan</div>
@@ -611,7 +623,7 @@ export default function BarangKeluarPage() {
                 {validatedRows.length > 0 ? (
                   validatedRows.map((row) => (
                     <div key={row.id} className="grid grid-cols-12 items-center gap-4 border-t px-5 py-4">
-                      <div className="col-span-2 text-base font-medium text-gray-500">
+                    <div className="col-span-1 text-base font-medium text-gray-500">
                         {row.item_id ? `IT-${String(row.item_id).padStart(3, "0")}` : "-"}
                       </div>
                       <CommonSearchableItemSelect
@@ -619,7 +631,7 @@ export default function BarangKeluarPage() {
                         value={row.item_id || null}
                         placeholder="Pilih Nama Bahan"
                         displayValue={row.item_name}
-                        className="col-span-4"
+                        className="col-span-3"
                         disabled={basahTableLocked || Boolean(row.locked)}
                         onChange={(nextId, unit) =>
                           (savedRecommendation?.submittedAt || savedRecommendation?.submitted)
@@ -638,6 +650,9 @@ export default function BarangKeluarPage() {
                               )
                         }
                       />
+                      <div className="col-span-2 text-base font-medium text-gray-600">
+                        {formatCurrentStock(row.item_id ? itemMap.get(row.item_id) : undefined)}
+                      </div>
                       <div className="col-span-2 text-base font-medium text-gray-600">{row.qty_spk}</div>
                       <input
                         type="number"
@@ -766,16 +781,17 @@ export default function BarangKeluarPage() {
               <div className="overflow-visible rounded-xl border border-gray-200">
                 <div className="bg-[#F1F5F9] px-4 py-3 text-xs font-semibold text-gray-500">DAFTAR BARANG</div>
                 <div className="grid grid-cols-12 border-t px-4 py-2 text-xs text-gray-400">
-                  <div className="col-span-5">Nama Bahan</div>
+                  <div className="col-span-4">Nama Bahan</div>
+                  <div className="col-span-2">Stok Saat Ini</div>
                   <div className="col-span-3">Jumlah</div>
-                  <div className="col-span-3">Satuan</div>
+                  <div className="col-span-2">Satuan</div>
                   <div className="col-span-1" />
                 </div>
 
                 {rows.map((row) => (
                   <div key={row.id} className="grid grid-cols-12 items-center gap-3 border-t px-4 py-3">
-      <CommonSearchableItemSelect
-                      className="col-span-5"
+                    <CommonSearchableItemSelect
+                      className="col-span-4"
                       options={keringItemOptions}
                       value={row.item_id}
                       placeholder="Pilih Nama Bahan"
@@ -787,9 +803,7 @@ export default function BarangKeluarPage() {
                               ? {
                                   ...item,
                                   item_id: nextId,
-                                  item_name: nextId
-                                    ? keringItemOptions.find((option) => option.id === nextId)?.label ?? ""
-                                    : "",
+                                  item_name: nextId ? keringItemOptions.find((option) => option.id === nextId)?.label ?? "" : "",
                                   unit: unit ?? "-",
                                 }
                               : item,
@@ -797,6 +811,10 @@ export default function BarangKeluarPage() {
                         );
                       }}
                     />
+
+                    <div className="col-span-2 text-sm font-medium text-gray-600">
+                      {formatCurrentStock(row.item_id ? itemMap.get(row.item_id) : undefined)}
+                    </div>
 
                     <input
                       type="number"
@@ -813,7 +831,7 @@ export default function BarangKeluarPage() {
 
                     <input
                       disabled
-                      className="col-span-3 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm"
+                      className="col-span-2 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm"
                       value={row.unit}
                     />
 
@@ -882,12 +900,12 @@ export default function BarangKeluarPage() {
         saving={saving}
       />
 
-        <ConfirmDrySaveModal
-          open={confirmDrySaveOpen}
-          onClose={() => setConfirmDrySaveOpen(false)}
-          onConfirm={() => void saveDryOutput()}
-          saving={saving}
-        />
+      <ConfirmDrySaveModal
+        open={confirmDrySaveOpen}
+        onClose={() => setConfirmDrySaveOpen(false)}
+        onConfirm={() => void saveDryOutput()}
+        saving={saving}
+      />
 
       <AlertModal open={alertState !== null} config={alertState} onClose={() => setAlertState(null)} />
 

@@ -210,7 +210,7 @@ async function loadAvailableItems(
     id: Number(item.id),
     name: item.name,
     unit_base: item.unit_base,
-    unit_convert: item.unit_convert ?? item.unit_base,
+    unit_convert: item.unit_base,
   })) satisfies ItemRecord[];
 }
 
@@ -320,10 +320,10 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
               item_id: comp.item_id,
               qty_per_patient: comp.qty_per_patient,
               unit:
-                relatedItem?.unit_convert ??
-                compositionItem?.unit_convert ??
                 relatedItem?.unit_base ??
                 compositionItem?.unit_base ??
+                relatedItem?.unit_convert ??
+                compositionItem?.unit_convert ??
                 undefined,
             };
           });
@@ -387,7 +387,7 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
       items.map((item) => ({
         id: item.id,
         label: item.name,
-        unit: item.unit_convert,
+        unit: item.unit_base,
       })),
     [items],
   );
@@ -440,10 +440,10 @@ export default function MenuManagementPage({ mode }: Readonly<MenuManagementPage
           item_id: comp.item_id,
           qty_per_patient: comp.qty_per_patient,
           unit:
-            relatedItem?.unit_convert ??
-            compositionItem?.unit_convert ??
             relatedItem?.unit_base ??
             compositionItem?.unit_base ??
+            relatedItem?.unit_convert ??
+            compositionItem?.unit_convert ??
             undefined,
         };
       });
