@@ -184,21 +184,20 @@ class SpkBasahTest extends CIUnitTestCase
         $this->assertSame('2026-04-02', $details[1]['target_date']);
     }
 
-    public function testGenerateRejectsOddNonSpecialServiceDate(): void
+    public function testGenerateSucceedsOnOddDaySinceGenapConstraintRemoved(): void
     {
         $token = $this->login('dapur');
+        $writeToken = $this->login('gudang');
+
+        $this->createDailyPatient($writeToken, '2026-03-01', 100);
 
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
             ->withBodyFormat('json')
             ->post('api/v1/spk/basah/generate', [
-                'service_date' => '2026-03-11',
+                'service_date' => '2026-03-01',
             ]);
 
-        $response->assertStatus(400);
-        $response->assertJSONFragment(['message' => 'Validation failed.']);
-
-        $json = json_decode($response->getJSON(), true);
-        $this->assertArrayHasKey('service_date', $json['errors']);
+        $response->assertStatus(201);
     }
 
     public function testDeactivatedDishNoLongerContributesToSpkBasahGeneration(): void

@@ -155,18 +155,6 @@ class SpkBasahGenerationService
                 ],
             ];
         }
-
-        $serviceDate = new DateTimeImmutable($payload['service_date']);
-        if (!$this->isAllowedBasahGenerationDate($serviceDate)) {
-            return [
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => [
-                    'service_date' => 'SPK basah generation is allowed on even days, or on special dates (31 and leap-year February 29).',
-                ],
-            ];
-        }
-
         return [
             'success' => true,
             'service_date' => $payload['service_date'],
@@ -194,23 +182,13 @@ class SpkBasahGenerationService
             return [$requestedDate->modify('+1 day')->format('Y-m-d')];
         }
 
-        if ($day % 2 === 0 || $day === 31 || ($month === 2 && $day === 29)) {
-            return [
-                $requestedDate->modify('+1 day')->format('Y-m-d'),
-                $requestedDate->modify('+2 day')->format('Y-m-d'),
-            ];
-        }
+        return [
+            $requestedDate->modify('+1 day')->format('Y-m-d'),
+            $requestedDate->modify('+2 day')->format('Y-m-d'),
+        ];
 
-        throw new InvalidArgumentException('The selected service_date is not a valid SPK basah generation date.');
     }
 
-    private function isAllowedBasahGenerationDate(DateTimeImmutable $requestedDate): bool
-    {
-        $day = (int) $requestedDate->format('j');
-        $month = (int) $requestedDate->format('n');
-
-        return $day % 2 === 0 || $day === 31 || ($month === 2 && $day === 29);
-    }
 
     private function buildPerDateRequirements(array $targetDates, int $estimatedPatients, int $basahCategoryId): array
     {
