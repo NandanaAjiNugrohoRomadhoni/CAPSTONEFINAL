@@ -14,6 +14,7 @@ import SuccessModal from "@/components/feedback/SuccessModal";
 import { PrimaryAction, SurfaceCard } from "@/components/admin/ui";
 import { getRoleLabel, useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
+import sdk from "@/lib";
 
 type SuccessState = {
   headline: string;
@@ -54,44 +55,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function changeOwnPassword(params: {
-  accessToken: string;
-  currentPassword: string;
-  password: string;
-}): Promise<void> {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080"}/api/v1/auth/password`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${params.accessToken}`,
-      },
-      body: JSON.stringify({
-        current_password: params.currentPassword,
-        password: params.password,
-      }),
-    },
-  );
 
-  if (!response.ok) {
-    let message = "Gagal mengubah password.";
-
-    try {
-      const body = (await response.json()) as {
-        message?: string;
-        errors?: Record<string, string>;
-      };
-
-      const firstError = body.errors ? Object.values(body.errors)[0] : null;
-      message = typeof firstError === "string" ? firstError : body.message ?? message;
-    } catch {
-      // Ignore JSON parsing failures and keep fallback message.
-    }
-
-    throw new Error(message);
-  }
-}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -146,9 +110,8 @@ export default function ProfilePage() {
     setPasswordError(null);
 
     try {
-      await changeOwnPassword({
-        accessToken,
-        currentPassword: currentPassword.trim(),
+      await sdk.auth.changePassword({
+        current_password: currentPassword.trim(),
         password: newPassword.trim(),
       });
       setCurrentPassword("");
